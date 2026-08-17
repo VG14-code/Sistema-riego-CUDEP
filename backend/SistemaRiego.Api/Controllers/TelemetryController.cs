@@ -76,7 +76,7 @@ public sealed class TelemetryController(AppDbContext db, ITelemetryIngestionServ
         var device = await db.IoTDevices.AsNoTracking().Where(x => x.Id == request.DeviceId && x.IsActive)
             .Select(x => new { x.Id, x.Code }).SingleOrDefaultAsync(cancellationToken);
         if (device is null) return BadRequest(new { message = "Dispositivo no disponible." });
-        var zoneCode = await db.IrrigationZones.AsNoTracking().Where(x => x.ValveDeviceId == request.DeviceId && x.IsActive)
+        var zoneCode = await db.IrrigationZones.AsNoTracking().Where(x => (x.ValveDeviceId == request.DeviceId || x.Valves.Any(v => v.DeviceId == request.DeviceId)) && x.IsActive)
             .Select(x => x.Code).SingleOrDefaultAsync(cancellationToken) ?? device.Code;
         var command = new IoTCommand
         {
@@ -88,7 +88,8 @@ public sealed class TelemetryController(AppDbContext db, ITelemetryIngestionServ
         db.Add(command);
         db.AccessAudits.Add(new AccessAudit { UserId = CurrentUserId(), EventType = "IOT_COMMAND_REQUESTED", Detail = $"{command.CommandType}:{command.DeviceId}" });
         await db.SaveChangesAsync(cancellationToken);
-        await mqtt.PublishCommandAsync(zoneCode, command.DeviceId, new { command.Id, command.CommandType, command.Payload }, cancellationToken);
+        await mqtt.PublishCommandAsync(zoneCode, command.DeviceId, new { commandId = command.Id, commandType = command.CommandType, payload = command.Payload }, cancellationToken);
+        command.Status = "Publicado"; await db.SaveChangesAsync(cancellationToken);
         return Ok(command);
     }
 

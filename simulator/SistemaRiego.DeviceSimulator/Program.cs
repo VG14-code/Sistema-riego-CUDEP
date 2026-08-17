@@ -18,13 +18,23 @@ var options = new MqttClientOptionsBuilder()
     .WithCredentials(config.Username, mqttPassword)
     .WithCleanSession()
     .Build();
+var valveStates = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 client.ApplicationMessageReceivedAsync += async message =>
 {
     if (!message.ApplicationMessage.Topic.EndsWith("/comando", StringComparison.Ordinal)) return;
-    var command = message.ApplicationMessage.ConvertPayloadToString();
+    var payload = message.ApplicationMessage.ConvertPayloadToString();
+    using var document = JsonDocument.Parse(payload);
+    var root = document.RootElement;
+    var commandId = root.TryGetProperty("commandId", out var idValue) && Guid.TryParse(idValue.ToString(), out var parsedId) ? parsedId : (Guid?)null;
+    var commandType = root.TryGetProperty("commandType", out var typeValue) ? typeValue.GetString() ?? string.Empty : payload;
+    var segments = message.ApplicationMessage.Topic.Split('/');
+    var deviceId = segments.Length > 3 ? segments[3] : "unknown";
+    if (commandType.Contains("ABRIR", StringComparison.OrdinalIgnoreCase)) valveStates[deviceId] = true;
+    else if (commandType.Contains("CERRAR", StringComparison.OrdinalIgnoreCase)) valveStates[deviceId] = false;
+    var isOpen = valveStates.GetValueOrDefault(deviceId);
     await Task.Delay(config.AckDelayMilliseconds);
     var ackTopic = message.ApplicationMessage.Topic[..^"/comando".Length] + "/ack";
-    var ack = JsonSerializer.Serialize(new { status = CommandStatus(command), command, acknowledgedAtUtc = DateTime.UtcNow }, JsonOptions());
+    var ack = JsonSerializer.Serialize(new { commandId, commandType, status = isOpen ? "válvula abierta" : "válvula cerrada", isOpen, acknowledgedAtUtc = DateTime.UtcNow }, JsonOptions());
     await client.PublishAsync(new MqttApplicationMessageBuilder().WithTopic(ackTopic).WithPayload(ack)
         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce).Build());
     Console.WriteLine($"ACK {ackTopic}: {ack}");
@@ -74,7 +84,6 @@ finally
 }
 
 static JsonSerializerOptions JsonOptions() => new(JsonSerializerDefaults.Web) { WriteIndented = false, PropertyNameCaseInsensitive = true };
-static string CommandStatus(string payload) => payload.Contains("cerr", StringComparison.OrdinalIgnoreCase) ? "válvula cerrada" : "válvula abierta";
 
 sealed record SimulatorConfig(string BrokerHost, int BrokerPort, string ClientId, string Username, string Password, int IntervalSeconds, int AckDelayMilliseconds, int RandomSeed, IReadOnlyList<ZoneConfig> Zones);
 sealed record ZoneConfig(string Code, string TopicKey, IReadOnlyList<SensorConfig> Sensors);

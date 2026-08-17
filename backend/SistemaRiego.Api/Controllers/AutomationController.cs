@@ -10,7 +10,7 @@ using SistemaRiego.Api.Services;
 namespace SistemaRiego.Api.Controllers;
 
 [ApiController, Route("api/automation"), Authorize(Policy=Policies.Operator)]
-public sealed class AutomationController(AppDbContext db, ITotpService? totp = null) : ControllerBase
+public sealed class AutomationController(AppDbContext db, ITotpService? totp = null, IAutomationEngine? engine = null) : ControllerBase
 {
     [HttpGet("rules")]
     public async Task<ActionResult> Rules(CancellationToken ct) => Ok(await db.IrrigationRules.AsNoTracking().Include(x=>x.IrrigationZone).OrderBy(x=>x.Priority).Select(x=>new {
@@ -44,6 +44,7 @@ public sealed class AutomationController(AppDbContext db, ITotpService? totp = n
     [HttpPost("evaluate")]
     public async Task<ActionResult> Evaluate(CancellationToken ct)
     {
+        if (engine is not null) return Ok(await engine.EvaluateAsync(ct));
         var now=DateTime.UtcNow; var time=TimeOnly.FromDateTime(now.ToLocalTime()); var day=((int)now.ToLocalTime().DayOfWeek+6)%7+1;
         var rules=await db.IrrigationRules.Include(x=>x.IrrigationZone).Where(x=>x.IsEnabled).OrderBy(x=>x.Priority).ToListAsync(ct);
         var results=new List<object>();
@@ -66,7 +67,7 @@ public sealed class AutomationController(AppDbContext db, ITotpService? totp = n
     }
 
     [HttpGet("active")]
-    public async Task<ActionResult> Active(CancellationToken ct)=>Ok(await db.IrrigationRuns.AsNoTracking().Include(x=>x.IrrigationZone).Where(x=>x.Status=="En curso").OrderByDescending(x=>x.StartedAtUtc).Select(x=>new{x.Id,x.Mode,x.Status,Zone=x.IrrigationZone.Name,x.PlannedDurationMinutes,x.FlowRateLitersMinute,x.StartedAtUtc,x.Reason}).ToListAsync(ct));
+    public async Task<ActionResult> Active(CancellationToken ct)=>Ok(await db.IrrigationRuns.AsNoTracking().Include(x=>x.IrrigationZone).Where(x=>x.Status=="En curso"||x.Status=="Esperando ACK"||x.Status=="Cierre pendiente").OrderByDescending(x=>x.StartedAtUtc).Select(x=>new{x.Id,x.Mode,x.Status,Zone=x.IrrigationZone.Name,x.PlannedDurationMinutes,x.FlowRateLitersMinute,x.StartedAtUtc,x.Reason}).ToListAsync(ct));
 
     private async Task Log(string type,string detail,CancellationToken ct){db.AccessAudits.Add(new AccessAudit{UserId=UserId(),EventType=type,Detail=detail,OccurredAtUtc=DateTime.UtcNow});await Task.CompletedTask;}
     private Guid? UserId()=>Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier),out var id)?id:null;

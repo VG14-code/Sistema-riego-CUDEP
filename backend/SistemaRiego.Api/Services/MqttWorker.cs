@@ -62,6 +62,8 @@ public sealed class MqttWorker(
                         .Build();
                     await client.SubscribeAsync(subscribe, stoppingToken);
                     logger.LogInformation("MQTT conectado a {Host}:{Port}; suscrito a {TelemetryTopic} y {AckTopic}", options.Host, options.Port, options.TelemetryTopic, options.AckTopic);
+                    using var reconcileScope = scopeFactory.CreateScope();
+                    await reconcileScope.ServiceProvider.GetRequiredService<IIrrigationCommandService>().ReconcileAsync(stoppingToken);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
@@ -112,23 +114,11 @@ public sealed class MqttWorker(
         var segments = args.ApplicationMessage.Topic.Split('/');
         if (segments.Length != 5 || !Guid.TryParse(segments[3], out var deviceId))
             throw new JsonException($"Tópico ACK inválido: {args.ApplicationMessage.Topic}.");
-
         using var scope = scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var command = await db.IoTCommands
-            .Where(x => x.DeviceId == deviceId && x.Status != "Confirmado")
-            .OrderByDescending(x => x.RequestedAtUtc)
-            .FirstOrDefaultAsync();
-        if (command is null)
-        {
-            logger.LogWarning("ACK sin comando pendiente en {Topic}: {Payload}", args.ApplicationMessage.Topic, args.ApplicationMessage.ConvertPayloadToString());
-            return;
-        }
-
-        command.Status = "Confirmado";
-        command.ConfirmedAtUtc = DateTime.UtcNow;
-        await db.SaveChangesAsync();
-        logger.LogInformation("ACK MQTT confirmó el comando {CommandId} en {Topic}: {Payload}", command.Id, args.ApplicationMessage.Topic, args.ApplicationMessage.ConvertPayloadToString());
+        var commandId = await scope.ServiceProvider.GetRequiredService<IrrigationAckService>()
+            .ProcessAsync(deviceId, args.ApplicationMessage.ConvertPayloadToString(), CancellationToken.None);
+        if (commandId is null) logger.LogWarning("ACK sin comando correlacionable en {Topic}: {Payload}", args.ApplicationMessage.Topic, args.ApplicationMessage.ConvertPayloadToString());
+        else logger.LogInformation("ACK MQTT confirmó el comando {CommandId} en {Topic}", commandId, args.ApplicationMessage.Topic);
     }
 
     public async Task PublishCommandAsync(string zone, Guid deviceId, object payload, CancellationToken cancellationToken)
