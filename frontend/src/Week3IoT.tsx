@@ -1,0 +1,89 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- TODO: retirar al completar el tipado heredado.
+// @ts-nocheck
+// TODO: tipar contratos heredados de API, props y estado antes de retirar esta supresión.
+/* eslint-disable react-hooks/exhaustive-deps */
+import { useEffect, useMemo, useState } from 'react'
+import { week3Api as api } from './week3Api'
+
+const tabs = [
+  ['network', 'Red en campo', '◉'],
+  ['sensors', 'Sensores', '⌁'],
+  ['devices', 'Dispositivos', '▣'],
+  ['nodes', 'Nodos', '⬡'],
+  ['calibrations', 'Calibración', '◎'],
+]
+
+const empty = {
+  node: { code:'', name:'', location:'', ipAddress:'', macAddress:'', communicationProtocol:'HTTP', firmwareVersion:'1.0.0', operationalStatusId:'', isActive:true },
+  device: { code:'', name:'', serialNumber:'', manufacturer:'', model:'', installationLocation:'', installationDate:new Date().toISOString().slice(0,10), deviceTypeId:'', operationalStatusId:'', nodeId:'', isActive:true },
+  sensor: { code:'', name:'', serialNumber:'', model:'RK520-02', channel:'RS485-1', minimumValue:0, maximumValue:100, calibrationOffset:0, sensorTypeId:'', measurementUnitId:'', operationalStatusId:'', deviceId:'', isActive:true },
+  calibration: { sensorId:'', referenceValue:50, measuredValue:50, notes:'' },
+}
+
+const statusClass = value => value?.toLowerCase().includes('activo') ? 'online' : value?.toLowerCase().includes('conex') ? 'offline' : 'warning'
+
+function Kpis({ summary }) {
+  const items = [
+    ['Nodos conectados', summary.nodes, 'Red central', 'node'],
+    ['Dispositivos', summary.devices, 'Equipos registrados', 'device'],
+    ['Sensores activos', summary.activeSensors, `${summary.sensors} instalados`, 'sensor'],
+    ['Calibrados', summary.calibratedSensors, 'Lecturas confiables', 'calibration'],
+  ]
+  return <div className="iot-kpis">{items.map(([label,value,detail,type])=><article key={label} className={`iot-kpi ${type}`}><span className="iot-kpi-icon">{type==='sensor'?'⌁':type==='calibration'?'✓':type==='node'?'⬡':'▣'}</span><div><small>{label}</small><strong>{value}</strong><p>{detail}</p></div></article>)}</div>
+}
+
+function Network({ nodes, devices, sensors }) {
+  const gateway = nodes[0]
+  return <section className="iot-network" aria-label="Mapa de conexión IoT">
+    <div className="iot-network-head"><div><span className="iot-live"><i/> RED ACTIVA</span><h2>Del suelo a una decisión de riego</h2><p>Las sondas RK520-02 transmiten humedad y temperatura hacia el Raspberry Pi 4 para reducir el uso innecesario de agua.</p></div><div className="iot-signal"><b>{sensors.filter(x=>x.isActive).length}</b><small>señales disponibles</small></div></div>
+    <div className="iot-map">
+      <div className="iot-water-flow" aria-hidden="true"><i/><i/><i/><i/></div>
+      <article className="iot-hub"><div className="iot-radar"><span>⬡</span><i/><i/><i/></div><small>NODO CENTRAL</small><h3>{gateway?.name??'Raspberry Pi 4'}</h3><p>{gateway?.ipAddress??'Pendiente de configurar'}</p><span className={`iot-state ${statusClass(gateway?.operationalStatus)}`}>{gateway?.operationalStatus??'Sin registrar'}</span></article>
+      <div className="iot-branches">{devices.map((device,index)=><article className="iot-device-node" key={device.id} style={{'--delay':`${index*.16}s`}}><span className="iot-device-pulse">{device.deviceType?.includes('Raspberry')?'R':'S'}</span><div><small>{device.deviceType}</small><h4>{device.name}</h4><p>{device.installationLocation??'Ubicación pendiente'}</p><span className={`iot-state ${statusClass(device.operationalStatus)}`}>{device.operationalStatus}</span></div><b>{device.sensorCount} sensores</b></article>)}</div>
+    </div>
+    <div className="iot-sensor-ribbon">{sensors.map(sensor=><div key={sensor.id}><span className={`iot-sensor-dot ${sensor.isActive?'active':''}`}/><p><b>{sensor.name}</b><small>{sensor.model} · {sensor.channel}</small></p><em>{sensor.unitSymbol??sensor.measurementUnit}</em></div>)}</div>
+  </section>
+}
+
+function Toolbar({ label, canEdit, onNew, count }) {
+  return <div className="iot-toolbar"><div><span>{count}</span><p><b>{label}</b><small>Inventario actualizado</small></p></div>{canEdit&&<button onClick={onNew}><b>＋</b> Nuevo registro</button>}</div>
+}
+
+function SensorGrid({ items, canEdit, onEdit, onDeactivate }) {
+  return <div className="iot-grid">{items.map(item=><article className={`iot-sensor-card ${!item.isActive?'disabled':''}`} key={item.id}><header><span className="iot-drop">⌁</span><span className={`iot-state ${statusClass(item.operationalStatus)}`}>{item.isActive?item.operationalStatus:'Inactivo'}</span></header><small>{item.code}</small><h3>{item.name}</h3><p>{item.model} · {item.channel??'Canal no definido'}</p><div className="iot-range"><span style={{width:`${Math.min(100,Math.max(8,(Number(item.calibrationOffset)+10)*5))}%`}}/><small>{item.minimumValue} – {item.maximumValue} {item.unitSymbol}</small></div><dl><div><dt>Asignado a</dt><dd>{item.deviceName??'Sin asignar'}</dd></div><div><dt>Calibración</dt><dd>{item.lastCalibrationUtc?new Date(item.lastCalibrationUtc).toLocaleDateString('es-GT'):'Pendiente'}</dd></div></dl>{canEdit&&<footer><button onClick={()=>onEdit(item)}>Editar</button>{item.isActive&&<button className="danger" onClick={()=>onDeactivate(item)}>Desactivar</button>}</footer>}</article>)}</div>
+}
+
+function InventoryTable({ kind, items, canEdit, onEdit, onDeactivate }) {
+  const isNode = kind==='node'
+  return <div className="w2-table-card iot-table"><table><thead><tr><th>Código</th><th>Nombre</th><th>{isNode?'Conectividad':'Tipo y modelo'}</th><th>{isNode?'Ubicación':'Asignación'}</th><th>Estado</th>{canEdit&&<th>Acciones</th>}</tr></thead><tbody>{items.map(item=><tr key={item.id}><td><code>{item.code}</code></td><td><b>{item.name}</b><small>{isNode?item.firmwareVersion:item.serialNumber}</small></td><td>{isNode?<><b>{item.communicationProtocol}</b><small>{item.ipAddress??'IP pendiente'}</small></>:<><b>{item.deviceType}</b><small>{item.manufacturer} {item.model}</small></>}</td><td>{isNode?item.location:(item.nodeName??'Sin asignar')}</td><td><span className={`iot-state ${item.isActive?statusClass(item.operationalStatus):'offline'}`}>{item.isActive?item.operationalStatus:'Inactivo'}</span></td>{canEdit&&<td className="actions"><button className="edit" onClick={()=>onEdit(item)}>Editar</button>{item.isActive&&<button className="danger" onClick={()=>onDeactivate(item)}>Desactivar</button>}</td>}</tr>)}</tbody></table></div>
+}
+
+function CalibrationPanel({ sensors, calibrations, canEdit, onCreate }) {
+  const [form,setForm]=useState(empty.calibration)
+  const offset=(Number(form.referenceValue||0)-Number(form.measuredValue||0)).toFixed(2)
+  const submit=e=>{e.preventDefault();onCreate({...form,referenceValue:Number(form.referenceValue),measuredValue:Number(form.measuredValue)}).then(()=>setForm(empty.calibration))}
+  return <div className="iot-calibration"><section className="iot-calibrator"><span className="iot-orbit"><i/><i/><b>{offset}</b></span><div><p className="w2-kicker">AJUSTE DE PRECISIÓN</p><h2>Estación de calibración</h2><p>Compara una referencia controlada con la lectura del sensor. El sistema calcula y aplica automáticamente la corrección.</p></div>{canEdit&&<form onSubmit={submit}><label>Sensor<select required value={form.sensorId} onChange={e=>setForm({...form,sensorId:e.target.value})}><option value="">Seleccionar sensor</option>{sensors.filter(x=>x.isActive).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label>Valor de referencia<input type="number" step="0.01" value={form.referenceValue} onChange={e=>setForm({...form,referenceValue:e.target.value})}/></label><label>Valor medido<input type="number" step="0.01" value={form.measuredValue} onChange={e=>setForm({...form,measuredValue:e.target.value})}/></label><label className="wide">Observaciones<input value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Condiciones de la prueba"/></label><button>Aplicar calibración <span>→</span></button></form>}</section><section className="iot-calibration-list"><h3>Historial reciente</h3>{calibrations.map(item=><article key={item.id}><span>✓</span><div><b>{item.sensorName}</b><p>Referencia {item.referenceValue} · Medición {item.measuredValue}</p><small>{new Date(item.calibratedAtUtc).toLocaleString('es-GT')}</small></div><em>{item.appliedOffset>0?'+':''}{item.appliedOffset}</em></article>)}</section></div>
+}
+
+function Editor({ editor, catalogs, nodes, devices, onClose, onSave }) {
+  const [form,setForm]=useState(editor.data)
+  const set=(key,value)=>setForm({...form,[key]:value})
+  const title=editor.kind==='sensor'?'Sensor':editor.kind==='device'?'Dispositivo':'Nodo IoT'
+  const submit=e=>{e.preventDefault();onSave(editor.kind,editor.id,{...form,nodeId:form.nodeId||null,deviceId:form.deviceId||null,minimumValue:Number(form.minimumValue??0),maximumValue:Number(form.maximumValue??100),calibrationOffset:Number(form.calibrationOffset??0)})}
+  return <div className="iot-editor-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><aside className="iot-editor"><header><div><p className="w2-kicker">{editor.id?'EDITAR REGISTRO':'NUEVO REGISTRO'}</p><h2>{title}</h2></div><button type="button" onClick={onClose}>×</button></header><form onSubmit={submit}><label>Código<input required value={form.code} onChange={e=>set('code',e.target.value)} placeholder="EJ. HUM-SUELO-A1"/></label><label>Nombre<input required value={form.name} onChange={e=>set('name',e.target.value)}/></label>{editor.kind==='node'?<><label>Ubicación<input value={form.location??''} onChange={e=>set('location',e.target.value)}/></label><label>Dirección IP<input value={form.ipAddress??''} onChange={e=>set('ipAddress',e.target.value)} placeholder="192.168.1.50"/></label><label>Dirección MAC<input value={form.macAddress??''} onChange={e=>set('macAddress',e.target.value)}/></label><label>Protocolo<select value={form.communicationProtocol} onChange={e=>set('communicationProtocol',e.target.value)}><option>HTTP</option><option>MQTT</option><option>MODBUS</option></select></label><label>Firmware<input value={form.firmwareVersion??''} onChange={e=>set('firmwareVersion',e.target.value)}/></label></>:<><label>Número de serie<input required value={form.serialNumber} onChange={e=>set('serialNumber',e.target.value)}/></label><label>Modelo<input value={form.model??''} onChange={e=>set('model',e.target.value)}/></label></>}{editor.kind==='device'&&<><label>Fabricante<input value={form.manufacturer??''} onChange={e=>set('manufacturer',e.target.value)}/></label><label>Ubicación<input value={form.installationLocation??''} onChange={e=>set('installationLocation',e.target.value)}/></label><label>Fecha de instalación<input type="date" value={form.installationDate??''} onChange={e=>set('installationDate',e.target.value)}/></label><label>Tipo<select required value={form.deviceTypeId} onChange={e=>set('deviceTypeId',e.target.value)}><option value="">Seleccionar</option>{catalogs.deviceTypes.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label className="wide">Nodo asignado<select value={form.nodeId??''} onChange={e=>set('nodeId',e.target.value)}><option value="">Sin asignar</option>{nodes.filter(x=>x.isActive).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label></>}{editor.kind==='sensor'&&<><label>Canal<input value={form.channel??''} onChange={e=>set('channel',e.target.value)} placeholder="RS485-1"/></label><label>Tipo de sensor<select required value={form.sensorTypeId} onChange={e=>set('sensorTypeId',e.target.value)}><option value="">Seleccionar</option>{catalogs.sensorTypes.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label>Unidad<select required value={form.measurementUnitId} onChange={e=>set('measurementUnitId',e.target.value)}><option value="">Seleccionar</option>{catalogs.units.map(x=><option key={x.id} value={x.id}>{x.name} {x.symbol}</option>)}</select></label><label>Mínimo<input type="number" step="0.01" value={form.minimumValue} onChange={e=>set('minimumValue',e.target.value)}/></label><label>Máximo<input type="number" step="0.01" value={form.maximumValue} onChange={e=>set('maximumValue',e.target.value)}/></label><label>Corrección<input type="number" step="0.01" value={form.calibrationOffset} onChange={e=>set('calibrationOffset',e.target.value)}/></label><label className="wide">Dispositivo asignado<select value={form.deviceId??''} onChange={e=>set('deviceId',e.target.value)}><option value="">Sin asignar</option>{devices.filter(x=>x.isActive).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label></>}<label className="wide">Estado operativo<select required value={form.operationalStatusId} onChange={e=>set('operationalStatusId',e.target.value)}><option value="">Seleccionar estado</option>{catalogs.statuses.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><footer><button type="button" onClick={onClose}>Cancelar</button><button>Guardar {title.toLowerCase()} <span>→</span></button></footer></form></aside></div>
+}
+
+export default function Week3IoT({ session, notify }) {
+  const token=session.accessToken; const canEdit=session.user.roles.some(x=>x==='Administrador'||x==='Tecnico')
+  const [tab,setTab]=useState('network'); const [summary,setSummary]=useState({nodes:0,devices:0,sensors:0,activeSensors:0,offlineItems:0,calibratedSensors:0}); const [nodes,setNodes]=useState([]); const [devices,setDevices]=useState([]); const [sensors,setSensors]=useState([]); const [calibrations,setCalibrations]=useState([]); const [catalogs,setCatalogs]=useState({deviceTypes:[],sensorTypes:[],units:[],statuses:[]}); const [editor,setEditor]=useState(null); const [loading,setLoading]=useState(true)
+  const load=async()=>{const [sum,n,d,s,c,dt,st,u,os]=await Promise.all([api.summary(token),api.nodes(token),api.devices(token),api.sensors(token),api.calibrations(token),api.catalogs(token,'DeviceType'),api.catalogs(token,'SensorType'),api.catalogs(token,'MeasurementUnit'),api.catalogs(token,'OperationalStatus')]);setSummary(sum);setNodes(n);setDevices(d);setSensors(s);setCalibrations(c);setCatalogs({deviceTypes:dt,sensorTypes:st,units:u,statuses:os});setLoading(false)}
+  useEffect(()=>{load().catch(e=>{notify(e.message);setLoading(false)})},[])
+  const activeStatus=useMemo(()=>catalogs.statuses.find(x=>x.code==='ACTIVE')?.id??'',[catalogs])
+  const newItem=kind=>setEditor({kind,id:null,data:{...empty[kind],operationalStatusId:activeStatus}})
+  const editItem=(kind,item)=>setEditor({kind,id:item.id,data:{...item,nodeId:item.nodeId??'',deviceId:item.deviceId??''}})
+  const save=async(kind,id,data)=>{const method=id?(kind==='node'?'updateNode':kind==='device'?'updateDevice':'updateSensor'):(kind==='node'?'createNode':kind==='device'?'createDevice':'createSensor');await api[method](token,...(id?[id,data]:[data]));notify(`${kind==='sensor'?'Sensor':kind==='device'?'Dispositivo':'Nodo'} guardado correctamente.`);setEditor(null);await load()}
+  const deactivate=async(kind,item)=>{await api[kind==='sensor'?'deactivateSensor':kind==='device'?'deactivateDevice':'deactivateNode'](token,item.id);notify('Registro desactivado sin eliminar su historial.');await load()}
+  const calibrate=async data=>{await api.calibrate(token,data);notify('Calibración aplicada correctamente.');await load()}
+  if(loading)return <div className="iot-loading"><span/><p>Sincronizando la red IoT…</p></div>
+  return <><div className="w2-page-title iot-title"><div><p className="w2-kicker">SEMANA 3 · INFRAESTRUCTURA INTELIGENTE</p><h1>Sensores y dispositivos IoT</h1><p>Configura la red que convierte las condiciones del suelo en decisiones precisas para ahorrar agua.</p></div><span className={`iot-health ${summary.offlineItems?'attention':'healthy'}`}><i/>{summary.offlineItems?`${summary.offlineItems} equipos requieren atención`:'Infraestructura saludable'}</span></div><Kpis summary={summary}/><div className="iot-tabs">{tabs.map(([id,label,icon])=><button key={id} className={tab===id?'active':''} onClick={()=>setTab(id)}><span>{icon}</span>{label}</button>)}</div>{tab==='network'&&<Network nodes={nodes} devices={devices} sensors={sensors}/>} {tab==='sensors'&&<><Toolbar label="sensores" count={sensors.length} canEdit={canEdit} onNew={()=>newItem('sensor')}/><SensorGrid items={sensors} canEdit={canEdit} onEdit={x=>editItem('sensor',x)} onDeactivate={x=>deactivate('sensor',x).catch(e=>notify(e.message))}/></>} {tab==='devices'&&<><Toolbar label="dispositivos" count={devices.length} canEdit={canEdit} onNew={()=>newItem('device')}/><InventoryTable kind="device" items={devices} canEdit={canEdit} onEdit={x=>editItem('device',x)} onDeactivate={x=>deactivate('device',x).catch(e=>notify(e.message))}/></>} {tab==='nodes'&&<><Toolbar label="nodos" count={nodes.length} canEdit={canEdit} onNew={()=>newItem('node')}/><InventoryTable kind="node" items={nodes} canEdit={canEdit} onEdit={x=>editItem('node',x)} onDeactivate={x=>deactivate('node',x).catch(e=>notify(e.message))}/></>} {tab==='calibrations'&&<CalibrationPanel sensors={sensors} calibrations={calibrations} canEdit={canEdit} onCreate={data=>calibrate(data).catch(e=>notify(e.message))}/>} {editor&&<Editor editor={editor} catalogs={catalogs} nodes={nodes} devices={devices} onClose={()=>setEditor(null)} onSave={(...args)=>save(...args).catch(e=>notify(e.message))}/>}</>
+}

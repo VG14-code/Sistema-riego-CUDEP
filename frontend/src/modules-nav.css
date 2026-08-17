@@ -1,0 +1,1 @@
+.w2-app>aside>nav{min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#4b8277 transparent;padding-right:.2rem}.w2-app>aside>nav::-webkit-scrollbar{width:4px}.w2-app>aside>nav::-webkit-scrollbar-thumb{border-radius:99px;background:#4b8277}@media(max-width:900px){.w2-app>aside>nav{overflow-x:auto;overflow-y:hidden;padding-right:0}}

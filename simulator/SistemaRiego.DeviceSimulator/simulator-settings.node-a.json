@@ -1,0 +1,24 @@
+{
+  "brokerHost": "localhost",
+  "brokerPort": 1883,
+  "clientId": "esp32-virtual-cudep",
+  "username": "esp32-virtual-cudep",
+  "password": "",
+  "intervalSeconds": 5,
+  "ackDelayMilliseconds": 750,
+  "randomSeed": 1690,
+  "zones": [
+    {
+      "code": "ZONA-A1",
+      "topicKey": "zona-a1",
+      "sensors": [
+        {
+          "code": "HUM-SUELO-A1",
+          "minimum": 35,
+          "maximum": 75,
+          "maximumVariation": 1.5
+        }
+      ]
+    }
+  ]
+}

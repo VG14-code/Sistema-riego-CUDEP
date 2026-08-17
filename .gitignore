@@ -1,0 +1,56 @@
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# Node / React / Vite
+**/node_modules/
+**/dist/
+**/build/
+*.tsbuildinfo
+.vite/
+
+# Local configuration and secrets
+appsettings.Local.json
+appsettings.*.Local.json
+.env
+.env.*
+!.env.example
+secrets.json
+*.pfx
+*.p12
+*.key
+
+# Databases and local data
+*.db
+*.db-shm
+*.db-wal
+*.mdf
+*.ldf
+
+# Logs, coverage and test output
+**/logs/
+*.log
+coverage/
+TestResults/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Codex and scratch artifacts
+.codex-tmp/
+tmp/
+fixes/
+*.tmp
+*.fixed.tmp
+*.new
+*.correct.new
+*.sprint[0-9].*
+sandbox_test.txt

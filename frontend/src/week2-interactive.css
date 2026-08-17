@@ -1,0 +1,75 @@
+.w2-feature-card {
+  appearance: none;
+  width: 100%;
+  border: 1px solid rgba(206,219,209,.9);
+  border-radius: .75rem;
+  padding: 1.55rem;
+  background: white;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+.w2-feature-card::after { content: "→"; position: absolute; right: 1.3rem; top: 1.25rem; color: #b18422; font-size: 1.3rem; transition: transform .2s; }
+.w2-feature-card:hover { transform: translateY(-4px); border-color: #d6bd78; box-shadow: 0 20px 48px rgba(18,59,49,.12); }
+.w2-feature-card:hover::after { transform: translateX(4px); }
+.w2-feature-card .feature-icon { width: 2.9rem; height: 2.9rem; display: grid; place-items: center; border-radius: .7rem; background: linear-gradient(145deg,#edf6f2,#dcebe4); font-size: 1.25rem; margin-bottom: 1.6rem; }
+.w2-feature-card strong { display: block; color: #ad7c15; font: 600 1.35rem Georgia,serif; }
+.w2-feature-card h3 { font: 600 1.3rem Georgia,serif; margin: .45rem 0 .6rem; }
+.w2-feature-card p { margin: 0; color: #6b7b73; font-size: .83rem; line-height: 1.6; }
+
+.w2-app nav button { display: flex; align-items: center; gap: .75rem; }
+.w2-nav-icon { width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border-radius: .38rem; background: rgba(255,255,255,.06); font-size: .82rem; }
+.w2-app nav button.active .w2-nav-icon { background: rgba(215,169,59,.18); color: #f0c75e; }
+
+.w2-select-wrap { position: relative; min-width: 9.5rem; }
+.w2-select-wrap::after { content: "⌄"; position: absolute; right: .8rem; top: 50%; transform: translateY(-55%); color: #315e50; font-size: 1rem; pointer-events: none; }
+.w2-select-wrap select,
+.w2-table-card select,
+.w2-parameter-type {
+  appearance: none;
+  width: 100%;
+  min-height: 2.65rem;
+  padding: .65rem 2.2rem .65rem .8rem;
+  border: 1px solid #c8d6cc;
+  border-radius: .5rem;
+  background: linear-gradient(180deg,#fff,#f8faf8);
+  color: #21483d;
+  font: 650 .76rem/1 var(--font-sans);
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(18,59,49,.04);
+}
+.w2-table-card td:has(> select) { position: relative; }
+.w2-table-card td:has(> select)::after { content: "⌄"; position: absolute; right: 1.75rem; top: 50%; transform: translateY(-55%); pointer-events: none; color: #477064; }
+.w2-table-card select:hover,.w2-parameter-type:hover { border-color: #9fb8aa; }
+
+.w2-settings article { display: flex; flex-direction: column; min-height: 17.5rem; }
+.w2-settings article>p { flex: 1; }
+.w2-parameter-editor { display: grid!important; grid-template-columns: minmax(0,1fr) minmax(9rem,.6fr) auto!important; gap: .65rem!important; align-items: end!important; }
+.w2-field { display: grid; gap: .4rem; }
+.w2-field>label { color: #6c7c74; font-size: .62rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.w2-field input,.w2-field select { margin: 0; }
+.w2-boolean-control { display: grid; grid-template-columns: 1fr 1fr; padding: .25rem; background: #e8eee9; border-radius: .55rem; }
+.w2-boolean-control button { padding: .72rem .55rem; border: 0; border-radius: .4rem; background: transparent; color: #5e7067; cursor: pointer; font-weight: 750; }
+.w2-boolean-control button.active { background: #fff; color: #176347; box-shadow: 0 4px 12px rgba(18,59,49,.1); }
+.w2-irrigation-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: .7rem; padding: .9rem; margin: 0 0 1.4rem; border: 1px solid #d5e2da; border-radius: .7rem; background: linear-gradient(110deg,#e7f2ed,#f8faf7); }
+.w2-irrigation-strip div { display: flex; align-items: center; gap: .6rem; padding: .6rem; }
+.w2-irrigation-strip span { width: 2.1rem; height: 2.1rem; display: grid; place-items: center; border-radius: 50%; background: #dcece5; }
+.w2-irrigation-strip b,.w2-irrigation-strip small { display: block; }
+.w2-irrigation-strip b { font-size: .72rem; color: #244c40; }
+.w2-irrigation-strip small { color: #78877f; font-size: .6rem; margin-top: .15rem; }
+
+@media(max-width:900px){
+  .w2-app nav button { gap: .4rem; }
+  .w2-nav-icon { width: 1.35rem; height: 1.35rem; font-size: .68rem; }
+  .w2-parameter-editor { grid-template-columns: 1fr!important; }
+  .w2-settings article { min-height: 0; }
+  .w2-irrigation-strip { grid-template-columns: repeat(2,1fr); }
+}
+@media(max-width:460px){
+  .w2-irrigation-strip { grid-template-columns: 1fr; }
+  .w2-feature-card { padding: 1.25rem; }
+}

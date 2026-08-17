@@ -1,0 +1,24 @@
+{
+  "brokerHost": "localhost",
+  "brokerPort": 1883,
+  "clientId": "esp32-virtual-norte",
+  "username": "esp32-virtual-norte",
+  "password": "",
+  "intervalSeconds": 5,
+  "ackDelayMilliseconds": 750,
+  "randomSeed": 2718,
+  "zones": [
+    {
+      "code": "ZONA-B1",
+      "topicKey": "zona-b1",
+      "sensors": [
+        {
+          "code": "HUM-SUELO-B1",
+          "minimum": 35,
+          "maximum": 75,
+          "maximumVariation": 1.5
+        }
+      ]
+    }
+  ]
+}

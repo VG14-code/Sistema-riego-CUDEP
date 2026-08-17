@@ -1,0 +1,12 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- TODO: retirar al completar el tipado heredado.
+// @ts-nocheck
+// TODO: tipar contratos heredados de API, props y estado antes de retirar esta supresión.
+const baseUrl=import.meta.env.VITE_API_URL??`http://${window.location.hostname}:5080/api`
+async function call(path,token,options={},totp){let response;try{response=await fetch(`${baseUrl}${path}`,{...options,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(totp?{'X-TOTP-Code':totp}:{}),...options.headers}})}catch{throw new Error('La API no está disponible. Inicia el backend.')}const data=response.status===204?null:await response.json().catch(()=>null);if(!response.ok)throw new Error(data?.message??`Solicitud rechazada (${response.status}).`);return data}
+export const operationsApi={
+ rules:t=>call('/automation/rules',t),active:t=>call('/automation/active',t),evaluate:t=>call('/automation/evaluate',t,{method:'POST'}),toggleRule:(t,id,isEnabled)=>call(`/automation/rules/${id}/toggle`,t,{method:'PATCH',body:JSON.stringify({isEnabled})}),updateRule:(t,id,data,totp)=>call(`/automation/rules/${id}`,t,{method:'PUT',body:JSON.stringify(data)},totp),
+ supply:t=>call('/water-supply/status',t),supplyHistory:t=>call('/water-supply/history',t),pumpStart:(t,id,reason)=>call(`/water-supply/pumps/${id}/start`,t,{method:'POST',body:JSON.stringify({reason})}),pumpStop:(t,id,reason)=>call(`/water-supply/pumps/${id}/stop`,t,{method:'POST',body:JSON.stringify({reason})}),tankLevel:(t,id,levelLiters,detail)=>call(`/water-supply/tanks/${id}/level`,t,{method:'POST',body:JSON.stringify({levelLiters,detail})}),
+ zones:t=>call('/manual-irrigation/zones',t),runs:t=>call('/manual-irrigation/runs',t),startManual:(t,data,totp)=>call('/manual-irrigation/start',t,{method:'POST',body:JSON.stringify(data)},totp),stopManual:(t,id,observations)=>call(`/manual-irrigation/${id}/stop`,t,{method:'POST',body:JSON.stringify({observations})}),
+ summary:(t,days=30)=>call(`/operations/summary?days=${days}`,t),history:(t,query='')=>call(`/operations/history${query}`,t),
+ async exportCsv(token){const response=await fetch(`${baseUrl}/operations/export.csv`,{headers:{Authorization:`Bearer ${token}`}});if(!response.ok)throw new Error('No fue posible exportar el historial.');const blob=await response.blob();const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='consumo-riego.csv';link.click();URL.revokeObjectURL(url)}
+}

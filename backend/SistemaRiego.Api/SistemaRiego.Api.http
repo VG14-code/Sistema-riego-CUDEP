@@ -1,0 +1,19 @@
+@baseUrl = http://localhost:5080
+
+### Iniciar sesión con el administrador inicial
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{"email":"admin@sistemariego.local","password":"{{ADMIN_PASSWORD}}"}
+
+### Registrar operador
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{"email":"operador@sistemariego.local","password":"Operador123!","fullName":"Operador de campo"}
+
+### Solicitar recuperación
+POST {{baseUrl}}/api/auth/forgot-password
+Content-Type: application/json
+
+{"email":"operador@sistemariego.local"}

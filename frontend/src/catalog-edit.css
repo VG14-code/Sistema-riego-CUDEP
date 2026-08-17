@@ -1,0 +1,15 @@
+.w2-inline-form.editing { border-color: #d7b95f; background: linear-gradient(135deg,#fff8df,#f4f6ef); box-shadow: 0 10px 30px rgba(181,132,31,.1); }
+.w2-form-actions { display: flex; gap: .5rem; align-items: stretch; }
+.w2-form-actions button { width: auto; min-width: 8.5rem; justify-content: center; align-items: center; }
+.w2-form-actions .secondary { min-width: 6rem; border: 1px solid #b8c9bf; background: transparent; color: #31584c; box-shadow: none; }
+.w2-form-actions .secondary:hover { background: #fff; color: #173f35; box-shadow: none; }
+.w2-editing-note { grid-column: 1/-1; display: flex; align-items: center; gap: .55rem; margin: -.2rem 0 .1rem; color: #846313; font-size: .72rem; font-weight: 750; }
+.w2-editing-note::before { content: "✎"; width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border-radius: 50%; background: #f6e7b8; }
+.actions { display: flex; justify-content: flex-end; align-items: center; gap: .4rem; }
+.actions button { padding: .48rem .65rem!important; border-radius: .4rem!important; font-weight: 700; transition: background .18s,color .18s,transform .18s; }
+.actions button:hover { background: #e3eee8!important; transform: translateY(-1px); }
+.actions button.edit { color: #835f10; background: #fff8df; }
+.actions button.edit:hover { background: #f7e9b9!important; }
+.actions button.danger { color: #9c4238; background: #fff0ed; }
+.actions button.danger:hover { background: #f8dcd7!important; }
+@media(max-width:900px){.w2-form-actions{display:grid;grid-template-columns:1fr 1fr}.w2-form-actions button{min-width:0}.actions{justify-content:flex-start;flex-wrap:wrap}}
