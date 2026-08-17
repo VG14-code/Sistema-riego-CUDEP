@@ -22,6 +22,8 @@ En Development, el broker exige credenciales por cliente MQTT. Las credenciales 
 
 Identity, TOTP, variables requeridas y operación segura están documentados en [docs/sprint2-security-and-operations.md](docs/sprint2-security-and-operations.md).
 
+Los polígonos territoriales, el scheduler, el límite global de válvulas, el flujo MQTT/ACK, el watchdog, el paro total y la reconciliación están documentados en [docs/sprint3-territory-automation-operations.md](docs/sprint3-territory-automation-operations.md).
+
 ## Retención de telemetría
 
 La estrategia, los índices y el tratamiento de mensajes atrasados están documentados en docs/telemetry-retention.md. La ventana caliente propuesta es de 180 días; el archivado automatizado se implementará junto con la infraestructura de producción.
