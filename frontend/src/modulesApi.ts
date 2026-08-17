@@ -25,8 +25,8 @@ export interface DashboardData {
   latestReadings: Reading[]
   recentActivity: ActivityItem[]
 }
-export interface Zone { id: string; code: string; name: string; areaHectares: number; status: string; sensor: string | null; latitude: number | null; longitude: number | null }
-export interface Sector { id: string; code: string; name: string; zones: Zone[] }
+export interface Zone { id: string; code: string; name: string; areaHectares: number; status: string; sensor: string | null; latitude: number | null; longitude: number | null; boundaryGeoJson: string | null; sensors: Array<{ sensorId: string; name: string; isPrimary: boolean }>; valves: Array<{ deviceId: string; name: string }> }
+export interface Sector { id: string; code: string; name: string; boundaryGeoJson: string | null; zones: Zone[] }
 export interface Block { id: string; code: string; name: string; sectors: Sector[] }
 export interface Farm { id: string; code: string; name: string; latitude: number | null; longitude: number | null; blocks: Block[] }
 export interface Center { id: string; code: string; name: string; location: string | null; farms: Farm[] }

@@ -88,6 +88,13 @@ public sealed class IrrigationRun
     public string? Observations { get; set; }
 }
 
+public sealed class ValveRuntimeState
+{
+    public Guid DeviceId { get; set; } public IoTDevice Device { get; set; } = null!; public Guid? IrrigationZoneId { get; set; }
+    public string State { get; set; } = "Desconocido"; public bool IsOpen { get; set; } public Guid? LastCommandId { get; set; }
+    public DateTime? LastAckAtUtc { get; set; } public DateTime? LastReconciledAtUtc { get; set; }
+}
+
 public sealed class WaterConsumptionRecord
 {
     public long Id { get; set; }

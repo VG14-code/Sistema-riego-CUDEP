@@ -109,6 +109,7 @@ public static class DbSeeder
             db.AccessAudits.Add(new AccessAudit { EventType = "PLAN_MODULES_SEEDED", Detail = "Módulos 1 al 7 preparados con estructura territorial, agronomía, ciclo y telemetría." });
             await db.SaveChangesAsync();
         }
+        await Sprint3Seeder.SeedAsync(db);
         await Modules7To10Seeder.SeedAsync(db);
         await EmpiricalDashboardSeeder.SeedAsync(db);
     }

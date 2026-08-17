@@ -4,12 +4,14 @@ using Microsoft.EntityFrameworkCore;
 using SistemaRiego.Api.Contracts;
 using SistemaRiego.Api.Data;
 using SistemaRiego.Api.Models;
+using SistemaRiego.Api.Services;
 
 namespace SistemaRiego.Api.Controllers;
 
 [ApiController, Route("api/territory"), Authorize(Policy = Policies.Technician)]
-public sealed class TerritoryMaintenanceController(AppDbContext db) : ControllerBase
+public sealed class TerritoryMaintenanceController(AppDbContext db, TerritoryIntegrityService? integrity = null) : ControllerBase
 {
+    private readonly TerritoryIntegrityService integrity = integrity ?? new TerritoryIntegrityService(db);
     [HttpPut("centers/{id:guid}")]
     public async Task<IActionResult> UpdateCenter(Guid id, CenterRequest request, CancellationToken ct)
     {
@@ -53,7 +55,7 @@ public sealed class TerritoryMaintenanceController(AppDbContext db) : Controller
         var item = await db.IrrigationSectors.FindAsync([id], ct);
         if (item is null) return NotFound(Message("El sector no existe."));
         if (request.AreaHectares <= 0) return BadRequest(Message("El área debe ser mayor que cero."));
-        if (!await db.FarmBlocks.AnyAsync(x => x.Id == request.FarmBlockId, ct)) return BadRequest(Message("El bloque seleccionado no existe."));
+        try { await integrity.ValidateSectorAsync(request, id, ct); } catch (Exception exception) when (exception is TerritoryIntegrityException or SpatialValidationException) { return BadRequest(Message(exception.Message)); }
         var code = Code(request.Code);
         if (await db.IrrigationSectors.AnyAsync(x => x.Id != id && x.Code == code, ct)) return Conflict(Message("El código del sector ya existe."));
         item.FarmBlockId = request.FarmBlockId; item.Code = code; item.Name = request.Name.Trim(); item.AreaHectares = request.AreaHectares; item.SlopePercent = request.SlopePercent; item.IsActive = request.IsActive;
@@ -66,14 +68,11 @@ public sealed class TerritoryMaintenanceController(AppDbContext db) : Controller
         var item = await db.IrrigationZones.FindAsync([id], ct);
         if (item is null) return NotFound(Message("La zona no existe."));
         if (request.AreaHectares <= 0) return BadRequest(Message("El área debe ser mayor que cero."));
-        if (!await db.IrrigationSectors.AnyAsync(x => x.Id == request.IrrigationSectorId, ct)) return BadRequest(Message("El sector seleccionado no existe."));
-        if (!await db.MasterCatalogItems.AnyAsync(x => x.Id == request.OperationalStatusId && x.Kind == CatalogKind.OperationalStatus, ct)) return BadRequest(Message("El estado operativo no existe."));
-        if (request.PrimarySensorId is Guid sensorId && !await db.IoTSensors.AnyAsync(x => x.Id == sensorId, ct)) return BadRequest(Message("El sensor principal no existe."));
-        if (request.ValveDeviceId is Guid valveId && !await db.IoTDevices.AnyAsync(x => x.Id == valveId, ct)) return BadRequest(Message("El dispositivo de válvula no existe."));
+        try { await integrity.ValidateZoneAsync(request, id, ct); } catch (Exception exception) when (exception is TerritoryIntegrityException or SpatialValidationException) { return BadRequest(Message(exception.Message)); }
         var code = Code(request.Code);
         if (await db.IrrigationZones.AnyAsync(x => x.Id != id && x.Code == code, ct)) return Conflict(Message("El código de la zona ya existe."));
         item.IrrigationSectorId = request.IrrigationSectorId; item.Code = code; item.Name = request.Name.Trim(); item.AreaHectares = request.AreaHectares; item.OperationalStatusId = request.OperationalStatusId; item.PrimarySensorId = request.PrimarySensorId; item.ValveDeviceId = request.ValveDeviceId; item.Latitude = request.Latitude; item.Longitude = request.Longitude; item.IsActive = request.IsActive;
-        Audit("ZONE_UPDATED", item.Code); await db.SaveChangesAsync(ct); return NoContent();
+        Audit("ZONE_UPDATED", item.Code); await integrity.SyncAssignmentsAsync(item, request, ct); await db.SaveChangesAsync(ct); return NoContent();
     }
 
     private void Audit(string type, string detail) => db.AccessAudits.Add(new AccessAudit { EventType = type, Detail = detail });

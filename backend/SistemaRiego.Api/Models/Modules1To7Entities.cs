@@ -28,6 +28,7 @@ public sealed class IrrigationSector
 {
     public Guid Id { get; set; } = Guid.NewGuid(); public Guid FarmBlockId { get; set; } public FarmBlock FarmBlock { get; set; } = null!;
     public required string Code { get; set; } public required string Name { get; set; } public decimal AreaHectares { get; set; } public decimal SlopePercent { get; set; }
+    public string? BoundaryGeoJson { get; set; }
     public bool IsActive { get; set; } = true; public ICollection<IrrigationZone> Zones { get; set; } = [];
 }
 public sealed class IrrigationZone
@@ -36,7 +37,21 @@ public sealed class IrrigationZone
     public required string Code { get; set; } public required string Name { get; set; } public decimal AreaHectares { get; set; }
     public Guid OperationalStatusId { get; set; } public MasterCatalogItem OperationalStatus { get; set; } = null!;
     public Guid? PrimarySensorId { get; set; } public IoTSensor? PrimarySensor { get; set; } public Guid? ValveDeviceId { get; set; } public IoTDevice? ValveDevice { get; set; }
-    public decimal? Latitude { get; set; } public decimal? Longitude { get; set; } public bool IsActive { get; set; } = true;
+    public decimal? Latitude { get; set; } public decimal? Longitude { get; set; } public string? BoundaryGeoJson { get; set; } public bool IsActive { get; set; } = true;
+    public ICollection<IrrigationZoneSensor> Sensors { get; set; } = [];
+    public ICollection<IrrigationZoneValve> Valves { get; set; } = [];
+}
+
+public sealed class IrrigationZoneSensor
+{
+    public Guid IrrigationZoneId { get; set; } public IrrigationZone IrrigationZone { get; set; } = null!;
+    public Guid SensorId { get; set; } public IoTSensor Sensor { get; set; } = null!; public bool IsPrimary { get; set; }
+}
+
+public sealed class IrrigationZoneValve
+{
+    public Guid IrrigationZoneId { get; set; } public IrrigationZone IrrigationZone { get; set; } = null!;
+    public Guid DeviceId { get; set; } public IoTDevice Device { get; set; } = null!;
 }
 
 public sealed class SensorReading
@@ -50,7 +65,8 @@ public sealed class IoTCommand
 {
     public Guid Id { get; set; } = Guid.NewGuid(); public Guid DeviceId { get; set; } public IoTDevice Device { get; set; } = null!;
     public required string CommandType { get; set; } public string? Payload { get; set; } public string Status { get; set; } = "Pendiente";
-    public DateTime RequestedAtUtc { get; set; } = DateTime.UtcNow; public DateTime? ConfirmedAtUtc { get; set; } public Guid? RequestedByUserId { get; set; }
+    public DateTime RequestedAtUtc { get; set; } = DateTime.UtcNow; public DateTime ExpiresAtUtc { get; set; } = DateTime.UtcNow.AddSeconds(15); public DateTime? ConfirmedAtUtc { get; set; } public DateTime? FailedAtUtc { get; set; } public string? FailureReason { get; set; }
+    public Guid? IrrigationZoneId { get; set; } public long? IrrigationRunId { get; set; } public Guid? RequestedByUserId { get; set; }
 }
 
 public sealed class CropType

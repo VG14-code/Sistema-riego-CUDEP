@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr'
-import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet'
+import { CircleMarker, MapContainer, Polygon, Popup, TileLayer } from 'react-leaflet'
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import 'leaflet/dist/leaflet.css'
 import { modulesApi as api, type ActivityItem, type Center, type DashboardData, type IoTDevice, type IoTNode, type IoTSensor, type Quality, type Reading, type Zone } from './modulesApi'
@@ -24,24 +24,39 @@ function StatusPill({ status }: { status: ConnectionStatus }) {
   return <span className={`s1-status ${status.toLowerCase()}`}><i /> {status}</span>
 }
 
+function polygonPositions(value: string | null): Array<[number, number]> {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value) as { type?: string; coordinates?: number[][][] }
+    if (parsed.type !== 'Polygon' || !parsed.coordinates?.[0]) return []
+    return parsed.coordinates[0].map(([longitude, latitude]) => [latitude, longitude])
+  } catch { return [] }
+}
+
 function FarmMap({ hierarchy }: { hierarchy: Center[] }) {
-  const locations = useMemo(() => {
-    const rows: Array<{ zone: Zone; center: string; farm: string; sector: string; position: [number, number] }> = []
-    hierarchy.forEach((center, centerIndex) => center.farms.forEach((farm, farmIndex) => farm.blocks.forEach(block => block.sectors.forEach((sector, sectorIndex) => sector.zones.forEach((zone, zoneIndex) => {
-      const baseLat = Number(zone.latitude ?? farm.latitude ?? 16.9258)
-      const baseLng = Number(zone.longitude ?? farm.longitude ?? -89.8912)
-      rows.push({ zone, center: center.name, farm: farm.name, sector: sector.name, position: [baseLat + (centerIndex + sectorIndex) * .00018, baseLng + (farmIndex + zoneIndex) * .00018] })
-    })))))
-    return rows
+  const mapData = useMemo(() => {
+    const zones: Array<{ zone: Zone; center: string; farm: string; sector: string; position: [number, number]; polygon: Array<[number, number]> }> = []
+    const sectors: Array<{ id: string; name: string; polygon: Array<[number, number]> }> = []
+    hierarchy.forEach((center, centerIndex) => center.farms.forEach((farm, farmIndex) => farm.blocks.forEach(block => block.sectors.forEach((sector, sectorIndex) => {
+      sectors.push({ id: sector.id, name: sector.name, polygon: polygonPositions(sector.boundaryGeoJson) })
+      sector.zones.forEach((zone, zoneIndex) => {
+        const baseLat = Number(zone.latitude ?? farm.latitude ?? 16.9258)
+        const baseLng = Number(zone.longitude ?? farm.longitude ?? -89.8912)
+        zones.push({ zone, center: center.name, farm: farm.name, sector: sector.name, position: [baseLat + (centerIndex + sectorIndex) * .00018, baseLng + (farmIndex + zoneIndex) * .00018], polygon: polygonPositions(zone.boundaryGeoJson) })
+      })
+    }))))
+    return { zones, sectors }
   }, [hierarchy])
-  const center: [number, number] = locations[0]?.position ?? [16.9258, -89.8912]
+  const center: [number, number] = mapData.zones[0]?.polygon[0] ?? mapData.zones[0]?.position ?? [16.9258, -89.8912]
   return <div className="s1-map"><MapContainer center={center} zoom={17} scrollWheelZoom className="s1-map-canvas">
     <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-    {locations.map(({ zone, center: centerName, farm, sector, position }) => {
+    {mapData.sectors.filter(item => item.polygon.length > 2).map(item => <Polygon key={`sector-${item.id}`} positions={item.polygon} pathOptions={{ color: '#426e87', weight: 2, dashArray: '7 5', fillColor: '#76a9c2', fillOpacity: .1 }}><Popup><strong>Sector {item.name}</strong></Popup></Polygon>)}
+    {mapData.zones.map(({ zone, center: centerName, farm, sector, position, polygon }) => {
       const online = /activo|online|disponible/i.test(zone.status)
-      return <CircleMarker key={zone.id} center={position} radius={11} pathOptions={{ color: online ? '#0f9f72' : '#dc5c5c', fillColor: online ? '#28c995' : '#f47c7c', fillOpacity: .82 }}>
-        <Popup><strong>{zone.name}</strong><br />{centerName} → {farm} → {sector}<br />Estado: {zone.status}<br />Sensor: {zone.sensor ?? 'Sin asignar'}</Popup>
-      </CircleMarker>
+      const popup = <Popup><strong>{zone.name}</strong><br />{centerName} → {farm} → {sector}<br />Estado: {zone.status}<br />Sensores: {zone.sensors?.map(item => item.name).join(', ') || zone.sensor || 'Sin asignar'}<br />Válvulas: {zone.valves?.map(item => item.name).join(', ') || 'Sin asignar'}</Popup>
+      return polygon.length > 2
+        ? <Polygon key={zone.id} positions={polygon} pathOptions={{ color: online ? '#0f9f72' : '#dc5c5c', fillColor: online ? '#28c995' : '#f47c7c', fillOpacity: .38 }}>{popup}</Polygon>
+        : <CircleMarker key={zone.id} center={position} radius={11} pathOptions={{ color: online ? '#0f9f72' : '#dc5c5c', fillColor: online ? '#28c995' : '#f47c7c', fillOpacity: .82 }}>{popup}</CircleMarker>
     })}
   </MapContainer></div>
 }
