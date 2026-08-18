@@ -42,7 +42,7 @@ const baseUrl = import.meta.env.VITE_API_URL ?? `http://${window.location.hostna
 async function call<T>(path: string, token: string, options: RequestInit = {}): Promise<T> {
   let response: Response
   try {
-    response = await fetch(`${baseUrl}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...options.headers } })
+    response = await fetch(`${baseUrl}${path}`, { ...options, signal: options.signal ?? AbortSignal.timeout(12000), headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...options.headers } })
   } catch {
     throw new Error('La API no está disponible. Ejecuta Iniciar Sistema.ps1.')
   }

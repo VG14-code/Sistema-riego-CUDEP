@@ -86,10 +86,10 @@ public static class DbSeeder
             var sensor = await db.IoTSensors.SingleAsync(x => x.Code == "HUM-SUELO-A1");
             var center = new UniversityCenter { Code = "CUDEP", Name = "Centro Universitario de Petén", Location = "Santa Elena, Petén", Contact = "Área de agricultura inteligente" };
             var soil = new SoilType { Code = "FRANCO", Name = "Suelo franco", FieldCapacityPercent = 32, SaturationPercent = 48, InfiltrationMillimetersHour = 18, Description = "Equilibrio de arena, limo y arcilla; adecuado para el cultivo demostrativo." };
-            var farm = new Farm { UniversityCenter = center, Code = "GRANJA-CUDEP", Name = "Granja experimental CUDEP", Location = "Campus CUDEP", Latitude = 16.9264m, Longitude = -89.8914m };
+            var farm = new Farm { UniversityCenter = center, Code = "GRANJA-CUDEP", Name = "Granja experimental CUDEP", Location = "Campus CUDEP", Latitude = 16.91916m, Longitude = -89.88578m };
             var block = new FarmBlock { Farm = farm, SoilType = soil, Code = "BLOQUE-A", Name = "Bloque productivo A", AreaHectares = 1.25m, Description = "Área piloto instrumentada." };
             var sector = new IrrigationSector { FarmBlock = block, Code = "SECTOR-A", Name = "Sector de riego norte", AreaHectares = .65m, SlopePercent = 2.5m };
-            var zone = new IrrigationZone { IrrigationSector = sector, Code = "ZONA-A1", Name = "Zona tomate A1", AreaHectares = .32m, OperationalStatusId = active.Id, PrimarySensorId = sensor.Id, Latitude = 16.9265m, Longitude = -89.8912m };
+            var zone = new IrrigationZone { IrrigationSector = sector, Code = "ZONA-A1", Name = "Zona tomate A1", AreaHectares = .32m, OperationalStatusId = active.Id, PrimarySensorId = sensor.Id, Latitude = 16.91915m, Longitude = -89.88590m };
             var cropType = new CropType { Code = "HORTALIZA", Name = "Hortaliza" };
             var crop = new Crop { CropType = cropType, Code = "TOMATE", Name = "Tomate", ScientificName = "Solanum lycopersicum", Description = "Cultivo piloto para recomendaciones de riego." };
             var germination = new PhenologicalStage { Crop = crop, Name = "Germinación", Sequence = 1, EstimatedDays = 12, Description = "Emergencia y establecimiento inicial." };

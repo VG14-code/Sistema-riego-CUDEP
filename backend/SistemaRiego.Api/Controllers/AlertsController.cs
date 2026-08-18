@@ -17,7 +17,13 @@ public sealed class AlertsController(AppDbContext db, IAlertService alerts) : Co
     {
         var q = db.SystemAlerts.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(severity)) q = q.Where(x => x.Severity == severity); if (!string.IsNullOrWhiteSpace(type)) q = q.Where(x => x.Type == type); if (!string.IsNullOrWhiteSpace(status)) q = q.Where(x => x.Status == status); if (!string.IsNullOrWhiteSpace(entityType)) q = q.Where(x => x.RelatedEntityType == entityType); if (!string.IsNullOrWhiteSpace(entityId)) q = q.Where(x => x.RelatedEntityId == entityId);
-        return Ok(await q.OrderByDescending(x => x.RaisedAtUtc).Take(Math.Clamp(take, 1, 1000)).ToListAsync(ct));
+        var items = await q.OrderByDescending(x => x.RaisedAtUtc).Take(Math.Clamp(take, 1, 1000)).ToListAsync(ct);
+        var ids = items.Select(x => Guid.TryParse(x.RelatedEntityId, out var id) ? id : Guid.Empty).Where(x => x != Guid.Empty).Distinct().ToList();
+        var names = await db.IoTDevices.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name + " · " + x.Code, ct);
+        foreach (var item in items)
+            if (Guid.TryParse(item.RelatedEntityId, out var id) && names.TryGetValue(id, out var name))
+                item.RelatedEntityName = name;
+        return Ok(items);
     }
     [HttpPost("manual"), Authorize(Policy = Policies.Technician)]
     public async Task<ActionResult> Manual(ManualAlertRequest request, CancellationToken ct)

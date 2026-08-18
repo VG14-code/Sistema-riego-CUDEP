@@ -15,6 +15,7 @@ const hubUrl = (import.meta.env.VITE_API_URL ?? `http://${window.location.hostna
 const fmt = (value: number | null | undefined) => Number(value ?? 0).toLocaleString('es-GT', { maximumFractionDigits: 1 })
 const when = (value: string | null) => value ? new Date(value).toLocaleString('es-GT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Sin comunicación'
 const simulated = (reading: Reading) => reading.transport.includes('SIMUL') || reading.transport.includes('MUESTRA')
+const sectorName = (name: string) => /^sector\b/i.test(name.trim()) ? name.trim() : `Sector ${name.trim()}`
 
 function SectionHead({ kicker, title, copy, action }: { kicker: string; title: string; copy: string; action?: React.ReactNode }) {
   return <div className="m-head"><div><p>{kicker}</p><h1>{title}</h1><span>{copy}</span></div>{action}</div>
@@ -40,17 +41,17 @@ function FarmMap({ hierarchy }: { hierarchy: Center[] }) {
     hierarchy.forEach((center, centerIndex) => center.farms.forEach((farm, farmIndex) => farm.blocks.forEach(block => block.sectors.forEach((sector, sectorIndex) => {
       sectors.push({ id: sector.id, name: sector.name, polygon: polygonPositions(sector.boundaryGeoJson) })
       sector.zones.forEach((zone, zoneIndex) => {
-        const baseLat = Number(zone.latitude ?? farm.latitude ?? 16.9258)
-        const baseLng = Number(zone.longitude ?? farm.longitude ?? -89.8912)
+        const baseLat = Number(zone.latitude ?? farm.latitude ?? 16.91916)
+        const baseLng = Number(zone.longitude ?? farm.longitude ?? -89.88578)
         zones.push({ zone, center: center.name, farm: farm.name, sector: sector.name, position: [baseLat + (centerIndex + sectorIndex) * .00018, baseLng + (farmIndex + zoneIndex) * .00018], polygon: polygonPositions(zone.boundaryGeoJson) })
       })
     }))))
     return { zones, sectors }
   }, [hierarchy])
-  const center: [number, number] = mapData.zones[0]?.polygon[0] ?? mapData.zones[0]?.position ?? [16.9258, -89.8912]
+  const center: [number, number] = mapData.zones[0]?.polygon[0] ?? mapData.zones[0]?.position ?? [16.91916, -89.88578]
   return <div className="s1-map"><MapContainer center={center} zoom={17} scrollWheelZoom className="s1-map-canvas">
     <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-    {mapData.sectors.filter(item => item.polygon.length > 2).map(item => <Polygon key={`sector-${item.id}`} positions={item.polygon} pathOptions={{ color: '#426e87', weight: 2, dashArray: '7 5', fillColor: '#76a9c2', fillOpacity: .1 }}><Popup><strong>Sector {item.name}</strong></Popup></Polygon>)}
+    {mapData.sectors.filter(item => item.polygon.length > 2).map(item => <Polygon key={`sector-${item.id}`} positions={item.polygon} pathOptions={{ color: '#426e87', weight: 2, dashArray: '7 5', fillColor: '#76a9c2', fillOpacity: .1 }}><Popup><strong>{sectorName(item.name)}</strong></Popup></Polygon>)}
     {mapData.zones.map(({ zone, center: centerName, farm, sector, position, polygon }) => {
       const online = /activo|online|disponible/i.test(zone.status)
       const popup = <Popup><strong>{zone.name}</strong><br />{centerName} → {farm} → {sector}<br />Estado: {zone.status}<br />Sensores: {zone.sensors?.map(item => item.name).join(', ') || zone.sensor || 'Sin asignar'}<br />Válvulas: {zone.valves?.map(item => item.name).join(', ') || 'Sin asignar'}</Popup>
@@ -67,9 +68,17 @@ export function OperationalDashboard({ session, onNavigate, notify }: DashboardP
   const [nodes, setNodes] = useState<IoTNode[]>([])
   const [devices, setDevices] = useState<IoTDevice[]>([])
   const [connection, setConnection] = useState<ConnectionStatus>('Conectando')
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const load = useCallback(async () => {
-    const [dashboard, tree, nodeRows, deviceRows] = await Promise.all([api.dashboard(session.accessToken), api.hierarchy(session.accessToken), api.nodes(session.accessToken), api.devices(session.accessToken)])
-    setData(dashboard); setHierarchy(tree); setNodes(nodeRows); setDevices(deviceRows)
+    setLoading(true); setLoadError('')
+    try {
+      const [dashboard, tree, nodeRows, deviceRows] = await Promise.all([api.dashboard(session.accessToken), api.hierarchy(session.accessToken), api.nodes(session.accessToken), api.devices(session.accessToken)])
+      setData(dashboard); setHierarchy(tree); setNodes(nodeRows); setDevices(deviceRows)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No fue posible cargar el dashboard.'
+      setLoadError(message); throw error
+    } finally { setLoading(false) }
   }, [session.accessToken])
 
   useEffect(() => { load().catch(error => notify(error instanceof Error ? error.message : 'No fue posible cargar el dashboard.')) }, [load, notify])
@@ -90,7 +99,8 @@ export function OperationalDashboard({ session, onNavigate, notify }: DashboardP
     return () => { if (hub.state !== HubConnectionState.Disconnected) void hub.stop() }
   }, [session.accessToken])
 
-  if (!data) return <div className="m-loading"><i /><span>Sincronizando infraestructura IoT…</span></div>
+  if (loading && !data) return <div className="m-loading"><i /><span>Sincronizando infraestructura IoT…</span></div>
+  if (!data) return <div className="m-loading m-load-error"><strong>No fue posible sincronizar la infraestructura IoT.</strong><span>{loadError}</span><button type="button" onClick={() => load().catch(() => undefined)}>Reintentar</button></div>
   const onlineNodes = nodes.filter(node => /online|activo/i.test(node.operationalStatus)).length
   const onlineDevices = devices.filter(device => /online|activo/i.test(device.operationalStatus)).length
   return <>

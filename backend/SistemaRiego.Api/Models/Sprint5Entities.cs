@@ -11,6 +11,8 @@ public sealed class SystemAlert
     public required string Description { get; set; }
     public string? RelatedEntityType { get; set; }
     public string? RelatedEntityId { get; set; }
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string? RelatedEntityName { get; set; }
     public DateTime RaisedAtUtc { get; set; } = DateTime.UtcNow;
     public Guid? AcknowledgedByUserId { get; set; }
     public string? AcknowledgedByEmail { get; set; }
@@ -77,6 +79,8 @@ public sealed class MaintenanceIncident
     public required string EquipmentType { get; set; }
     public required string EquipmentId { get; set; }
     public string Severity { get; set; } = "Advertencia";
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string? EquipmentName { get; set; }
     public string Status { get; set; } = "Pendiente";
     public string Origin { get; set; } = "Manual";
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

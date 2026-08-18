@@ -20,11 +20,11 @@ public sealed class IrrigationWatchdogWorker(IServiceScopeFactory scopes, ILogge
     private async Task Inspect(CancellationToken ct)
     {
         using var scope = scopes.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var alerts = scope.ServiceProvider.GetRequiredService<IAlertService>(); var now = DateTime.UtcNow;
-        var expired = await db.IoTCommands.Where(x => (x.Status == "Pendiente" || x.Status == "Publicado") && x.ExpiresAtUtc <= now).ToListAsync(ct);
+        var expired = await db.IoTCommands.Include(x => x.Device).Where(x => (x.Status == "Pendiente" || x.Status == "Publicado") && x.ExpiresAtUtc <= now).ToListAsync(ct);
         foreach (var command in expired)
         {
             command.Status = "Expirado"; command.FailedAtUtc = now; command.FailureReason = "No se recibió ACK MQTT antes del timeout.";
-            await alerts.RaiseAsync(new AlertSignal($"MQTT:{command.Id}:TIMEOUT", "Falla de dispositivo", "Crítica", $"Comando {command.CommandType} {command.Id} expiró sin ACK.", "Dispositivo IoT", command.DeviceId.ToString()), ct);
+            await alerts.RaiseAsync(new AlertSignal($"MQTT:{command.Id}:TIMEOUT", "Falla de dispositivo", "Crítica", $"El dispositivo {command.Device.Name} no respondió al comando {command.CommandType} dentro del tiempo esperado.\nDetalle técnico: Comando {command.CommandType} {command.Id} expiró sin ACK.", "Dispositivo IoT", command.DeviceId.ToString()), ct);
             if (command.IrrigationRunId is long id)
             {
                 var run = await db.IrrigationRuns.FindAsync([id], ct);

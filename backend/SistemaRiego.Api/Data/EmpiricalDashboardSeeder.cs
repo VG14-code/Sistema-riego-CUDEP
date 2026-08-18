@@ -36,13 +36,13 @@ public static class EmpiricalDashboardSeeder
         var zoneSouth = await db.IrrigationZones.SingleOrDefaultAsync(x => x.Code == "ZONA-B1");
         if (zoneSouth is null)
         {
-            zoneSouth = new IrrigationZone { IrrigationSectorId = sectorSouth.Id, Code = "ZONA-B1", Name = "Zona chile B1", AreaHectares = .24m, OperationalStatusId = active.Id, PrimarySensorId = sensorB.Id, Latitude = 16.9261m, Longitude = -89.8910m };
+            zoneSouth = new IrrigationZone { IrrigationSectorId = sectorSouth.Id, Code = "ZONA-B1", Name = "Zona chile B1", AreaHectares = .24m, OperationalStatusId = active.Id, PrimarySensorId = sensorB.Id, Latitude = 16.91908m, Longitude = -89.88565m };
             db.IrrigationZones.Add(zoneSouth);
         }
         var zoneGreenhouse = await db.IrrigationZones.SingleOrDefaultAsync(x => x.Code == "ZONA-C1");
         if (zoneGreenhouse is null)
         {
-            zoneGreenhouse = new IrrigationZone { IrrigationSectorId = sectorGreenhouse.Id, Code = "ZONA-C1", Name = "Zona semillero C1", AreaHectares = .16m, OperationalStatusId = active.Id, PrimarySensorId = sensorA.Id, Latitude = 16.9259m, Longitude = -89.8908m };
+            zoneGreenhouse = new IrrigationZone { IrrigationSectorId = sectorGreenhouse.Id, Code = "ZONA-C1", Name = "Zona semillero C1", AreaHectares = .16m, OperationalStatusId = active.Id, PrimarySensorId = sensorA.Id, Latitude = 16.91898m, Longitude = -89.88550m };
             db.IrrigationZones.Add(zoneGreenhouse);
         }
         await db.SaveChangesAsync();
