@@ -111,6 +111,7 @@ public static class DbSeeder
         }
         await Sprint3Seeder.SeedAsync(db);
         await Modules7To10Seeder.SeedAsync(db);
+        await Sprint4Seeder.SeedAsync(db);
         await EmpiricalDashboardSeeder.SeedAsync(db);
     }
 }

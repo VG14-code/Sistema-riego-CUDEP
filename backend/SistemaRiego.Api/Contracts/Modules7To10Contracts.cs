@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SistemaRiego.Api.Contracts;
 
-public sealed record IrrigationRuleRequest(Guid IrrigationZoneId, Guid? CropWaterRequirementId, [Required,MaxLength(140)] string Name, decimal MinimumMoisturePercent, decimal TargetMoisturePercent, decimal HysteresisPercent, int Priority, int MaximumDurationMinutes, TimeOnly AllowedFrom, TimeOnly AllowedUntil, [Required] string AllowedDays, bool IsEnabled);
+public sealed record IrrigationRuleRequest(Guid IrrigationZoneId, Guid? CropWaterRequirementId, [Required,MaxLength(140)] string Name, decimal MinimumMoisturePercent, decimal TargetMoisturePercent, decimal HysteresisPercent, int Priority, int MaximumDurationMinutes, TimeOnly AllowedFrom, TimeOnly AllowedUntil, [Required] string AllowedDays, bool IsEnabled, bool RequiresSufficientEnergy = true);
 public sealed record RuleToggleRequest(bool IsEnabled);
 public sealed record TankLevelRequest(decimal LevelLiters, [MaxLength(240)] string? Detail);
 public sealed record PumpCommandRequest([Required,MaxLength(240)] string Reason);

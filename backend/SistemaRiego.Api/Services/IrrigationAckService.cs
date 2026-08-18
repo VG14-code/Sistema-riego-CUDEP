@@ -5,7 +5,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Services;
 
-public sealed class IrrigationAckService(AppDbContext db)
+public sealed class IrrigationAckService(AppDbContext db, IConsumptionCalculator? consumptionCalculator = null)
 {
     public async Task<Guid?> ProcessAsync(Guid deviceId, string payload, CancellationToken ct)
     {
@@ -58,11 +58,10 @@ public sealed class IrrigationAckService(AppDbContext db)
     private async Task CompleteRun(IrrigationRun run, DateTime now, CancellationToken ct)
     {
         if (run.EndedAtUtc.HasValue) return;
-        var minutes = Math.Clamp((decimal)(now - (run.StartedAtUtc ?? run.RequestedAtUtc)).TotalMinutes, 0.01m, run.PlannedDurationMinutes);
-        var volume = Math.Round(minutes * run.FlowRateLitersMinute, 2);
+        var consumption = await (consumptionCalculator ?? new ConsumptionCalculator(db)).BuildAsync(run, now, ct);
         run.Status = "Detenido"; run.EndedAtUtc = now;
-        if (!await db.WaterConsumptionRecords.AnyAsync(x => x.IrrigationRunId == run.Id, ct)) db.WaterConsumptionRecords.Add(new WaterConsumptionRecord { IrrigationRunId = run.Id, IrrigationZoneId = run.IrrigationZoneId, Source = "MQTT ACK", FlowRateLitersMinute = run.FlowRateLitersMinute, DurationMinutes = minutes, VolumeLiters = volume, RecordedAtUtc = now });
-        db.OperationalEvents.Add(Event(run, "IRRIGATION_CLOSE_ACK", $"{run.IrrigationZone.Name}: cierre confirmado; consumo estimado {volume:0.0} L."));
+        if (!await db.WaterConsumptionRecords.AnyAsync(x => x.IrrigationRunId == run.Id, ct)) db.WaterConsumptionRecords.Add(consumption);
+        db.OperationalEvents.Add(Event(run, "IRRIGATION_CLOSE_ACK", $"{run.IrrigationZone.Name}: cierre confirmado; {consumption.Source.ToLowerInvariant()} {consumption.VolumeLiters:0.0} L."));
     }
 
     private static OperationalEvent Event(IrrigationRun run, string type, string detail) => new() { Category = "Riego", EventType = type, IrrigationZoneId = run.IrrigationZoneId, IrrigationRunId = run.Id, Detail = detail };

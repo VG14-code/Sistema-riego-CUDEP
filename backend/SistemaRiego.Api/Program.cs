@@ -23,6 +23,11 @@ builder.Services.AddScoped<IIrrigationRecommendationCalculator, IrrigationRecomm
 builder.Services.AddSingleton<SpatialGeometryValidator>();
 builder.Services.AddScoped<TerritoryIntegrityService>();
 builder.Services.AddScoped<IrrigationAckService>();
+builder.Services.AddScoped<PumpAckService>();
+builder.Services.AddScoped<IPumpCommandService, PumpCommandService>();
+builder.Services.AddScoped<ISprint4TelemetryService, Sprint4TelemetryService>();
+builder.Services.AddScoped<IWaterCapacityService, WaterCapacityService>();
+builder.Services.AddScoped<IConsumptionCalculator, ConsumptionCalculator>();
 builder.Services.AddScoped<IIrrigationCommandService, IrrigationCommandService>();
 builder.Services.AddScoped<IAutomationEngine, AutomationEngine>();
 builder.Services.AddHostedService<AutomationSchedulerWorker>();

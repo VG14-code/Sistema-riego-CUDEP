@@ -17,6 +17,7 @@ public sealed class IrrigationRule
     public TimeOnly AllowedUntil { get; set; } = new(8, 0);
     public string AllowedDays { get; set; } = "1,2,3,4,5,6,7";
     public bool IsEnabled { get; set; } = true;
+    public bool RequiresSufficientEnergy { get; set; } = true;
     public DateTime? SuspendedUntilUtc { get; set; }
     public DateTime? LastEvaluatedAtUtc { get; set; }
     public string LastDecision { get; set; } = "Pendiente";
@@ -40,6 +41,9 @@ public sealed class WaterPump
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid WaterTankId { get; set; }
+    public string Code { get; set; } = "BOMBA-ABAST-01";
+    public Guid? IoTDeviceId { get; set; }
+    public IoTDevice? IoTDevice { get; set; }
     public WaterTank WaterTank { get; set; } = null!;
     public required string Name { get; set; }
     public string Status { get; set; } = "Detenida";
@@ -50,6 +54,14 @@ public sealed class WaterPump
     public DateTime? LastStoppedAtUtc { get; set; }
     public DateTime? LockedUntilUtc { get; set; }
     public string? FailureReason { get; set; }
+    public bool HasUnacknowledgedFault { get; set; }
+    public decimal RatedFlowLitersMinute { get; set; } = 36;
+    public decimal NominalValveFlowLitersMinute { get; set; } = 12;
+    public decimal MinimumPressureBar { get; set; } = 1.2m;
+    public decimal MaximumCurrentAmps { get; set; } = 12;
+    public decimal LastPressureBar { get; set; }
+    public decimal LastMotorCurrentAmps { get; set; }
+    public DateTime? LastTelemetryAtUtc { get; set; }
 }
 
 public sealed class WaterSupplyEvent
@@ -103,9 +115,13 @@ public sealed class WaterConsumptionRecord
     public Guid IrrigationZoneId { get; set; }
     public IrrigationZone IrrigationZone { get; set; } = null!;
     public string Source { get; set; } = "Estimado";
+    public bool IsMeasured { get; set; }
     public decimal FlowRateLitersMinute { get; set; }
     public decimal DurationMinutes { get; set; }
     public decimal VolumeLiters { get; set; }
+    public decimal? RecommendedVolumeLiters { get; set; }
+    public decimal? DeviationPercent { get; set; }
+    public decimal EstimatedCost { get; set; }
     public DateTime RecordedAtUtc { get; set; } = DateTime.UtcNow;
 }
 

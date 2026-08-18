@@ -8,13 +8,13 @@ public interface IAutomationEngine { Task<AutomationEvaluation> EvaluateAsync(Ca
 public sealed record AutomationDecision(Guid Id, string Name, string LastDecision, string? LastReason, bool Started);
 public sealed record AutomationEvaluation(DateTime EvaluatedAtUtc, IReadOnlyList<AutomationDecision> Results);
 
-public sealed class AutomationEngine(AppDbContext db, IIrrigationCommandService commands, ILogger<AutomationEngine> logger) : IAutomationEngine
+public sealed class AutomationEngine(AppDbContext db, IIrrigationCommandService commands, ILogger<AutomationEngine> logger, IWaterCapacityService? capacityService = null) : IAutomationEngine
 {
     public async Task<AutomationEvaluation> EvaluateAsync(CancellationToken ct)
     {
         var now = DateTime.UtcNow; var local = now.ToLocalTime(); var time = TimeOnly.FromDateTime(local); var day = ((int)local.DayOfWeek + 6) % 7 + 1;
         var rules = await db.IrrigationRules.Include(x => x.IrrigationZone).Where(x => x.IsEnabled).OrderBy(x => x.Priority).ThenBy(x => x.Id).ToListAsync(ct);
-        var results = new List<AutomationDecision>(); var maximum = await ParameterInt("MAX_SIMULTANEOUS_VALVES", 2, ct); var occupied = await ActiveValveCount(ct);
+        var results = new List<AutomationDecision>(); var maximum = capacityService is null ? await ParameterInt("MAX_SIMULTANEOUS_VALVES", 2, ct) : await capacityService.GetMaximumValveCountAsync(ct); var occupied = await ActiveValveCount(ct);
         foreach (var group in rules.GroupBy(x => x.IrrigationZoneId))
         {
             var winner = group.OrderBy(x => x.Priority).ThenBy(x => x.Id).First();
@@ -28,9 +28,12 @@ public sealed class AutomationEngine(AppDbContext db, IIrrigationCommandService 
             var active = await db.IrrigationRuns.AnyAsync(x => x.IrrigationZoneId == winner.IrrigationZoneId && (x.Status == "En curso" || x.Status == "Esperando ACK" || x.Status == "Cierre pendiente"), ct);
             var valveCount = await ZoneValveCount(winner.IrrigationZoneId, ct);
             var capacity = valveCount > 0 && occupied + valveCount <= maximum;
-            var irrigate = !blocked && !active && capacity && reading is not null && reading.Value < winner.MinimumMoisturePercent;
+            var minimumBattery = await ParameterInt("MIN_AUTOMATION_BATTERY_PERCENT", 25, ct);
+            var battery = await db.EnergyReadings.OrderByDescending(x => x.CapturedAtUtc).Select(x => (decimal?)x.BatteryPercent).FirstOrDefaultAsync(ct);
+            var energyOk = !winner.RequiresSufficientEnergy || battery is null || battery >= minimumBattery;
+            var irrigate = !blocked && !active && capacity && energyOk && reading is not null && reading.Value < winner.MinimumMoisturePercent;
             winner.LastEvaluatedAtUtc = now;
-            winner.LastDecision = irrigate ? "Regar" : blocked ? "Fuera de ventana" : active ? "Riego activo" : valveCount == 0 ? "Sin válvula" : !capacity ? "Límite global" : "No regar";
+            winner.LastDecision = irrigate ? "Regar" : blocked ? "Fuera de ventana" : active ? "Riego activo" : valveCount == 0 ? "Sin válvula" : !capacity ? (capacityService is null ? "Límite global" : "Capacidad hidráulica insuficiente") : !energyOk ? "Energía insuficiente" : "No regar";
             winner.LastReason = reading is null ? "No hay una lectura válida." : $"Humedad {reading.Value:0.0}% frente al mínimo {winner.MinimumMoisturePercent:0.0}%.";
             if (irrigate)
             {

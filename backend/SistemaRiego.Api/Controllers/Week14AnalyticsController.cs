@@ -16,7 +16,7 @@ public sealed class Week14AnalyticsController(AppDbContext db) : ControllerBase
     {
         var from = DateTime.UtcNow.Date.AddDays(-Math.Clamp(days, 1, 365) + 1);
         var rows = await db.WaterConsumptionRecords.AsNoTracking().Where(x => x.RecordedAtUtc >= from)
-            .Select(x => new { x.RecordedAtUtc, x.VolumeLiters, Zone = x.IrrigationZone.Name, Sector = x.IrrigationZone.IrrigationSector.Name }).ToListAsync(ct);
+            .Select(x => new { x.RecordedAtUtc, x.VolumeLiters, x.Source, x.IsMeasured, x.RecommendedVolumeLiters, x.DeviationPercent, x.EstimatedCost, Zone = x.IrrigationZone.Name, Sector = x.IrrigationZone.IrrigationSector.Name, Crop = db.CropCycles.Where(c => c.IrrigationZoneId == x.IrrigationZoneId && c.Status == "Activo").Select(c => c.Crop.Name).FirstOrDefault() ?? "Sin cultivo" }).ToListAsync(ct);
         var total = rows.Sum(x => x.VolumeLiters);
         return Ok(new
         {
@@ -25,7 +25,10 @@ public sealed class Week14AnalyticsController(AppDbContext db) : ControllerBase
             daily = rows.GroupBy(x => x.RecordedAtUtc.Date).Select(g => new { date = g.Key, volumeLiters = g.Sum(x => x.VolumeLiters), events = g.Count() }).OrderBy(x => x.date),
             weekly = rows.GroupBy(x => Monday(x.RecordedAtUtc.Date)).Select(g => new { weekStart = g.Key, volumeLiters = g.Sum(x => x.VolumeLiters), events = g.Count() }).OrderBy(x => x.weekStart),
             bySector = rows.GroupBy(x => x.Sector).Select(g => new { sector = g.Key, volumeLiters = g.Sum(x => x.VolumeLiters), events = g.Count() }).OrderByDescending(x => x.volumeLiters),
-            byZone = rows.GroupBy(x => x.Zone).Select(g => new { zone = g.Key, volumeLiters = g.Sum(x => x.VolumeLiters), events = g.Count() }).OrderByDescending(x => x.volumeLiters)
+            byZone = rows.GroupBy(x => x.Zone).Select(g => new { zone = g.Key, volumeLiters = g.Sum(x => x.VolumeLiters), events = g.Count(), measuredEvents = g.Count(x => x.IsMeasured), estimatedEvents = g.Count(x => !x.IsMeasured), cost = g.Sum(x => x.EstimatedCost) }).OrderByDescending(x => x.volumeLiters),
+            byCrop = rows.GroupBy(x => x.Crop).Select(g => new { crop = g.Key, volumeLiters = g.Sum(x => x.VolumeLiters), recommendedLiters = g.Sum(x => x.RecommendedVolumeLiters ?? 0), averageDeviationPercent = g.Where(x => x.DeviationPercent.HasValue).Select(x => x.DeviationPercent).Average(), cost = g.Sum(x => x.EstimatedCost) }).OrderByDescending(x => x.volumeLiters),
+            bySource = rows.GroupBy(x => x.Source).Select(g => new { source = g.Key, volumeLiters = g.Sum(x => x.VolumeLiters), events = g.Count() }),
+            totalEstimatedCost = Math.Round(rows.Sum(x => x.EstimatedCost), 2)
         });
     }
 
