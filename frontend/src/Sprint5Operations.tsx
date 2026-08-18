@@ -1,0 +1,60 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import * as signalR from '@microsoft/signalr'
+import './sprint5.css'
+
+interface Session { accessToken: string; user: { fullName: string; roles: string[] } }
+interface Props { session: Session; notify: (message: string) => void }
+interface AlertItem { id: number; type: string; severity: string; status: string; origin: string; description: string; relatedEntityType?: string; relatedEntityId?: string; raisedAtUtc: string; escalationLevel: number }
+interface Plan { id: string; name: string; frequency: string; intervalDays?: number; equipmentType: string; equipmentId: string; scheduledAtUtc: string; status: string; assignedToEmail?: string; notes?: string }
+interface Incident { id: number; title: string; description: string; equipmentType: string; equipmentId: string; severity: string; status: string; origin: string; createdAtUtc: string; assignedToEmail?: string; notes?: string }
+interface Activity { id: number; title: string; equipmentType: string; equipmentId: string; status: string; scheduledAtUtc: string; performedAtUtc?: string }
+const root = import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:5080/api`
+const hubRoot = root.replace(/\/api$/, '')
+async function api<T>(path: string, token: string, method = 'GET', body?: unknown): Promise<T> {
+  const response = await fetch(`${root}${path}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: body === undefined ? undefined : JSON.stringify(body) })
+  const data: unknown = response.status === 204 ? null : await response.json().catch(() => null)
+  if (!response.ok) throw new Error((data as { message?: string } | null)?.message ?? `Solicitud rechazada (${response.status}).`)
+  return data as T
+}
+const when = (value: string) => new Date(value).toLocaleString('es-GT')
+
+function useAlerts(session: Session, notify: (message: string) => void) {
+  const [items, setItems] = useState<AlertItem[]>([])
+  const load = useCallback(() => api<AlertItem[]>('/alerts', session.accessToken).then(setItems).catch((error: Error) => notify(error.message)), [session.accessToken, notify])
+  useEffect(() => {
+    load()
+    const connection = new signalR.HubConnectionBuilder().withUrl(`${hubRoot}/hubs/telemetry`, { accessTokenFactory: () => session.accessToken }).withAutomaticReconnect().configureLogging(signalR.LogLevel.None).build()
+    connection.on('alertRaised', (alert: AlertItem) => setItems(current => [alert, ...current.filter(item => item.id !== alert.id)]))
+    connection.start().catch((error: Error) => notify(`SignalR alertas: ${error.message}`))
+    return () => { void connection.stop() }
+  }, [load, notify, session.accessToken])
+  return { items, load }
+}
+
+export function NotificationCenter({ session, localNotice }: { session: Session; localNotice: string }) {
+  const [open, setOpen] = useState(false)
+  const quiet = useCallback(() => undefined, [])
+  const { items, load } = useAlerts(session, quiet)
+  const active = items.filter(item => item.status === 'Activa')
+  useEffect(() => { if (localNotice) setOpen(true) }, [localNotice])
+  const acknowledge = async (id: number) => { await api(`/alerts/${id}/acknowledge`, session.accessToken, 'POST'); await load() }
+  return <div className="n-center"><button className="n-bell" onClick={() => setOpen(!open)} aria-label="Centro de notificaciones">♢{active.length > 0 && <b>{active.length}</b>}</button>{open && <aside><header><div><small>CENTRO DE NOTIFICACIONES</small><h2>Alertas activas</h2></div><button onClick={() => setOpen(false)}>×</button></header>{localNotice && <div className="n-local"><b>Actividad de interfaz</b><span>{localNotice}</span><small>Origen: interacción local</small></div>}<div className="n-mini-list">{active.slice(0, 8).map(item => <article key={item.id} className={item.severity.toLowerCase()}><b>{item.type}</b><span>{item.description}</span><small>{item.origin} · {when(item.raisedAtUtc)}</small><button onClick={() => acknowledge(item.id)}>Reconocer</button></article>)}{active.length === 0 && <p>Sin alertas activas.</p>}</div></aside>}</div>
+}
+
+export function AlertsPanel({ session, notify }: Props) {
+  const { items, load } = useAlerts(session, notify); const [severity, setSeverity] = useState(''); const [status, setStatus] = useState('')
+  const shown = useMemo(() => items.filter(item => (!severity || item.severity === severity) && (!status || item.status === status)), [items, severity, status])
+  const action = async (item: AlertItem, resolve = false) => { await api(`/alerts/${item.id}/${resolve ? 'resolve' : 'acknowledge'}`, session.accessToken, 'POST'); notify(resolve ? 'Alerta resuelta.' : 'Alerta reconocida.'); await load() }
+  return <div className="s5-page"><header className="s5-hero"><div><p>MÓDULO 15 · NOTIFICACIONES</p><h1>Centro de alertas</h1><span>Condiciones detectadas por el sistema, reconocimiento, resolución y escalamiento.</span></div><div><select value={severity} onChange={e => setSeverity(e.target.value)}><option value="">Todas las severidades</option><option>Informativa</option><option>Advertencia</option><option>Crítica</option></select><select value={status} onChange={e => setStatus(e.target.value)}><option value="">Todos los estados</option><option>Activa</option><option>Reconocida</option><option>Resuelta</option></select></div></header><section className="s5-alerts">{shown.map(item => <article key={item.id} className={item.severity.toLowerCase()}><i/><div><small>{item.type} · {item.relatedEntityType ?? 'Sistema'}</small><h3>{item.description}</h3><p>{item.origin} · nivel de escalamiento {item.escalationLevel}</p><time>{when(item.raisedAtUtc)}</time></div><span className="s5-status">{item.status}</span>{item.status === 'Activa' && <button onClick={() => action(item)}>Reconocer</button>}{item.status !== 'Resuelta' && <button className="ghost" onClick={() => action(item, true)}>Resolver</button>}</article>)}</section></div>
+}
+
+export function MaintenancePanel({ session, notify }: Props) {
+  const [plans, setPlans] = useState<Plan[]>([]), [incidents, setIncidents] = useState<Incident[]>([]), [activities, setActivities] = useState<Activity[]>([])
+  const [plan, setPlan] = useState({ name: '', frequency: 'Recurrente', intervalDays: 30, equipmentType: 'Bomba', equipmentId: '', scheduledAtUtc: new Date(Date.now() + 86400000).toISOString().slice(0, 16), assignedToEmail: '', notes: '' })
+  const load = useCallback(() => Promise.all([api<Plan[]>('/maintenance/plans', session.accessToken), api<Incident[]>('/maintenance/incidents', session.accessToken), api<Activity[]>('/maintenance/activities', session.accessToken)]).then(([p, i, a]) => { setPlans(p); setIncidents(i); setActivities(a) }).catch((error: Error) => notify(error.message)), [session.accessToken, notify])
+  useEffect(() => { load() }, [load])
+  const createPlan = async (event: React.FormEvent) => { event.preventDefault(); await api('/maintenance/plans', session.accessToken, 'POST', { ...plan, scheduledAtUtc: new Date(plan.scheduledAtUtc).toISOString(), assignedToUserId: null, status: 'Pendiente' }); notify('Plan de mantenimiento creado.'); setPlan({ ...plan, name: '', equipmentId: '' }); await load() }
+  const removePlan = async (id: string) => { await api(`/maintenance/plans/${id}`, session.accessToken, 'DELETE'); notify('Plan eliminado.'); await load() }
+  const incidentStatus = async (item: Incident, next: string) => { await api(`/maintenance/incidents/${item.id}`, session.accessToken, 'PUT', { status: next, assignedToUserId: null, assignedToEmail: item.assignedToEmail, notes: item.notes }); notify('Incidencia actualizada.'); await load() }
+  return <div className="s5-page"><header className="s5-hero"><div><p>MÓDULO 14 · MANTENIMIENTO</p><h1>Gestión del ciclo operativo</h1><span>Planes preventivos, actividades e incidencias manuales o generadas desde alertas.</span></div></header><section className="m-layout"><form className="m-form" onSubmit={createPlan}><small>NUEVO PLAN</small><h2>Programar mantenimiento</h2><label>Nombre<input value={plan.name} onChange={e => setPlan({ ...plan, name: e.target.value })} required/></label><div><label>Equipo<select value={plan.equipmentType} onChange={e => setPlan({ ...plan, equipmentType: e.target.value })}><option>Bomba</option><option>Dispositivo IoT</option><option>Sensor</option><option>Válvula</option><option>Panel solar</option></select></label><label>ID del equipo<input value={plan.equipmentId} onChange={e => setPlan({ ...plan, equipmentId: e.target.value })} required/></label></div><div><label>Frecuencia<select value={plan.frequency} onChange={e => setPlan({ ...plan, frequency: e.target.value })}><option>Recurrente</option><option>Único</option></select></label><label>Intervalo (días)<input type="number" min="1" value={plan.intervalDays} onChange={e => setPlan({ ...plan, intervalDays: Number(e.target.value) })}/></label></div><label>Fecha programada<input type="datetime-local" value={plan.scheduledAtUtc} onChange={e => setPlan({ ...plan, scheduledAtUtc: e.target.value })}/></label><label>Responsable<input value={plan.assignedToEmail} onChange={e => setPlan({ ...plan, assignedToEmail: e.target.value })}/></label><label>Notas<textarea value={plan.notes} onChange={e => setPlan({ ...plan, notes: e.target.value })}/></label><button>Crear plan</button></form><section className="m-incidents"><header><small>INCIDENCIAS</small><h2>Trabajo requerido</h2></header>{incidents.map(item => <article key={item.id} className={item.origin.startsWith('Automática') ? 'automatic' : ''}><div><small>{item.origin} · {item.severity}</small><h3>{item.title}</h3><p>{item.description}</p><span>{item.equipmentType} · {item.equipmentId}</span></div><select value={item.status} onChange={e => incidentStatus(item, e.target.value)}><option>Pendiente</option><option>En progreso</option><option>Resuelta</option></select></article>)}</section></section><section className="m-grid"><article><h2>Planes</h2>{plans.map(item => <div key={item.id}><span><b>{item.name}</b><small>{item.equipmentType} · {when(item.scheduledAtUtc)}</small></span><em>{item.status}</em><button onClick={() => removePlan(item.id)}>Eliminar</button></div>)}</article><article><h2>Historial de actividades</h2>{activities.map(item => <div key={item.id}><span><b>{item.title}</b><small>{item.equipmentType} · {when(item.scheduledAtUtc)}</small></span><em>{item.status}</em></div>)}{activities.length === 0 && <p>Sin actividades registradas.</p>}</article></section></div>
+}
