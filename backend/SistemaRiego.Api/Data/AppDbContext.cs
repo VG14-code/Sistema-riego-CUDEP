@@ -23,6 +23,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     public DbSet<PumpStationReading> PumpStationReadings => Set<PumpStationReading>(); public DbSet<SystemSafetyState> SystemSafetyStates => Set<SystemSafetyState>();
     public DbSet<SolarPanelArray> SolarPanelArrays => Set<SolarPanelArray>(); public DbSet<SolarBattery> SolarBatteries => Set<SolarBattery>(); public DbSet<ChargeController> ChargeControllers => Set<ChargeController>(); public DbSet<EnergyReading> EnergyReadings => Set<EnergyReading>(); public DbSet<FlowReading> FlowReadings => Set<FlowReading>();
     public DbSet<SystemAlert> SystemAlerts => Set<SystemAlert>(); public DbSet<NotificationDelivery> NotificationDeliveries => Set<NotificationDelivery>(); public DbSet<MaintenancePlan> MaintenancePlans => Set<MaintenancePlan>(); public DbSet<MaintenanceActivity> MaintenanceActivities => Set<MaintenanceActivity>(); public DbSet<MaintenanceIncident> MaintenanceIncidents => Set<MaintenanceIncident>();
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
@@ -72,6 +73,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         b.Entity<MaintenancePlan>(e => e.HasIndex(x=>new{x.EquipmentType,x.EquipmentId}));
         b.Entity<MaintenanceActivity>(e => { e.HasIndex(x=>new{x.EquipmentType,x.EquipmentId}); e.HasOne(x=>x.MaintenancePlan).WithMany().HasForeignKey(x=>x.MaintenancePlanId).OnDelete(DeleteBehavior.SetNull); });
         b.Entity<MaintenanceIncident>(e => { e.HasIndex(x=>new{x.EquipmentType,x.EquipmentId}); e.HasIndex(x=>new{x.Status,x.CreatedAtUtc}); e.HasOne(x=>x.SystemAlert).WithMany().HasForeignKey(x=>x.SystemAlertId).OnDelete(DeleteBehavior.SetNull); });
+        b.Entity<AuditEntry>(e => { e.HasIndex(x=>x.OccurredAtUtc); e.HasIndex(x=>new{x.UserEmail,x.ActionType}); e.HasIndex(x=>new{x.EntityType,x.EntityId}); e.Property(x=>x.ActionType).HasMaxLength(40); e.Property(x=>x.EntityType).HasMaxLength(120); e.Property(x=>x.EntityId).HasMaxLength(200); e.Property(x=>x.UserEmail).HasMaxLength(254); e.Property(x=>x.IpAddress).HasMaxLength(64); e.Property(x=>x.CorrelationId).HasMaxLength(128); e.Property(x=>x.Origin).HasMaxLength(80); });
         var created = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
         b.Entity<MasterCatalogItem>().HasData(
             new MasterCatalogItem { Id = Guid.Parse("10000000-0000-0000-0000-000000000001"), Kind = CatalogKind.SensorType, Code = "SOIL_MOISTURE", Name = "Humedad del suelo", Description = "Sensor para medir humedad volumétrica", IsActive = true, CreatedAtUtc = created, UpdatedAtUtc = created },

@@ -1,0 +1,72 @@
+using System.Security.Claims;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using SistemaRiego.Api.Models;
+
+namespace SistemaRiego.Api.Data;
+
+public sealed class AuditSaveChangesInterceptor(IHttpContextAccessor httpContextAccessor) : SaveChangesInterceptor
+{
+    private static readonly HashSet<Type> AuditedTypes =
+    [
+        typeof(User), typeof(UserRole), typeof(RolePermission), typeof(MasterCatalogItem), typeof(GlobalParameter),
+        typeof(IrrigationRule), typeof(IrrigationRun), typeof(IoTCommand), typeof(SystemAlert),
+        typeof(MaintenancePlan), typeof(MaintenanceActivity), typeof(MaintenanceIncident)
+    ];
+
+    private static readonly string[] SecretFragments = ["Password", "Token", "Authenticator", "RecoveryCode", "SecurityStamp", "ConcurrencyStamp"];
+
+    public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
+    {
+        AddAuditEntries(eventData.Context);
+        return base.SavingChanges(eventData, result);
+    }
+
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+        AddAuditEntries(eventData.Context);
+        return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+
+    private void AddAuditEntries(DbContext? context)
+    {
+        if (context is null) return;
+        context.ChangeTracker.DetectChanges();
+        var http = httpContextAccessor.HttpContext;
+        var actorId = Guid.TryParse(http?.User.FindFirstValue(ClaimTypes.NameIdentifier), out var parsed) ? parsed : (Guid?)null;
+        var actorEmail = http?.User.FindFirstValue(ClaimTypes.Email) ?? http?.User.Identity?.Name;
+        var ip = http?.Connection.RemoteIpAddress?.ToString() ?? "Proceso interno";
+        var correlationId = http?.TraceIdentifier ?? System.Diagnostics.Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N");
+        var origin = http is null ? "Proceso automático" : "API";
+
+        var audits = context.ChangeTracker.Entries()
+            .Where(x => AuditedTypes.Contains(x.Entity.GetType()) && x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Select(x => CreateEntry(x, actorId, actorEmail, ip, correlationId, origin))
+            .ToList();
+        if (audits.Count > 0) context.AddRange(audits);
+    }
+
+    private static AuditEntry CreateEntry(EntityEntry entry, Guid? actorId, string? actorEmail, string ip, string correlationId, string origin)
+    {
+        var action = entry.State switch { EntityState.Added => "Creación", EntityState.Deleted => "Eliminación", _ => "Actualización" };
+        var key = string.Join(",", entry.Properties.Where(x => x.Metadata.IsPrimaryKey()).Select(x => Convert.ToString(x.CurrentValue ?? x.OriginalValue)));
+        return new AuditEntry
+        {
+            UserId = actorId, UserEmail = actorEmail, ActionType = action, EntityType = entry.Metadata.ClrType.Name,
+            EntityId = key, BeforeJson = entry.State == EntityState.Added ? null : Snapshot(entry, false),
+            AfterJson = entry.State == EntityState.Deleted ? null : Snapshot(entry, true),
+            Detail = $"{action} de {entry.Metadata.ClrType.Name}", IpAddress = ip,
+            CorrelationId = correlationId, Origin = origin
+        };
+    }
+
+    private static string Snapshot(EntityEntry entry, bool current)
+    {
+        var values = entry.Properties
+            .Where(p => entry.State != EntityState.Modified || p.IsModified)
+            .ToDictionary(p => p.Metadata.Name, p => SecretFragments.Any(s => p.Metadata.Name.Contains(s, StringComparison.OrdinalIgnoreCase)) ? "[PROTEGIDO]" : current ? p.CurrentValue : p.OriginalValue);
+        return JsonSerializer.Serialize(values);
+    }
+}

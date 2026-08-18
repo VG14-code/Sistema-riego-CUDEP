@@ -11,10 +11,13 @@ using SistemaRiego.Api.Middleware;
 using SistemaRiego.Api.Models;
 using SistemaRiego.Api.Services;
 using Serilog;
+using QuestPDF.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+QuestPDF.Settings.License = LicenseType.Community;
 builder.Host.UseSerilog((context, configuration) => configuration.ReadFrom.Configuration(context.Configuration));
 builder.Services.AddControllers();
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
 builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = StatusCodes.Status429TooManyRequests; options.AddFixedWindowLimiter("auth", limiter => { limiter.PermitLimit = 5; limiter.Window = TimeSpan.FromMinutes(1); limiter.QueueLimit = 0; limiter.AutoReplenishment = true; }); });
 builder.Services.AddSignalR();
@@ -30,6 +33,9 @@ builder.Services.AddScoped<ISprint4TelemetryService, Sprint4TelemetryService>();
 builder.Services.AddScoped<IWaterCapacityService, WaterCapacityService>();
 builder.Services.AddScoped<IConsumptionCalculator, ConsumptionCalculator>();
 builder.Services.AddScoped<IAlertService, AlertService>();
+builder.Services.AddScoped<Sprint6ReportService>();
+builder.Services.AddScoped<AuditSaveChangesInterceptor>();
+builder.Services.AddHostedService<AuditRetentionService>();
 builder.Services.AddScoped<IAlertEscalationProcessor, AlertEscalationProcessor>();
 builder.Services.Configure<AlertOptions>(builder.Configuration.GetSection(AlertOptions.SectionName));
 builder.Services.AddHostedService<AlertEscalationWorker>();
@@ -47,7 +53,7 @@ if (builder.Environment.IsDevelopment())
 builder.Services.AddSingleton<MqttWorker>();
 builder.Services.AddSingleton<IMqttCommandPublisher>(serviceProvider => serviceProvider.GetRequiredService<MqttWorker>());
 builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<MqttWorker>());
-builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddDbContext<AppDbContext>((services, options) => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")).AddInterceptors(services.GetRequiredService<AuditSaveChangesInterceptor>()));
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.AddIdentityCore<User>(options =>
 {
@@ -88,6 +94,7 @@ builder.Services.AddCors(o => o.AddPolicy("Frontend", p => p.WithOrigins(builder
 
 var app = builder.Build();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
+app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseSerilogRequestLogging();
 app.UseHttpsRedirection();
