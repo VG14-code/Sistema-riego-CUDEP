@@ -22,6 +22,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
     public DbSet<WaterConsumptionRecord> WaterConsumptionRecords => Set<WaterConsumptionRecord>(); public DbSet<OperationalEvent> OperationalEvents => Set<OperationalEvent>();
     public DbSet<PumpStationReading> PumpStationReadings => Set<PumpStationReading>(); public DbSet<SystemSafetyState> SystemSafetyStates => Set<SystemSafetyState>();
     public DbSet<SolarPanelArray> SolarPanelArrays => Set<SolarPanelArray>(); public DbSet<SolarBattery> SolarBatteries => Set<SolarBattery>(); public DbSet<ChargeController> ChargeControllers => Set<ChargeController>(); public DbSet<EnergyReading> EnergyReadings => Set<EnergyReading>(); public DbSet<FlowReading> FlowReadings => Set<FlowReading>();
+    public DbSet<SystemAlert> SystemAlerts => Set<SystemAlert>(); public DbSet<NotificationDelivery> NotificationDeliveries => Set<NotificationDelivery>(); public DbSet<MaintenancePlan> MaintenancePlans => Set<MaintenancePlan>(); public DbSet<MaintenanceActivity> MaintenanceActivities => Set<MaintenanceActivity>(); public DbSet<MaintenanceIncident> MaintenanceIncidents => Set<MaintenanceIncident>();
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
@@ -66,6 +67,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         b.Entity<ChargeController>(e => { e.Property(x=>x.RatedCurrentAmps).HasPrecision(8,2); e.HasOne(x=>x.SolarPanelArray).WithMany().HasForeignKey(x=>x.SolarPanelArrayId).OnDelete(DeleteBehavior.Restrict); e.HasOne(x=>x.SolarBattery).WithMany().HasForeignKey(x=>x.SolarBatteryId).OnDelete(DeleteBehavior.Restrict); });
         b.Entity<EnergyReading>(e => { e.HasIndex(x=>x.MessageId).IsUnique(); e.HasIndex(x=>x.CapturedAtUtc); e.Property(x=>x.GenerationWatts).HasPrecision(12,2); e.Property(x=>x.BatteryPercent).HasPrecision(6,2); e.Property(x=>x.ConsumptionWatts).HasPrecision(12,2); e.Property(x=>x.BatteryVoltage).HasPrecision(8,2); e.HasOne(x=>x.ChargeController).WithMany().HasForeignKey(x=>x.ChargeControllerId).OnDelete(DeleteBehavior.Restrict); });
         b.Entity<FlowReading>(e => { e.HasIndex(x=>x.MessageId).IsUnique(); e.HasIndex(x=>new{x.IrrigationZoneId,x.CapturedAtUtc}); e.Property(x=>x.FlowLitersMinute).HasPrecision(10,2); e.HasOne(x=>x.IrrigationZone).WithMany().HasForeignKey(x=>x.IrrigationZoneId).OnDelete(DeleteBehavior.Restrict); });
+        b.Entity<SystemAlert>(e => { e.HasIndex(x=>new{x.Fingerprint,x.Status}); e.HasIndex(x=>new{x.Severity,x.Status,x.RaisedAtUtc}); e.Property(x=>x.Description).HasMaxLength(600); });
+        b.Entity<NotificationDelivery>(e => e.HasOne(x=>x.SystemAlert).WithMany(x=>x.Deliveries).HasForeignKey(x=>x.SystemAlertId).OnDelete(DeleteBehavior.Cascade));
+        b.Entity<MaintenancePlan>(e => e.HasIndex(x=>new{x.EquipmentType,x.EquipmentId}));
+        b.Entity<MaintenanceActivity>(e => { e.HasIndex(x=>new{x.EquipmentType,x.EquipmentId}); e.HasOne(x=>x.MaintenancePlan).WithMany().HasForeignKey(x=>x.MaintenancePlanId).OnDelete(DeleteBehavior.SetNull); });
+        b.Entity<MaintenanceIncident>(e => { e.HasIndex(x=>new{x.EquipmentType,x.EquipmentId}); e.HasIndex(x=>new{x.Status,x.CreatedAtUtc}); e.HasOne(x=>x.SystemAlert).WithMany().HasForeignKey(x=>x.SystemAlertId).OnDelete(DeleteBehavior.SetNull); });
         var created = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc);
         b.Entity<MasterCatalogItem>().HasData(
             new MasterCatalogItem { Id = Guid.Parse("10000000-0000-0000-0000-000000000001"), Kind = CatalogKind.SensorType, Code = "SOIL_MOISTURE", Name = "Humedad del suelo", Description = "Sensor para medir humedad volumétrica", IsActive = true, CreatedAtUtc = created, UpdatedAtUtc = created },

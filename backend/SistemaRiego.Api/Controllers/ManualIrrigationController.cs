@@ -10,7 +10,7 @@ using SistemaRiego.Api.Services;
 namespace SistemaRiego.Api.Controllers;
 
 [ApiController,Route("api/manual-irrigation"),Authorize(Policy=Policies.Operator)]
-public sealed class ManualIrrigationController(AppDbContext db, ITotpService? totp = null, IIrrigationCommandService? commands = null):ControllerBase
+public sealed class ManualIrrigationController(AppDbContext db, ITotpService? totp = null, IIrrigationCommandService? commands = null, IAlertService? alerts = null):ControllerBase
 {
     [HttpGet("zones")]
     public async Task<ActionResult> Zones(CancellationToken ct)=>Ok(await db.IrrigationZones.AsNoTracking().Where(x=>x.IsActive).OrderBy(x=>x.Name).Select(x=>new{x.Id,x.Name,x.Code,x.AreaHectares,HasValve=x.ValveDeviceId!=null||x.Valves.Any(),IsRunning=db.IrrigationRuns.Any(r=>r.IrrigationZoneId==x.Id&&(r.Status=="En curso"||r.Status=="Esperando ACK"||r.Status=="Cierre pendiente"))}).ToListAsync(ct));
@@ -45,6 +45,7 @@ public sealed class ManualIrrigationController(AppDbContext db, ITotpService? to
         var requested = 0; var failed = 0;
         foreach (var run in runs) { run.Status = "Cierre pendiente"; await db.SaveChangesAsync(ct); try { if (commands is null) { run.Status = "Detenido"; run.EndedAtUtc = DateTime.UtcNow; } else { await commands.SendAsync(run.IrrigationZoneId, run, "CERRAR_VALVULA", UserId(), ct); requested++; } } catch (Exception exception) { run.Status = "Fallido"; run.EndedAtUtc = DateTime.UtcNow; failed++; db.OperationalEvents.Add(new OperationalEvent { Category = "Seguridad", EventType = "EMERGENCY_CLOSE_FAILED", Severity = "Crítico", IrrigationZoneId = run.IrrigationZoneId, IrrigationRunId = run.Id, Detail = exception.Message }); } }
         db.OperationalEvents.Add(new OperationalEvent { Category = "Seguridad", EventType = "EMERGENCY_STOP_ALL", Severity = "Crítico", UserId = UserId(), UserEmail = User.FindFirstValue(ClaimTypes.Email), Detail = $"Paro total solicitado: {runs.Count} riegos, {requested} órdenes MQTT, {failed} fallos." }); await db.SaveChangesAsync(ct);
+        if (alerts is not null) await alerts.RaiseAsync(new AlertSignal("SYSTEM:EMERGENCY_STOP", "Tanque", "Crítica", $"Paro global activo: {runs.Count} riegos afectados.", "Sistema", "GLOBAL"), ct);
         return Ok(new { message = "Paro de emergencia procesado; los cierres quedan sujetos a ACK MQTT.", affected = runs.Count, requested, failed });
     }
 

@@ -19,11 +19,12 @@ public sealed class IrrigationWatchdogWorker(IServiceScopeFactory scopes, ILogge
 
     private async Task Inspect(CancellationToken ct)
     {
-        using var scope = scopes.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var now = DateTime.UtcNow;
+        using var scope = scopes.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var alerts = scope.ServiceProvider.GetRequiredService<IAlertService>(); var now = DateTime.UtcNow;
         var expired = await db.IoTCommands.Where(x => (x.Status == "Pendiente" || x.Status == "Publicado") && x.ExpiresAtUtc <= now).ToListAsync(ct);
         foreach (var command in expired)
         {
             command.Status = "Expirado"; command.FailedAtUtc = now; command.FailureReason = "No se recibió ACK MQTT antes del timeout.";
+            await alerts.RaiseAsync(new AlertSignal($"MQTT:{command.Id}:TIMEOUT", "Falla de dispositivo", "Crítica", $"Comando {command.CommandType} {command.Id} expiró sin ACK.", "Dispositivo IoT", command.DeviceId.ToString()), ct);
             if (command.IrrigationRunId is long id)
             {
                 var run = await db.IrrigationRuns.FindAsync([id], ct);
@@ -47,6 +48,7 @@ public sealed class IrrigationWatchdogWorker(IServiceScopeFactory scopes, ILogge
             {
                 run.Status = "Fallido"; run.EndedAtUtc = now;
                 db.OperationalEvents.Add(new OperationalEvent { Category = "Seguridad", EventType = "IRRIGATION_CLOSE_FAILED", Severity = "Crítico", IrrigationZoneId = run.IrrigationZoneId, IrrigationRunId = run.Id, Detail = exception.Message });
+                await alerts.RaiseAsync(new AlertSignal($"IRRIGATION:{run.Id}:CLOSE_FAILED", "Falla de dispositivo", "Crítica", $"No fue posible cerrar el riego {run.Id}: {exception.Message}", "Zona", run.IrrigationZoneId.ToString()), ct);
             }
             await db.SaveChangesAsync(ct);
         }

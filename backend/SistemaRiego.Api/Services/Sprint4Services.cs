@@ -59,7 +59,7 @@ public interface ISprint4TelemetryService
     Task IngestEnergyAsync(EnergyTelemetry telemetry, CancellationToken ct);
     Task IngestFlowAsync(FlowTelemetry telemetry, CancellationToken ct);
 }
-public sealed class Sprint4TelemetryService(AppDbContext db, IPumpCommandService pumpCommands) : ISprint4TelemetryService
+public sealed class Sprint4TelemetryService(AppDbContext db, IPumpCommandService pumpCommands, IAlertService? alerts = null) : ISprint4TelemetryService
 {
     public async Task IngestStationAsync(PumpStationTelemetry x, CancellationToken ct)
     {
@@ -75,6 +75,7 @@ public sealed class Sprint4TelemetryService(AppDbContext db, IPumpCommandService
             tank.Status = "Nivel bajo"; pump.HasUnacknowledgedFault = true; pump.FailureReason = fault; pump.Status = x.IsPumpRunning ? "Parada de seguridad pendiente" : "Falla";
             db.OperationalEvents.Add(new OperationalEvent { Category = "Seguridad", EventType = "PUMP_SAFETY_TRIP", Severity = "Crítico", Detail = $"{pump.Name}: {fault}." });
             await db.SaveChangesAsync(ct);
+            if (alerts is not null) await alerts.RaiseAsync(new AlertSignal($"PUMP:{pump.Id}:{(percent <= tank.MinimumSafePercent ? "DRY_RUN" : "OVERCURRENT")}", "Falla de dispositivo", "Crítica", $"{pump.Name}: {fault}.", "Bomba", pump.Id.ToString()), ct);
             if (x.IsPumpRunning) await pumpCommands.SendAsync(pump, "APAGAR_BOMBA", null, ct);
             return;
         }
@@ -87,9 +88,9 @@ public sealed class Sprint4TelemetryService(AppDbContext db, IPumpCommandService
         controller.SolarBattery.CurrentChargePercent = Math.Clamp(x.BatteryPercent, 0, 100);
         controller.SolarBattery.Status = x.BatteryPercent <= controller.SolarBattery.MinimumSafeChargePercent ? "Batería baja" : "Disponible";
         db.EnergyReadings.Add(new EnergyReading { ChargeControllerId = controller.Id, CapturedAtUtc = x.CapturedAtUtc, GenerationWatts = x.GenerationWatts, BatteryPercent = x.BatteryPercent, ConsumptionWatts = x.ConsumptionWatts, BatteryVoltage = x.BatteryVoltage, MessageId = x.MessageId });
-        if (x.BatteryPercent <= controller.SolarBattery.MinimumSafeChargePercent) db.OperationalEvents.Add(new OperationalEvent { Category = "Energía", EventType = "LOW_BATTERY", Severity = "Advertencia", Detail = $"Batería solar en {x.BatteryPercent:0.0}%." });
+        if (x.BatteryPercent <= controller.SolarBattery.MinimumSafeChargePercent) { db.OperationalEvents.Add(new OperationalEvent { Category = "Energía", EventType = "LOW_BATTERY", Severity = "Advertencia", Detail = $"Batería solar en {x.BatteryPercent:0.0}%." }); if (alerts is not null) await alerts.RaiseAsync(new AlertSignal($"ENERGY:{controller.Id}:LOW_BATTERY", "Energía", "Advertencia", $"Batería solar en {x.BatteryPercent:0.0}%.", "Controlador solar", controller.Id.ToString()), ct); }
         var localHour = x.CapturedAtUtc.ToLocalTime().Hour;
-        if (localHour is >= 7 and <= 17 && x.GenerationWatts < 5) db.OperationalEvents.Add(new OperationalEvent { Category = "Energía", EventType = "NO_DAYLIGHT_GENERATION", Severity = "Advertencia", Detail = "No se detectó generación solar durante horario diurno." });
+        if (localHour is >= 7 and <= 17 && x.GenerationWatts < 5) { db.OperationalEvents.Add(new OperationalEvent { Category = "Energía", EventType = "NO_DAYLIGHT_GENERATION", Severity = "Advertencia", Detail = "No se detectó generación solar durante horario diurno." }); if (alerts is not null) await alerts.RaiseAsync(new AlertSignal($"ENERGY:{controller.Id}:NO_GENERATION", "Energía", "Advertencia", "No se detectó generación solar durante horario diurno.", "Controlador solar", controller.Id.ToString()), ct); }
         await db.SaveChangesAsync(ct);
     }
     public async Task IngestFlowAsync(FlowTelemetry x, CancellationToken ct)
@@ -116,7 +117,7 @@ public sealed class WaterCapacityService(AppDbContext db) : IWaterCapacityServic
 }
 
 public interface IConsumptionCalculator { Task<WaterConsumptionRecord> BuildAsync(IrrigationRun run, DateTime endedAtUtc, CancellationToken ct); }
-public sealed class ConsumptionCalculator(AppDbContext db) : IConsumptionCalculator
+public sealed class ConsumptionCalculator(AppDbContext db, IAlertService? alerts = null) : IConsumptionCalculator
 {
     public async Task<WaterConsumptionRecord> BuildAsync(IrrigationRun run, DateTime endedAtUtc, CancellationToken ct)
     {
@@ -125,6 +126,8 @@ public sealed class ConsumptionCalculator(AppDbContext db) : IConsumptionCalcula
         var measured = readings.Count > 0; var flow = measured ? readings.Average() : run.FlowRateLitersMinute; var volume = Math.Round(flow * minutes, 2);
         var recommended = run.IrrigationRuleId.HasValue ? await db.IrrigationRules.Where(x => x.Id == run.IrrigationRuleId).Select(x => x.CropWaterRequirement == null ? (decimal?)null : x.CropWaterRequirement.BaseVolumeLiters).SingleOrDefaultAsync(ct) : null;
         var tariff = decimal.TryParse(await db.GlobalParameters.Where(x => x.Key == "WATER_TARIFF_PER_M3").Select(x => x.Value).SingleOrDefaultAsync(ct), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var cost) ? cost : 3.5m;
-        return new WaterConsumptionRecord { IrrigationRunId = run.Id, IrrigationZoneId = run.IrrigationZoneId, Source = measured ? "Caudal real simulado" : "Estimado", IsMeasured = measured, FlowRateLitersMinute = flow, DurationMinutes = minutes, VolumeLiters = volume, RecommendedVolumeLiters = recommended, DeviationPercent = recommended > 0 ? Math.Round((volume - recommended.Value) / recommended.Value * 100, 2) : null, EstimatedCost = Math.Round(volume / 1000 * tariff, 4), RecordedAtUtc = endedAtUtc };
+        var record = new WaterConsumptionRecord { IrrigationRunId = run.Id, IrrigationZoneId = run.IrrigationZoneId, Source = measured ? "Caudal real simulado" : "Estimado", IsMeasured = measured, FlowRateLitersMinute = flow, DurationMinutes = minutes, VolumeLiters = volume, RecommendedVolumeLiters = recommended, DeviationPercent = recommended > 0 ? Math.Round((volume - recommended.Value) / recommended.Value * 100, 2) : null, EstimatedCost = Math.Round(volume / 1000 * tariff, 4), RecordedAtUtc = endedAtUtc };
+        if (alerts is not null && Math.Abs(record.DeviationPercent ?? 0) >= 25) await alerts.RaiseAsync(new AlertSignal($"FLOW:{run.Id}:DEVIATION", "Flujo", "Advertencia", $"El riego {run.Id} se desvió {record.DeviationPercent:0.0}% del requerimiento agronómico.", "Zona", run.IrrigationZoneId.ToString()), ct);
+        return record;
     }
 }

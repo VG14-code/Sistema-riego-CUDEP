@@ -30,6 +30,7 @@ public sealed class IoTHealthWorker(
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var alerts = scope.ServiceProvider.GetRequiredService<IAlertService>();
         var statuses = await db.MasterCatalogItems
             .Where(x => x.Kind == CatalogKind.OperationalStatus && (x.Code == "ACTIVE" || x.Code == "OFFLINE"))
             .ToDictionaryAsync(x => x.Code, x => x.Id, cancellationToken);
@@ -42,12 +43,14 @@ public sealed class IoTHealthWorker(
         {
             node.OperationalStatusId = offlineId;
             node.UpdatedAtUtc = DateTime.UtcNow;
+            await alerts.RaiseAsync(new AlertSignal($"IOT:NODE:{node.Id}:OFFLINE", "Conexión", "Advertencia", $"Nodo {node.Name} sin heartbeat.", "Nodo IoT", node.Id.ToString()), cancellationToken);
             changed++;
         }
         foreach (var device in await db.IoTDevices.Where(x => x.IsActive && (!x.LastCommunicationUtc.HasValue || x.LastCommunicationUtc < cutoff) && x.OperationalStatusId != offlineId).ToListAsync(cancellationToken))
         {
             device.OperationalStatusId = offlineId;
             device.UpdatedAtUtc = DateTime.UtcNow;
+            await alerts.RaiseAsync(new AlertSignal($"IOT:DEVICE:{device.Id}:OFFLINE", "Conexión", "Advertencia", $"Dispositivo {device.Name} sin heartbeat.", "Dispositivo IoT", device.Id.ToString()), cancellationToken);
             changed++;
         }
         foreach (var sensor in await db.IoTSensors
@@ -58,6 +61,7 @@ public sealed class IoTHealthWorker(
         {
             sensor.OperationalStatusId = offlineId;
             sensor.UpdatedAtUtc = DateTime.UtcNow;
+            await alerts.RaiseAsync(new AlertSignal($"IOT:SENSOR:{sensor.Id}:OFFLINE", "Conexión", "Advertencia", $"Sensor {sensor.Name} sin lecturas recientes.", "Sensor", sensor.Id.ToString()), cancellationToken);
             changed++;
         }
 

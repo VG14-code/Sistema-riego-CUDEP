@@ -8,5 +8,6 @@ namespace SistemaRiego.Api.Hubs;
 public sealed class TelemetryHub : Hub
 {
     public const string ReadingReceived = "telemetryReadingReceived";
+    public const string AlertRaised = "alertRaised";
 }
 
