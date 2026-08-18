@@ -11,7 +11,8 @@ export interface DeviceModel { id: string; deviceBrandId: string; brand: string;
 export interface TotpStatus { enabled: boolean; hasAuthenticator: boolean }
 export interface TotpSetup { sharedKey: string; authenticatorUri: string }
 export interface GlobalParameter { id: string; key: string; value: string; dataType: string; category: string; description: string; isEditable: boolean }
-export interface AuditItem { id: number; eventType: string; detail: string; occurredAtUtc: string; userEmail: string | null }
+export interface AuditItem { id: number; actionType: string; entityType: string; entityId: string | null; beforeJson: string | null; afterJson: string | null; detail: string | null; occurredAtUtc: string; userEmail: string | null; ipAddress: string | null; correlationId: string; origin: string }
+export interface AuditFilters { users: string[]; actions: string[]; entities: string[] }
 type JsonBody = Record<string, unknown>
 
 async function request<T>(path: string, options: RequestInit = {}, accessToken?: string, totpCode?: string): Promise<T> {
@@ -27,6 +28,13 @@ async function request<T>(path: string, options: RequestInit = {}, accessToken?:
   return data as T
 }
 const json = (body: JsonBody): Pick<RequestInit, 'body'> => ({ body: JSON.stringify(body) })
+async function downloadAudit(token: string, query: string, format: 'csv' | 'xlsx'): Promise<void> {
+  const response = await fetch(`${baseUrl}/audit-trail/export.${format}?${query}`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!response.ok) throw new Error('No fue posible exportar la auditoría.')
+  const blob = await response.blob(), url = URL.createObjectURL(blob), link = document.createElement('a')
+  link.href = url; link.download = `auditoria-filtrada.${format}`; link.click(); URL.revokeObjectURL(url)
+}
+
 
 export const week2Api = {
   login: (email: string, password: string) => request<AuthSession>('/auth/login', { method: 'POST', ...json({ email, password }) }),
@@ -57,5 +65,7 @@ export const week2Api = {
   deleteModel: (token: string, id: string) => request<void>(`/device-catalogs/models/${id}`, { method: 'DELETE' }, token),
   settings: (token: string) => request<GlobalParameter[]>('/settings', {}, token),
   saveSetting: (token: string, key: string, item: JsonBody) => request<void>(`/settings/${key}`, { method: 'PUT', ...json(item) }, token),
-  audit: (token: string) => request<AuditItem[]>('/audit?take=100', {}, token),
+  audit: (token: string, query = '') => request<AuditItem[]>(`/audit-trail?${query}`, {}, token),
+  auditFilters: (token: string) => request<AuditFilters>('/audit-trail/filters', {}, token),
+  exportAudit: (token: string, query: string, format: 'csv' | 'xlsx') => downloadAudit(token, query, format),
 }

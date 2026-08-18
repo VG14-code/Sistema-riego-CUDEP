@@ -31,3 +31,5 @@ La estrategia, los índices y el tratamiento de mensajes atrasados están docume
 El control hidráulico M11, energía solar M12 y consumo/eficiencia M13 están documentados en [docs/sprint4-water-energy-consumption.md](docs/sprint4-water-energy-consumption.md).
 
 Alertas en tiempo real, webhook/n8n y mantenimiento preventivo/correctivo están documentados en [docs/sprint5-alerts-maintenance.md](docs/sprint5-alerts-maintenance.md).
+
+Los reportes PDF/Excel, la auditoría sensible con CorrelationId/retención y la guía reproducible de Power BI están documentados en [docs/sprint6-reporting-audit-powerbi.md](docs/sprint6-reporting-audit-powerbi.md).

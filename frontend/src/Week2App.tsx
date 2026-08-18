@@ -15,9 +15,8 @@ const Leaf = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="curre
 const catalogLabels = { SensorType: 'Tipos de sensor', DeviceType: 'Tipos de dispositivo', MeasurementUnit: 'Unidades de medida', OperationalStatus: 'Estados operativos' }
 const statusLabels = { Active: 'Activo', Blocked: 'Bloqueado', Disabled: 'Deshabilitado' }
 const dataTypeOptions = [{value:'integer',label:'Número entero'},{value:'decimal',label:'Número decimal'},{value:'boolean',label:'Sí / No'},{value:'text',label:'Texto'},{value:'time',label:'Hora'}]
-const parameterLabels = { SENSOR_OFFLINE_MINUTES:'Tiempo para detectar un sensor desconectado', DEFAULT_IRRIGATION_MINUTES:'Duración predeterminada del riego', MAX_LOGIN_ATTEMPTS:'Intentos máximos de inicio de sesión', TELEMETRY_INTERVAL_SECONDS:'Intervalo de envío de telemetría' }
+const parameterLabels = { SENSOR_OFFLINE_MINUTES:'Tiempo para detectar un sensor desconectado', DEFAULT_IRRIGATION_MINUTES:'Duración predeterminada del riego', MAX_LOGIN_ATTEMPTS:'Intentos máximos de inicio de sesión', TELEMETRY_INTERVAL_SECONDS:'Intervalo de envío de telemetría', AUDIT_RETENTION_DAYS:'Retención de auditoría sensible (días)' }
 const emptyCatalogForm = {code:'',name:'',description:'',symbol:'',isActive:true}
-const eventLabels = { LOGIN_SUCCESS: 'Inicio de sesión', LOGIN_FAILED: 'Acceso rechazado', LOGOUT: 'Cierre de sesión', USER_REGISTERED: 'Usuario registrado', USER_STATUS_CHANGED: 'Estado actualizado', USER_ROLES_CHANGED: 'Roles actualizados', PASSWORD_RECOVERY_REQUESTED: 'Recuperación solicitada', PASSWORD_RESET: 'Contraseña restablecida', CATALOG_CREATED: 'Catálogo creado', CATALOG_UPDATED: 'Catálogo actualizado', CATALOG_DELETED: 'Catálogo eliminado', GLOBAL_PARAMETER_UPDATED: 'Parámetro actualizado', IOT_NODE_CREATED:'Nodo IoT registrado', IOT_NODE_UPDATED:'Nodo IoT actualizado', IOT_NODE_DEACTIVATED:'Nodo IoT desactivado', IOT_DEVICE_CREATED:'Dispositivo registrado', IOT_DEVICE_UPDATED:'Dispositivo actualizado', IOT_DEVICE_DEACTIVATED:'Dispositivo desactivado', IOT_SENSOR_CREATED:'Sensor registrado', IOT_SENSOR_UPDATED:'Sensor actualizado', IOT_SENSOR_DEACTIVATED:'Sensor desactivado', IOT_SENSOR_CALIBRATED:'Sensor calibrado' }
 
 function Access({ onLogin }) {
   const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false)
@@ -56,8 +55,17 @@ function Settings({ session, notify }) {
 }
 
 function Audit({ session, notify }) {
-  const [items,setItems]=useState([]); useEffect(()=>{api.audit(session.accessToken).then(setItems).catch(e=>notify(e.message))},[])
-  return <><div className="w2-page-title"><div><p className="w2-kicker">TRAZABILIDAD</p><h1>Auditoría de acceso</h1><p>Registro cronológico de ingresos y cambios relevantes.</p></div><span className="w2-count">Últimos {items.length}</span></div><div className="w2-timeline">{items.map(item=><article key={item.id}><span className="w2-dot"/><div><b>{eventLabels[item.eventType]??item.eventType}</b><p>{item.detail}</p><small>{item.userEmail??'Usuario no identificado'} · {new Date(item.occurredAtUtc).toLocaleString('es-GT')}</small></div></article>)}</div></>
+  const empty={from:'',to:'',user:'',action:'',entity:''}
+  const [items,setItems]=useState([]),[filters,setFilters]=useState(empty),[options,setOptions]=useState({users:[],actions:[],entities:[]})
+  const query=()=>{const p=new URLSearchParams();Object.entries(filters).forEach(([key,value])=>value&&p.set(key,value));return p.toString()}
+  const load=()=>api.audit(session.accessToken,query()).then(setItems)
+  useEffect(()=>{Promise.all([load(),api.auditFilters(session.accessToken).then(setOptions)]).catch(e=>notify(e.message))},[])
+  const apply=e=>{e.preventDefault();load().catch(x=>notify(x.message))}
+  const clear=()=>{setFilters(empty);api.audit(session.accessToken).then(setItems).catch(e=>notify(e.message))}
+  const exportFile=format=>api.exportAudit(session.accessToken,query(),format).then(()=>notify(`Auditoría ${format.toUpperCase()} descargada.`)).catch(e=>notify(e.message))
+  return <><div className="w2-page-title"><div><p className="w2-kicker">TRAZABILIDAD</p><h1>Auditoría sensible</h1><p>Cambios con valores antes/después, IP y correlación de extremo a extremo.</p></div><span className="w2-count">{items.length} registros</span></div>
+  <form className="s14-filters" onSubmit={apply}><label>Desde<input type="date" value={filters.from} onChange={e=>setFilters({...filters,from:e.target.value})}/></label><label>Hasta<input type="date" value={filters.to} onChange={e=>setFilters({...filters,to:e.target.value})}/></label><label>Usuario<select value={filters.user} onChange={e=>setFilters({...filters,user:e.target.value})}><option value="">Todos</option>{options.users.map(x=><option key={x}>{x}</option>)}</select></label><label>Acción<select value={filters.action} onChange={e=>setFilters({...filters,action:e.target.value})}><option value="">Todas</option>{options.actions.map(x=><option key={x}>{x}</option>)}</select></label><label>Entidad<select value={filters.entity} onChange={e=>setFilters({...filters,entity:e.target.value})}><option value="">Todas</option>{options.entities.map(x=><option key={x}>{x}</option>)}</select></label><button>Aplicar</button><button type="button" onClick={clear}>Limpiar</button><button type="button" onClick={()=>exportFile('csv')}>CSV</button><button type="button" onClick={()=>exportFile('xlsx')}>Excel</button></form>
+  <div className="w2-timeline">{items.map(item=><article key={item.id}><span className="w2-dot"/><div><b>{item.actionType} · {item.entityType}</b><p>{item.detail}{item.entityId? ` #${item.entityId}`:''}</p><small>{item.userEmail??item.origin} · {new Date(item.occurredAtUtc).toLocaleString('es-GT')} · IP {item.ipAddress??'—'}</small>{(item.beforeJson||item.afterJson)&&<details><summary>Valores modificados</summary><pre>Antes: {item.beforeJson??'—'}{String.fromCharCode(10)}Después: {item.afterJson??'—'}</pre><small>CorrelationId: {item.correlationId}</small></details>}</div></article>)}</div></>
 }
 
 function Shell({ session, onLogout }) {
