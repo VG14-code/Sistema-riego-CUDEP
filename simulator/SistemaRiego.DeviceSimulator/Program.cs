@@ -19,6 +19,9 @@ var options = new MqttClientOptionsBuilder()
     .WithCleanSession()
     .Build();
 var valveStates = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+var pumpRunning = false;
+var tankLevelLiters = decimal.TryParse(Environment.GetEnvironmentVariable("SIMULATOR_TANK_LEVEL_LITERS"), out var configuredTankLevel) ? configuredTankLevel : 7200m;
+var forceOvercurrent = bool.TryParse(Environment.GetEnvironmentVariable("SIMULATE_PUMP_OVERCURRENT"), out var configuredOvercurrent) && configuredOvercurrent;
 client.ApplicationMessageReceivedAsync += async message =>
 {
     if (!message.ApplicationMessage.Topic.EndsWith("/comando", StringComparison.Ordinal)) return;
@@ -29,12 +32,15 @@ client.ApplicationMessageReceivedAsync += async message =>
     var commandType = root.TryGetProperty("commandType", out var typeValue) ? typeValue.GetString() ?? string.Empty : payload;
     var segments = message.ApplicationMessage.Topic.Split('/');
     var deviceId = segments.Length > 3 ? segments[3] : "unknown";
-    if (commandType.Contains("ABRIR", StringComparison.OrdinalIgnoreCase)) valveStates[deviceId] = true;
+    var isPumpCommand = message.ApplicationMessage.Topic.Contains("/bomba/", StringComparison.Ordinal);
+    if (isPumpCommand && commandType.Contains("ENCENDER", StringComparison.OrdinalIgnoreCase)) pumpRunning = true;
+    else if (isPumpCommand && commandType.Contains("APAGAR", StringComparison.OrdinalIgnoreCase)) pumpRunning = false;
+    else if (commandType.Contains("ABRIR", StringComparison.OrdinalIgnoreCase)) valveStates[deviceId] = true;
     else if (commandType.Contains("CERRAR", StringComparison.OrdinalIgnoreCase)) valveStates[deviceId] = false;
     var isOpen = valveStates.GetValueOrDefault(deviceId);
     await Task.Delay(config.AckDelayMilliseconds);
     var ackTopic = message.ApplicationMessage.Topic[..^"/comando".Length] + "/ack";
-    var ack = JsonSerializer.Serialize(new { commandId, commandType, status = isOpen ? "válvula abierta" : "válvula cerrada", isOpen, acknowledgedAtUtc = DateTime.UtcNow }, JsonOptions());
+    var ack = JsonSerializer.Serialize(new { commandId, commandType, status = isPumpCommand ? (pumpRunning ? "bomba encendida" : "bomba detenida") : (isOpen ? "válvula abierta" : "válvula cerrada"), isOpen, isRunning = pumpRunning, acknowledgedAtUtc = DateTime.UtcNow }, JsonOptions());
     await client.PublishAsync(new MqttApplicationMessageBuilder().WithTopic(ackTopic).WithPayload(ack)
         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce).Build());
     Console.WriteLine($"ACK {ackTopic}: {ack}");
@@ -42,7 +48,8 @@ client.ApplicationMessageReceivedAsync += async message =>
 
 await client.ConnectAsync(options);
 var subscription = factory.CreateSubscribeOptionsBuilder()
-    .WithTopicFilter(filter => filter.WithTopic("granja/+/valvula/+/comando").WithAtLeastOnceQoS()).Build();
+    .WithTopicFilter(filter => filter.WithTopic("granja/+/valvula/+/comando").WithAtLeastOnceQoS())
+    .WithTopicFilter(filter => filter.WithTopic("granja/estacion/bomba/+/comando").WithAtLeastOnceQoS()).Build();
 await client.SubscribeAsync(subscription);
 Console.WriteLine($"Simulador {config.ClientId} conectado a {config.BrokerHost}:{config.BrokerPort}. Ctrl+C para detener.");
 
@@ -74,6 +81,20 @@ try
                 .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce).Build(), shutdown.Token);
             Console.WriteLine($"{DateTime.Now:T} {topic}: {state.Value:0.00}");
         }
+        foreach (var zone in config.Zones)
+        {
+            var open = valveStates.Values.Count(x => x);
+            var flow = open == 0 ? 0m : Math.Round(12m * open + (decimal)(random.NextDouble() - .5), 2);
+            var flowPayload = JsonSerializer.Serialize(new { irrigationZoneCode = zone.Code, capturedAtUtc = DateTime.UtcNow, flowLitersMinute = flow, messageId = $"FLOW-{zone.Code}-{Guid.NewGuid():N}" }, JsonOptions());
+            await client.PublishAsync(new MqttApplicationMessageBuilder().WithTopic($"granja/{zone.TopicKey}/caudal/lectura").WithPayload(flowPayload).WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce).Build(), shutdown.Token);
+        }
+        tankLevelLiters = Math.Clamp(tankLevelLiters + (pumpRunning ? 8m : -2m), 0, 10000);
+        var motorCurrent = pumpRunning ? forceOvercurrent ? 18m : Math.Round(7m + (decimal)random.NextDouble() * 1.5m, 2) : 0m;
+        var stationPayload = JsonSerializer.Serialize(new { pumpCode = "BOMBA-ABAST-01", capturedAtUtc = DateTime.UtcNow, levelLiters = tankLevelLiters, pressureBar = pumpRunning ? 3.2m : 2.4m, motorCurrentAmps = motorCurrent, isPumpRunning = pumpRunning, messageId = $"STATION-{Guid.NewGuid():N}" }, JsonOptions());
+        await client.PublishAsync(new MqttApplicationMessageBuilder().WithTopic("granja/estacion/telemetria").WithPayload(stationPayload).WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce).Build(), shutdown.Token);
+        var daylight = DateTime.Now.Hour is >= 6 and <= 18; var generation = daylight ? 900 + random.Next(0, 500) : 0;
+        var energyPayload = JsonSerializer.Serialize(new { capturedAtUtc = DateTime.UtcNow, generationWatts = generation, batteryPercent = 78 + random.Next(0, 8), consumptionWatts = 180 + (pumpRunning ? 650 : 0), batteryVoltage = 50.8m, messageId = $"ENERGY-{Guid.NewGuid():N}" }, JsonOptions());
+        await client.PublishAsync(new MqttApplicationMessageBuilder().WithTopic("granja/energia/telemetria").WithPayload(energyPayload).WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce).Build(), shutdown.Token);
         await Task.Delay(TimeSpan.FromSeconds(config.IntervalSeconds), shutdown.Token);
     }
 }

@@ -10,6 +10,10 @@ Este proyecto emula temporalmente nodos ESP32 mientras no exista hardware físic
 
 La configuración admite múltiples zonas y sensores. Cada sensor publica humedad o temperatura en `granja/{zona}/sensor/{sensor}/lectura` con intervalo, rango, variación y semilla aleatoria configurables.
 
-El simulador escucha `granja/+/valvula/+/comando` y, tras un retardo configurable, responde en el tópico hermano `ack` con “válvula abierta” o “válvula cerrada”.
+El simulador escucha órdenes de válvula y bomba, y responde en el tópico hermano `ack` con el estado confirmado. También publica estación hidráulica (nivel, presión y corriente), generación/batería/consumo solar y caudal instantáneo por zona. Mosquitto de `docker-compose` se reserva para staging/producción.
 
 Los códigos de sensor y zona deben existir en los datos maestros de la API. Para una demo estable, conserva los códigos sembrados incluidos en el archivo de ejemplo.
+
+## Escenarios de seguridad
+
+Usa `SIMULATOR_TANK_LEVEL_LITERS` para iniciar con un nivel específico y `SIMULATE_PUMP_OVERCURRENT=true` para que una bomba encendida reporte 18 A, dispare la parada automática y deje una falla pendiente de reconocimiento.
