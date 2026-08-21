@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 using SistemaRiego.Api.Data;
 using SistemaRiego.Api.Models;
 using SistemaRiego.Api.Services;
@@ -12,13 +13,14 @@ public sealed class Sprint3MqttAutomationTests
     public async Task OpenAndClose_AreCompletedOnlyByCorrelatedAck()
     {
         var setup = await SetupAsync(); var publisher = new FakePublisher(); var commands = new IrrigationCommandService(setup.Db, publisher, NullLogger<IrrigationCommandService>.Instance);
-        var run = new IrrigationRun { IrrigationZoneId = setup.Zone1.Id, Mode = "Manual", Status = "Esperando ACK", PlannedDurationMinutes = 10, FlowRateLitersMinute = 12, Reason = "Prueba MQTT" };
+        var offline = new MasterCatalogItem { Kind = CatalogKind.OperationalStatus, Code = "OFFLINE", Name = "Sin conexión" };
+        setup.Db.Add(offline); setup.Valve1.OperationalStatusId = offline.Id; await setup.Db.SaveChangesAsync();        var run = new IrrigationRun { IrrigationZoneId = setup.Zone1.Id, Mode = "Manual", Status = "Esperando ACK", PlannedDurationMinutes = 10, FlowRateLitersMinute = 12, Reason = "Prueba MQTT" };
         setup.Db.IrrigationRuns.Add(run); await setup.Db.SaveChangesAsync();
 
         var open = Assert.Single(await commands.SendAsync(setup.Zone1.Id, run, "ABRIR_VALVULA", null, default));
         Assert.Equal("Publicado", open.Status); Assert.Equal("Esperando ACK", run.Status);
         await new IrrigationAckService(setup.Db).ProcessAsync(setup.Valve1.Id, $"{{\"commandId\":\"{open.Id}\",\"status\":\"válvula abierta\",\"isOpen\":true}}", default);
-        Assert.Equal("En curso", run.Status); Assert.NotNull(run.StartedAtUtc);
+        Assert.Equal("En curso", run.Status); Assert.NotNull(run.StartedAtUtc); Assert.NotNull(setup.Valve1.LastCommunicationUtc); Assert.Equal(setup.Zone1.OperationalStatusId, setup.Valve1.OperationalStatusId);
 
         var close = Assert.Single(await commands.SendAsync(setup.Zone1.Id, run, "CERRAR_VALVULA", null, default)); run.Status = "Cierre pendiente"; await setup.Db.SaveChangesAsync();
         await new IrrigationAckService(setup.Db).ProcessAsync(setup.Valve1.Id, $"{{\"commandId\":\"{close.Id}\",\"status\":\"válvula cerrada\",\"isOpen\":false}}", default);
@@ -43,6 +45,46 @@ public sealed class Sprint3MqttAutomationTests
         Assert.Contains(result.Results, x => x.Name == "Otra zona" && x.LastDecision == "Límite global");
     }
 
+    [Fact]
+    public async Task Automation_SuspendsAfterMaximumAckTimeoutsAndDoesNotCreateMoreAttempts()
+    {
+        var setup = await SetupAsync();
+        var rule = new IrrigationRule { IrrigationZoneId = setup.Zone1.Id, Name = "Regla sin ACK", Priority = 1, MinimumMoisturePercent = 40, TargetMoisturePercent = 60, AllowedFrom = TimeOnly.MinValue, AllowedUntil = TimeOnly.MaxValue };
+        setup.Db.GlobalParameters.Add(new GlobalParameter { Key = "AUTOMATION_MAX_COMMAND_ATTEMPTS", Value = "2", DataType = "integer", Category = "Automatización", Description = "Prueba" });
+        setup.Db.IrrigationRules.Add(rule);
+        setup.Db.SensorReadings.Add(Reading(setup.Zone1.Id, setup.Sensor.Id, "TIMEOUT"));
+
+        var previousRun = new IrrigationRun { IrrigationZoneId = setup.Zone1.Id, IrrigationRule = rule, Mode = "Automático", Status = "Fallido", PlannedDurationMinutes = 10, FlowRateLitersMinute = 12, RequestedAtUtc = DateTime.UtcNow.AddMinutes(-1), EndedAtUtc = DateTime.UtcNow.AddSeconds(-45), Reason = "Primer intento" };
+        var currentRun = new IrrigationRun { IrrigationZoneId = setup.Zone1.Id, IrrigationRule = rule, Mode = "Automático", Status = "Esperando ACK", PlannedDurationMinutes = 10, FlowRateLitersMinute = 12, RequestedAtUtc = DateTime.UtcNow.AddSeconds(-20), Reason = "Segundo intento" };
+        setup.Db.IrrigationRuns.AddRange(previousRun, currentRun);
+        await setup.Db.SaveChangesAsync();
+        setup.Db.IoTCommands.AddRange(
+            new IoTCommand { DeviceId = setup.Valve1.Id, IrrigationZoneId = setup.Zone1.Id, IrrigationRunId = previousRun.Id, CommandType = "ABRIR_VALVULA", Status = "Expirado", RequestedAtUtc = previousRun.RequestedAtUtc, ExpiresAtUtc = previousRun.RequestedAtUtc.AddSeconds(15) },
+            new IoTCommand { DeviceId = setup.Valve1.Id, IrrigationZoneId = setup.Zone1.Id, IrrigationRunId = currentRun.Id, CommandType = "ABRIR_VALVULA", Status = "Publicado", RequestedAtUtc = currentRun.RequestedAtUtc, ExpiresAtUtc = DateTime.UtcNow.AddSeconds(-1) });
+        await setup.Db.SaveChangesAsync();
+
+        var publisher = new FakePublisher();
+        var commandService = new IrrigationCommandService(setup.Db, publisher, NullLogger<IrrigationCommandService>.Instance);
+        var services = new ServiceCollection()
+            .AddSingleton(setup.Db)
+            .AddSingleton<IIrrigationCommandService>(commandService)
+            .AddSingleton<IAlertService, FakeAlerts>()
+            .BuildServiceProvider();
+        await new IrrigationWatchdogWorker(services.GetRequiredService<IServiceScopeFactory>(), NullLogger<IrrigationWatchdogWorker>.Instance).Inspect(default);
+
+        Assert.Equal("Fallido", currentRun.Status);
+        Assert.Equal(DateTime.MaxValue, rule.SuspendedUntilUtc);
+        Assert.Equal("Suspendida por fallos MQTT", rule.LastDecision);
+        var commandCount = setup.Db.IoTCommands.Count();
+
+        var engine = new AutomationEngine(setup.Db, commandService, NullLogger<AutomationEngine>.Instance);
+        await engine.EvaluateAsync(default);
+        await engine.EvaluateAsync(default);
+
+        Assert.Equal(commandCount, setup.Db.IoTCommands.Count());
+        Assert.Equal(2, setup.Db.IrrigationRuns.Count());
+        Assert.Empty(publisher.Payloads);
+    }
     private static SensorReading Reading(Guid zoneId, Guid sensorId, string suffix) => new() { IrrigationZoneId = zoneId, SensorId = sensorId, CapturedAtUtc = DateTime.UtcNow, Value = 20, MessageId = "AUTO-" + suffix };
     private static async Task<Setup> SetupAsync()
     {
@@ -59,6 +101,11 @@ public sealed class Sprint3MqttAutomationTests
     }
     private static IoTDevice Valve(string code, Guid status) => new() { Code = code, Name = code, SerialNumber = code, DeviceTypeId = Guid.NewGuid(), OperationalStatusId = status };
     private sealed record Setup(AppDbContext Db, IrrigationZone Zone1, IrrigationZone Zone2, IoTSensor Sensor, IoTDevice Valve1);
+    private sealed class FakeAlerts : IAlertService
+    {
+        public Task<SystemAlert> RaiseAsync(AlertSignal signal, CancellationToken ct) => Task.FromResult(new SystemAlert { Fingerprint = signal.Fingerprint, Type = signal.Type, Severity = signal.Severity, Description = signal.Description });
+        public Task NotifyAsync(SystemAlert alert, CancellationToken ct) => Task.CompletedTask;
+    }
     private sealed class FakePublisher : IMqttCommandPublisher
     {
         public List<object> Payloads { get; } = [];

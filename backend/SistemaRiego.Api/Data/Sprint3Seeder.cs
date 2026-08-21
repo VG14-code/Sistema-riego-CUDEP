@@ -35,6 +35,7 @@ public static class Sprint3Seeder
 
         await UpsertParameter(db, "MAX_SIMULTANEOUS_VALVES", "2", "integer", "Automatización", "Límite global de válvulas abiertas simultáneamente.");
         await UpsertParameter(db, "MQTT_COMMAND_TIMEOUT_SECONDS", "15", "integer", "Automatización", "Tiempo máximo para recibir ACK de una orden MQTT.");
+        await UpsertParameter(db, "AUTOMATION_MAX_COMMAND_ATTEMPTS", "3", "integer", "Automatización", "Intentos automáticos máximos desde el último ACK antes de suspender una regla.");
         await UpsertParameter(db, "AUTOMATION_INTERVAL_SECONDS", "10", "integer", "Automatización", "Intervalo del evaluador automático de reglas.");
         await db.SaveChangesAsync();
 

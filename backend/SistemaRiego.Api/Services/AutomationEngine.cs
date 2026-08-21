@@ -24,20 +24,23 @@ public sealed class AutomationEngine(AppDbContext db, IIrrigationCommandService 
                 results.Add(new(ignored.Id, ignored.Name, ignored.LastDecision, ignored.LastReason, false));
             }
             var reading = await db.SensorReadings.Where(x => x.IrrigationZoneId == winner.IrrigationZoneId && x.IsValid).OrderByDescending(x => x.CapturedAtUtc).FirstOrDefaultAsync(ct);
+            var hardSuspended = winner.SuspendedUntilUtc == DateTime.MaxValue;
             var blocked = winner.SuspendedUntilUtc > now || !winner.AllowedDays.Split(',').Contains(day.ToString()) || !InsideWindow(time, winner.AllowedFrom, winner.AllowedUntil);
             var active = await db.IrrigationRuns.AnyAsync(x => x.IrrigationZoneId == winner.IrrigationZoneId && (x.Status == "En curso" || x.Status == "Esperando ACK" || x.Status == "Cierre pendiente"), ct);
-            var valveCount = await ZoneValveCount(winner.IrrigationZoneId, ct);
+            var valveHealth = await ZoneValveHealth(winner.IrrigationZoneId, ct);
+            var valveCount = valveHealth.Count;
             var capacity = valveCount > 0 && occupied + valveCount <= maximum;
             var minimumBattery = await ParameterInt("MIN_AUTOMATION_BATTERY_PERCENT", 25, ct);
             var battery = await db.EnergyReadings.OrderByDescending(x => x.CapturedAtUtc).Select(x => (decimal?)x.BatteryPercent).FirstOrDefaultAsync(ct);
             var energyOk = !winner.RequiresSufficientEnergy || battery is null || battery >= minimumBattery;
-            var irrigate = !blocked && !active && capacity && energyOk && reading is not null && reading.Value < winner.MinimumMoisturePercent;
+            var irrigate = !blocked && !active && valveHealth.AllOnline && capacity && energyOk && reading is not null && reading.Value < winner.MinimumMoisturePercent;
             winner.LastEvaluatedAtUtc = now;
-            winner.LastDecision = irrigate ? "Regar" : blocked ? "Fuera de ventana" : active ? "Riego activo" : valveCount == 0 ? "Sin válvula" : !capacity ? (capacityService is null ? "Límite global" : "Capacidad hidráulica insuficiente") : !energyOk ? "Energía insuficiente" : "No regar";
-            winner.LastReason = reading is null ? "No hay una lectura válida." : $"Humedad {reading.Value:0.0}% frente al mínimo {winner.MinimumMoisturePercent:0.0}%.";
+            winner.LastDecision = irrigate ? "Regar" : hardSuspended ? "Suspendida por fallos MQTT" : blocked ? "Fuera de ventana" : active ? "Riego activo" : valveCount == 0 ? "Sin válvula" : !valveHealth.AllOnline ? "Dispositivo sin conexión" : !capacity ? (capacityService is null ? "Límite global" : "Capacidad hidráulica insuficiente") : !energyOk ? "Energía insuficiente" : "No regar";
+            if (!hardSuspended)
+                winner.LastReason = !valveHealth.AllOnline && valveCount > 0 ? $"Válvulas sin conexión: {string.Join(", ", valveHealth.OfflineNames)}." : reading is null ? "No hay una lectura válida." : $"Humedad {reading.Value:0.0}% frente al mínimo {winner.MinimumMoisturePercent:0.0}%.";
             if (irrigate)
             {
-                var run = new IrrigationRun { IrrigationZoneId = winner.IrrigationZoneId, IrrigationRuleId = winner.Id, Mode = "Automático", Status = "Esperando ACK", PlannedDurationMinutes = winner.MaximumDurationMinutes, FlowRateLitersMinute = 12, RequestedAtUtc = now, Reason = winner.LastReason };
+                var run = new IrrigationRun { IrrigationZoneId = winner.IrrigationZoneId, IrrigationRuleId = winner.Id, Mode = "Automático", Status = "Esperando ACK", PlannedDurationMinutes = winner.MaximumDurationMinutes, FlowRateLitersMinute = 12, RequestedAtUtc = now, Reason = winner.LastReason ?? "Solicitud automática." };
                 db.IrrigationRuns.Add(run); await db.SaveChangesAsync(ct);
                 try
                 {
@@ -65,10 +68,17 @@ public sealed class AutomationEngine(AppDbContext db, IIrrigationCommandService 
         var legacy = await db.IrrigationZones.Where(x => zones.Contains(x.Id) && x.ValveDeviceId != null && !db.IrrigationZoneValves.Any(v => v.IrrigationZoneId == x.Id)).Select(x => x.ValveDeviceId).Distinct().CountAsync(ct);
         return linked + legacy;
     }
-    private async Task<int> ZoneValveCount(Guid zoneId, CancellationToken ct)
+    private async Task<(int Count, bool AllOnline, IReadOnlyList<string> OfflineNames)> ZoneValveHealth(Guid zoneId, CancellationToken ct)
     {
-        var count = await db.IrrigationZoneValves.CountAsync(x => x.IrrigationZoneId == zoneId, ct);
-        return count > 0 ? count : await db.IrrigationZones.CountAsync(x => x.Id == zoneId && x.ValveDeviceId != null, ct);
+        var ids = await db.IrrigationZoneValves.Where(x => x.IrrigationZoneId == zoneId).Select(x => x.DeviceId).ToListAsync(ct);
+        if (ids.Count == 0)
+        {
+            var legacy = await db.IrrigationZones.Where(x => x.Id == zoneId).Select(x => x.ValveDeviceId).SingleOrDefaultAsync(ct);
+            if (legacy.HasValue) ids.Add(legacy.Value);
+        }
+        var valves = await db.IoTDevices.Where(x => ids.Contains(x.Id)).Select(x => new { x.Name, x.IsActive, Status = x.OperationalStatus.Code }).ToListAsync(ct);
+        var offline = valves.Where(x => !x.IsActive || x.Status != "ACTIVE").Select(x => x.Name).ToList();
+        return (ids.Count, ids.Count > 0 && valves.Count == ids.Count && offline.Count == 0, offline);
     }
     private async Task<int> ParameterInt(string key, int fallback, CancellationToken ct) => int.TryParse(await db.GlobalParameters.Where(x => x.Key == key).Select(x => x.Value).SingleOrDefaultAsync(ct), out var value) ? Math.Max(1, value) : fallback;
 }

@@ -16,6 +16,7 @@ public sealed class IrrigationAckService(AppDbContext db, IConsumptionCalculator
         if (command is null) return null;
 
         var now = DateTime.UtcNow;
+        await MarkDeviceOnline(deviceId, now, ct);
         command.Status = "Confirmado"; command.ConfirmedAtUtc = now; command.FailureReason = null;
         var state = await db.ValveRuntimeStates.SingleOrDefaultAsync(x => x.DeviceId == deviceId, ct);
         if (state is null) { state = new ValveRuntimeState { DeviceId = deviceId }; db.ValveRuntimeStates.Add(state); }
@@ -51,8 +52,39 @@ public sealed class IrrigationAckService(AppDbContext db, IConsumptionCalculator
             else if (active is null && reportedOpen)
                 db.OperationalEvents.Add(new OperationalEvent { Category = "Seguridad", EventType = "UNEXPECTED_OPEN_VALVE", Severity = "Crítico", IrrigationZoneId = zoneId, Detail = "La reconciliación MQTT detectó una válvula abierta sin riego activo." });
         }
+        if (command.IrrigationZoneId is Guid recoveredZoneId)
+        {
+            foreach (var rule in await db.IrrigationRules.Where(x => x.IrrigationZoneId == recoveredZoneId && x.SuspendedUntilUtc == DateTime.MaxValue).ToListAsync(ct))
+            {
+                rule.SuspendedUntilUtc = null;
+                rule.LastDecision = "Lista tras reconexión";
+                rule.LastReason = $"El dispositivo confirmó comunicación MQTT a las {now:O}.";
+            }
+        }
         await db.SaveChangesAsync(ct);
         return command.Id;
+    }
+
+    private async Task MarkDeviceOnline(Guid deviceId, DateTime now, CancellationToken ct)
+    {
+        var activeId = await db.MasterCatalogItems.Where(x => x.Kind == CatalogKind.OperationalStatus && x.Code == "ACTIVE").Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
+        var device = await db.IoTDevices.Include(x => x.Node).SingleOrDefaultAsync(x => x.Id == deviceId, ct);
+        if (device is null || !activeId.HasValue) return;
+
+        device.LastCommunicationUtc = now;
+        device.UpdatedAtUtc = now;
+        device.OperationalStatusId = activeId.Value;
+        if (device.Node is not null)
+        {
+            device.Node.LastCommunicationUtc = now;
+            device.Node.UpdatedAtUtc = now;
+            device.Node.OperationalStatusId = activeId.Value;
+        }
+        foreach (var alert in await db.SystemAlerts.Where(x => x.Fingerprint == $"IOT:DEVICE:{deviceId}:OFFLINE" && (x.Status == "Activa" || x.Status == "Reconocida")).ToListAsync(ct))
+        {
+            alert.Status = "Resuelta";
+            alert.ResolvedAtUtc = now;
+        }
     }
 
     private async Task CompleteRun(IrrigationRun run, DateTime now, CancellationToken ct)

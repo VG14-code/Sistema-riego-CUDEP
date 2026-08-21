@@ -39,7 +39,7 @@ public sealed class AutomationController(AppDbContext db, ITotpService? totp = n
 
     [HttpPatch("rules/{id:guid}/toggle"), Authorize(Policy=Policies.Technician)]
     public async Task<ActionResult> Toggle(Guid id,RuleToggleRequest request,CancellationToken ct)
-    { var item=await db.IrrigationRules.FindAsync([id],ct); if(item is null)return NotFound(); item.IsEnabled=request.IsEnabled; item.LastDecision=request.IsEnabled?"Lista":"Desactivada"; await Log("AUTOMATION_RULE_TOGGLED",$"Regla {item.Name}: {(request.IsEnabled?"activa":"inactiva")}",ct); await db.SaveChangesAsync(ct); return NoContent(); }
+    { var item=await db.IrrigationRules.FindAsync([id],ct); if(item is null)return NotFound(); item.IsEnabled=request.IsEnabled; if(request.IsEnabled)item.SuspendedUntilUtc=null; item.LastDecision=request.IsEnabled?"Lista":"Desactivada"; item.LastReason=request.IsEnabled?"Reactivación manual autorizada.":item.LastReason; await Log("AUTOMATION_RULE_TOGGLED",$"Regla {item.Name}: {(request.IsEnabled?"activa":"inactiva")}",ct); await db.SaveChangesAsync(ct); return NoContent(); }
 
     [HttpPost("evaluate")]
     public async Task<ActionResult> Evaluate(CancellationToken ct)

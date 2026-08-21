@@ -45,10 +45,22 @@ public sealed class IrrigationCommandService(AppDbContext db, IMqttCommandPublis
 
     public async Task ReconcileAsync(CancellationToken ct)
     {
-        var zoneIds = await db.IrrigationZoneValves.Select(x => x.IrrigationZoneId).Distinct().ToListAsync(ct);
-        foreach (var zoneId in zoneIds)
-            try { await SendAsync(zoneId, null, "CONSULTAR_ESTADO", null, ct); }
-            catch (Exception exception) { logger.LogWarning(exception, "No se pudo reconciliar la zona {ZoneId}", zoneId); }
+        var zones = await db.IrrigationZones
+            .Include(x => x.Valves).ThenInclude(x => x.Device).ThenInclude(x => x.OperationalStatus)
+            .Include(x => x.ValveDevice).ThenInclude(x => x!.OperationalStatus)
+            .Where(x => x.IsActive)
+            .ToListAsync(ct);
+        foreach (var zone in zones)
+        {
+            var valves = zone.Valves.Count > 0 ? zone.Valves.Select(x => x.Device).ToList() : zone.ValveDevice is null ? [] : [zone.ValveDevice];
+            if (valves.Count == 0 || valves.Any(x => !x.IsActive || x.OperationalStatus.Code != "ACTIVE"))
+            {
+                logger.LogInformation("Se omite reconciliación automática de {Zone}: existe una válvula sin conexión.", zone.Name);
+                continue;
+            }
+            try { await SendAsync(zone.Id, null, "CONSULTAR_ESTADO", null, ct); }
+            catch (Exception exception) { logger.LogWarning(exception, "No se pudo reconciliar la zona {ZoneId}", zone.Id); }
+        }
     }
 
     private async Task<int> ParameterInt(string key, int fallback, CancellationToken ct) => int.TryParse(await db.GlobalParameters.Where(x => x.Key == key).Select(x => x.Value).SingleOrDefaultAsync(ct), out var value) ? Math.Max(1, value) : fallback;
