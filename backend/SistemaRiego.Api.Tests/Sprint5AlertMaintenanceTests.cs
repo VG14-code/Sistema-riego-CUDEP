@@ -27,6 +27,23 @@ public sealed class Sprint5AlertMaintenanceTests
     }
 
     [Fact]
+    public async Task AlertService_KeepsDistinctCommandAttemptsAsSeparateOccurrences()
+    {
+        await using var db = Db();
+        var hub = new FakeHubContext();
+        var service = new AlertService(db, hub, new FakeHttpFactory(), Options.Create(new AlertOptions()), NullLogger<AlertService>.Instance);
+        const string description = "La válvula no respondió al comando ABRIR_VALVULA dentro del tiempo esperado.";
+
+        foreach (var commandId in new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() })
+            await service.RaiseAsync(new AlertSignal($"MQTT:{commandId}:TIMEOUT", "Comando sin ACK", "Crítica", description, "Dispositivo IoT", "valve-a1"), default);
+
+        Assert.Equal(3, db.SystemAlerts.Count());
+        Assert.Equal(3, db.SystemAlerts.Select(alert => alert.Fingerprint).Distinct().Count());
+        Assert.Equal(3, hub.Proxy.Messages.Count(message => message == "alertRaised"));
+        Assert.All(db.SystemAlerts, alert => Assert.Equal(description, alert.Description));
+    }
+
+    [Fact]
     public async Task Acknowledge_RecordsUserAndTimestamp()
     {
         await using var db = Db(); var alert = new SystemAlert { Fingerprint = "A", Type = "Conexión", Description = "Offline" }; db.Add(alert); await db.SaveChangesAsync();

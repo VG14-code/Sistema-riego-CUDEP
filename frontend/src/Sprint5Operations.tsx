@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as signalR from '@microsoft/signalr'
 import './sprint5.css'
 
 interface Session { accessToken: string; user: { fullName: string; roles: string[] } }
 interface Props { session: Session; notify: (message: string) => void }
 interface AlertItem { id: number; type: string; severity: string; status: string; origin: string; description: string; relatedEntityType?: string; relatedEntityId?: string; relatedEntityName?: string; raisedAtUtc: string; escalationLevel: number }
+interface AlertGroup { key: string; items: AlertItem[] }
 interface Plan { id: string; name: string; frequency: string; intervalDays?: number; equipmentType: string; equipmentId: string; scheduledAtUtc: string; status: string; assignedToEmail?: string; notes?: string }
 interface Incident { id: number; title: string; description: string; equipmentType: string; equipmentId: string; equipmentName?: string; severity: string; status: string; origin: string; createdAtUtc: string; assignedToEmail?: string; notes?: string }
 interface Activity { id: number; title: string; equipmentType: string; equipmentId: string; status: string; scheduledAtUtc: string; performedAtUtc?: string }
@@ -28,13 +29,29 @@ function Message({ description, name, type, id, heading = false }: { description
   return <>{heading ? <h3>{message}</h3> : <span>{message}</span>}{(technical || hasIdentifier) && <details className="s5-technical"><summary>Ver detalle técnico</summary>{technical && <code>{technical}</code>}{hasIdentifier && <small>ID: {id}</small>}</details>}</>
 }
 
-function useAlerts(session: Session, notify: (message: string) => void) {
+function groupAlerts(items: AlertItem[]): AlertGroup[] {
+  const groups = new Map<string, AlertItem[]>()
+  items.forEach(item => {
+    const humanMessage = item.description.split('\nDetalle técnico: ')[0].trim().toLocaleLowerCase('es')
+    const entity = item.relatedEntityId ?? item.relatedEntityName ?? item.origin
+    const key = `${item.type}|${entity}|${humanMessage}`
+    groups.set(key, [...(groups.get(key) ?? []), item])
+  })
+  return Array.from(groups, ([key, occurrences]) => ({
+    key,
+    items: occurrences.sort((left, right) => new Date(right.raisedAtUtc).getTime() - new Date(left.raisedAtUtc).getTime()),
+  })).sort((left, right) => new Date(right.items[0].raisedAtUtc).getTime() - new Date(left.items[0].raisedAtUtc).getTime())
+}
+
+function useAlerts(session: Session, notify: (message: string) => void, onRaised?: (alert: AlertItem) => void) {
   const [items, setItems] = useState<AlertItem[]>([])
+  const onRaisedRef = useRef(onRaised)
+  useEffect(() => { onRaisedRef.current = onRaised }, [onRaised])
   const load = useCallback(() => api<AlertItem[]>('/alerts', session.accessToken).then(setItems).catch((error: Error) => notify(error.message)), [session.accessToken, notify])
   useEffect(() => {
     load()
     const connection = new signalR.HubConnectionBuilder().withUrl(`${hubRoot}/hubs/telemetry`, { accessTokenFactory: () => session.accessToken }).withAutomaticReconnect().configureLogging(signalR.LogLevel.None).build()
-    connection.on('alertRaised', () => { void load() })
+    connection.on('alertRaised', (alert: AlertItem) => { onRaisedRef.current?.(alert); void load() })
     connection.start().catch((error: Error) => notify(`SignalR alertas: ${error.message}`))
     return () => { void connection.stop() }
   }, [load, notify, session.accessToken])
@@ -43,12 +60,39 @@ function useAlerts(session: Session, notify: (message: string) => void) {
 
 export function NotificationCenter({ session, localNotice }: { session: Session; localNotice: string }) {
   const [open, setOpen] = useState(false)
+  const [toast, setToast] = useState<AlertItem | null>(null)
   const quiet = useCallback(() => undefined, [])
-  const { items, load } = useAlerts(session, quiet)
-  const active = items.filter(item => item.status === 'Activa')
+  const handleRaised = useCallback((alert: AlertItem) => setToast(alert), [])
+  const { items, load } = useAlerts(session, quiet, handleRaised)
+  const active = useMemo(() => items.filter(item => item.status === 'Activa'), [items])
+  const groups = useMemo(() => groupAlerts(active), [active])
+  const summary = useMemo(() => {
+    const count = (severity: string) => active.filter(item => item.severity === severity).length
+    const parts = [[count('Crítica'), 'crítica', 'críticas'], [count('Advertencia'), 'advertencia', 'advertencias'], [count('Informativa'), 'informativa', 'informativas']] as const
+    return parts.filter(([total]) => total > 0).map(([total, singular, plural]) => `${total} ${total === 1 ? singular : plural}`).join(' · ')
+  }, [active])
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(null), 7000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
   useEffect(() => { if (localNotice) setOpen(true) }, [localNotice])
-  const acknowledge = async (id: number) => { await api(`/alerts/${id}/acknowledge`, session.accessToken, 'POST'); await load() }
-  return <div className="n-center"><button className="n-bell" onClick={() => setOpen(!open)} aria-label="Centro de notificaciones">♢{active.length > 0 && <b>{active.length}</b>}</button>{open && <aside><header><div><small>CENTRO DE NOTIFICACIONES</small><h2>Alertas activas</h2></div><button onClick={() => setOpen(false)}>×</button></header>{localNotice && <div className="n-local"><b>Actividad de interfaz</b><span>{localNotice}</span><small>Origen: interacción local</small></div>}<div className="n-mini-list">{active.slice(0, 8).map(item => <article key={item.id} className={item.severity.toLowerCase()}><b>{item.type}</b><Message description={item.description} name={item.relatedEntityName} type={item.relatedEntityType} id={item.relatedEntityId}/><small>{item.origin} · {when(item.raisedAtUtc)}</small><button onClick={() => acknowledge(item.id)}>Reconocer</button></article>)}{active.length === 0 && <p>Sin alertas activas.</p>}</div></aside>}</div>
+  const acknowledge = async (alerts: AlertItem[]) => {
+    await Promise.all(alerts.map(item => api(`/alerts/${item.id}/acknowledge`, session.accessToken, 'POST')))
+    await load()
+  }
+  return <div className="n-center">
+    <button className="n-bell" onClick={() => setOpen(!open)} aria-label="Centro de notificaciones">♢{active.length > 0 && <b>{active.length}</b>}</button>
+    {toast && <section className={`n-toast ${toast.severity.toLocaleLowerCase('es')}`} role="status" aria-live="assertive"><header><b>Nueva alerta {toast.severity.toLocaleLowerCase('es')}</b><button aria-label="Descartar notificación" onClick={() => setToast(null)}>×</button></header><Message description={toast.description} name={toast.relatedEntityName} type={toast.relatedEntityType} id={toast.relatedEntityId}/><small>{when(toast.raisedAtUtc)}</small><button className="n-toast-detail" onClick={() => { setOpen(true); setToast(null) }}>Ver detalle</button></section>}
+    {open && <aside><header><div><small>CENTRO DE NOTIFICACIONES</small><h2>Alertas activas</h2></div><button onClick={() => setOpen(false)}>×</button></header>
+      {localNotice && <div className="n-local"><b>Actividad de interfaz</b><span>{localNotice}</span><small>Origen: interacción local</small></div>}
+      {active.length > 0 && <section className="n-summary" aria-label="Resumen de alertas activas"><b>{summary}</b><small>{groups.length} {groups.length === 1 ? 'condición activa' : 'condiciones activas'} agrupadas</small></section>}
+      <div className="n-mini-list">{groups.slice(0, 8).map(group => {
+        const latest = group.items[0]
+        return <article key={group.key} className={latest.severity.toLocaleLowerCase('es')}><div className="n-group-heading"><b>{latest.relatedEntityName ?? latest.type}</b>{group.items.length > 1 && <em>{group.items.length} intentos</em>}</div><Message description={latest.description} name={latest.relatedEntityName} type={latest.relatedEntityType} id={latest.relatedEntityId}/><small>Última ocurrencia: {when(latest.raisedAtUtc)}</small>{group.items.length > 1 && <details className="n-occurrences"><summary>Ver los {group.items.length} intentos fallidos</summary>{group.items.map((item, index) => <div key={item.id}><b>Intento {group.items.length - index}</b><time>{when(item.raisedAtUtc)}</time><Message description={item.description} name={item.relatedEntityName} type={item.relatedEntityType} id={item.relatedEntityId}/></div>)}</details>}<button onClick={() => acknowledge(group.items)}>Reconocer {group.items.length > 1 ? 'todas' : ''}</button></article>
+      })}{active.length === 0 && <p>Sin alertas activas.</p>}</div>
+    </aside>}
+  </div>
 }
 
 export function AlertsPanel({ session, notify }: Props) {
