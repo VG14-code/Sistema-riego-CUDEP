@@ -43,6 +43,34 @@ No se requiere Docker. Abre terminales separadas y conserva este orden.
 
 La telemetría sigue el flujo simulador → MQTT → servicio de ingestión → base de datos → SignalR (`telemetryReadingReceived`). Los comandos se publican en `granja/{zona}/valvula/{dispositivo}/comando`; el simulador responde en el tópico `/ack` y el backend marca el comando como confirmado.
 
+## Validación visual oficial con Playwright
+
+El método oficial evita el controlador integrado afectado por ACL de Windows. Usa el Chromium administrado por Playwright y un perfil temporal aislado con `--no-sandbox` y `--disable-gpu`. Mantén backend, frontend y simulador ejecutándose antes de iniciar la captura.
+
+Instalación inicial:
+
+~~~powershell
+cd "C:\Users\VICTOR\Desktop\Sistema de Riego\frontend"
+npm install
+npx playwright install chromium
+~~~
+
+Captura reproducible:
+
+~~~powershell
+cd "C:\Users\VICTOR\Desktop\Sistema de Riego\frontend"
+$env:VISUAL_EMAIL = "admin@sistemariego.local"
+$env:VISUAL_PASSWORD = Read-Host "Contraseña administrativa de Development"
+npm run visual:capture
+~~~
+
+El comando espera el dashboard y una lectura real de telemetría, abre el centro de notificaciones y genera:
+
+- `artifacts/visual-validation/dashboard-module-1.png`
+- `artifacts/visual-validation/notifications-panel.png`
+
+La reproducción literal del error del controlador integrado se conserva en `artifacts/visual-validation/acl-diagnostic.txt` y las comprobaciones CSS en `artifacts/visual-validation/capture-report.json`.
+
 ## Credenciales y 2FA de desarrollo
 
 El administrador sembrado usa `admin@sistemariego.local`. La contraseña y los secretos MQTT no se guardan en Git; consulta los valores configurados en esta máquina con:

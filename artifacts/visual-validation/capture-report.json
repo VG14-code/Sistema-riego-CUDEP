@@ -1,0 +1,15 @@
+{
+  "generatedAtUtc": "2026-08-21T18:27:14.156Z",
+  "baseUrl": "http://localhost:5173",
+  "dashboardPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\dashboard-module-1.png",
+  "notificationsPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\notifications-panel.png",
+  "visualChecks": {
+    "panelBackground": "rgb(255, 255, 255)",
+    "panelColor": "rgb(24, 63, 54)",
+    "panelZIndex": "120",
+    "cardColor": "rgb(25, 63, 54)",
+    "actionBackground": "rgb(27, 80, 62)",
+    "actionColor": "rgb(255, 255, 255)",
+    "severityBadge": "\"CRÍTICA\""
+  }
+}
