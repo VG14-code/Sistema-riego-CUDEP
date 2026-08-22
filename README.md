@@ -99,3 +99,13 @@ El control hidráulico M11, energía solar M12 y consumo/eficiencia M13 están d
 Alertas en tiempo real, webhook/n8n y mantenimiento preventivo/correctivo están documentados en [docs/sprint5-alerts-maintenance.md](docs/sprint5-alerts-maintenance.md).
 
 Los reportes PDF/Excel, la auditoría sensible con CorrelationId/retención y la guía reproducible de Power BI están documentados en [docs/sprint6-reporting-audit-powerbi.md](docs/sprint6-reporting-audit-powerbi.md).
+
+### Datos agronómicos referenciales
+
+Los cultivos sembrados de demostración (Maíz, Frijol y Arroz) usan cuatro etapas operativas para planificación hídrica. Sus duraciones son valores iniciales conservadores, no recomendaciones universales: deben ajustarse en Datos Maestros según variedad, fecha de siembra, clima y observaciones locales de la Granja Experimental CUDEP.
+
+Criterio institucional consultado:
+- FAO, duraciones aproximadas de las cuatro fases y necesidad de estimarlas localmente: https://www.fao.org/4/s2022e/s2022e07.htm
+- FAO, ciclos de maíz de tierras bajas (70–130 días según material) y arroz tropical (80–140 días): https://www.fao.org/4/t0742e/T0742E11.htm
+- FAO, frijol común: ciclo total usual de 90–120 días para grano seco: https://www.fao.org/land-water/databases-and-software/crop-information/bean/en/
+- IRRI, arroz tropical: fase reproductiva cercana a 35 días y maduración cercana a 30 días; la fase vegetativa varía por cultivar: https://www.knowledgebank.irri.org/ericeproduction/0.2._Growth_stages_of_the_rice_plant.htm

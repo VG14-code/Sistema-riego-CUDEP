@@ -5,25 +5,23 @@ namespace SistemaRiego.Api.Data;
 
 public static class Sprint3Seeder
 {
-    private const string LegacySectorBoundary = "{\"type\":\"Polygon\",\"coordinates\":[[[-89.8920,16.9258],[-89.8907,16.9258],[-89.8907,16.9271],[-89.8920,16.9271],[-89.8920,16.9258]]]}";
-    private const string LegacyZoneBoundary = "{\"type\":\"Polygon\",\"coordinates\":[[[-89.8918,16.9260],[-89.8911,16.9260],[-89.8911,16.9268],[-89.8918,16.9268],[-89.8918,16.9260]]]}";
-    private const string SectorBoundary = "{\"type\":\"Polygon\",\"coordinates\":[[[-89.88610,16.91882],[-89.88538,16.91882],[-89.88538,16.91946],[-89.88610,16.91946],[-89.88610,16.91882]]]}";
-    private const string ZoneBoundary = "{\"type\":\"Polygon\",\"coordinates\":[[[-89.88603,16.91902],[-89.88575,16.91902],[-89.88575,16.91932],[-89.88603,16.91932],[-89.88603,16.91902]]]}";
+    private const string SectorABoundary = """{"type":"Polygon","coordinates":[[[-89.9069,16.8815],[-89.9026,16.8815],[-89.9026,16.8860],[-89.9069,16.8860],[-89.9069,16.8815]]]}""";
+    private const string ZoneABoundary = """{"type":"Polygon","coordinates":[[[-89.9066,16.8820],[-89.9029,16.8820],[-89.9029,16.8858],[-89.9066,16.8858],[-89.9066,16.8820]]]}""";
+    private const string SectorBBoundary = """{"type":"Polygon","coordinates":[[[-89.9025,16.8797],[-89.8997,16.8797],[-89.8997,16.8855],[-89.9025,16.8855],[-89.9025,16.8797]]]}""";
+    private const string ZoneBBoundary = """{"type":"Polygon","coordinates":[[[-89.9024,16.8800],[-89.8998,16.8800],[-89.8998,16.8852],[-89.9024,16.8852],[-89.9024,16.8800]]]}""";
+    private const string SectorCBoundary = """{"type":"Polygon","coordinates":[[[-89.8996,16.8807],[-89.8966,16.8807],[-89.8966,16.8860],[-89.8996,16.8860],[-89.8996,16.8807]]]}""";
+    private const string ZoneCBoundary = """{"type":"Polygon","coordinates":[[[-89.8995,16.8810],[-89.8967,16.8810],[-89.8967,16.8857],[-89.8995,16.8857],[-89.8995,16.8810]]]}""";
 
     public static async Task SeedAsync(AppDbContext db)
     {
-        var sector = await db.IrrigationSectors.SingleOrDefaultAsync(x => x.Code == "SECTOR-A");
-        var zone = await db.IrrigationZones.SingleOrDefaultAsync(x => x.Code == "ZONA-A1");
-        if (sector is not null && (sector.BoundaryGeoJson is null || sector.BoundaryGeoJson == LegacySectorBoundary)) sector.BoundaryGeoJson = SectorBoundary;
-        if (zone is not null && (zone.BoundaryGeoJson is null || zone.BoundaryGeoJson == LegacyZoneBoundary)) zone.BoundaryGeoJson = ZoneBoundary;
+        var center = await db.UniversityCenters.SingleOrDefaultAsync(x => x.Code == "CUDEP");
+        if (center is not null) { center.Name = "Centro Universitario de Petén"; center.Location = "Santa Elena, Flores, Petén, Guatemala"; }
         var farm = await db.Farms.SingleOrDefaultAsync(x => x.Code == "GRANJA-CUDEP");
-        if (farm is not null && farm.Latitude == 16.9264m && farm.Longitude == -89.8914m) { farm.Latitude = 16.91916m; farm.Longitude = -89.88578m; }
-        if (zone is not null && zone.Latitude == 16.9265m && zone.Longitude == -89.8912m) { zone.Latitude = 16.91915m; zone.Longitude = -89.88590m; }
-        var zoneB = await db.IrrigationZones.SingleOrDefaultAsync(x => x.Code == "ZONA-B1");
-        if (zoneB is not null && zoneB.Latitude == 16.9261m && zoneB.Longitude == -89.8910m) { zoneB.Latitude = 16.91908m; zoneB.Longitude = -89.88565m; }
-        var zoneC = await db.IrrigationZones.SingleOrDefaultAsync(x => x.Code == "ZONA-C1");
-        if (zoneC is not null && zoneC.Latitude == 16.9259m && zoneC.Longitude == -89.8908m) { zoneC.Latitude = 16.91898m; zoneC.Longitude = -89.88550m; }
-
+        if (farm is not null) { farm.Name = "Granja Experimental CUDEP"; farm.Location = "Centro Universitario de Petén, Santa Elena, Flores, Petén, Guatemala"; farm.Latitude = 16.88375m; farm.Longitude = -89.90087m; }
+        await UpdateTerritory(db, "SECTOR-A", SectorABoundary, "ZONA-A1", ZoneABoundary, 16.88430m, -89.90450m);
+        await UpdateTerritory(db, "SECTOR-B", SectorBBoundary, "ZONA-B1", ZoneBBoundary, 16.88320m, -89.90100m);
+        await UpdateTerritory(db, "SECTOR-C", SectorCBoundary, "ZONA-C1", ZoneCBoundary, 16.88380m, -89.89780m);
+        var zone = await db.IrrigationZones.SingleOrDefaultAsync(x => x.Code == "ZONA-A1");
         IoTDevice? valve = await db.IoTDevices.SingleOrDefaultAsync(x => x.Code == "VALVULA-A1");
         if (valve is null)
         {
@@ -49,6 +47,13 @@ public static class Sprint3Seeder
         await db.SaveChangesAsync();
     }
 
+    private static async Task UpdateTerritory(AppDbContext db, string sectorCode, string sectorBoundary, string zoneCode, string zoneBoundary, decimal latitude, decimal longitude)
+    {
+        var sector=await db.IrrigationSectors.SingleOrDefaultAsync(x=>x.Code==sectorCode);
+        if(sector is not null) sector.BoundaryGeoJson=sectorBoundary;
+        var zone=await db.IrrigationZones.SingleOrDefaultAsync(x=>x.Code==zoneCode);
+        if(zone is not null){zone.BoundaryGeoJson=zoneBoundary;zone.Latitude=latitude;zone.Longitude=longitude;}
+    }
     private static async Task UpsertParameter(AppDbContext db, string key, string value, string type, string category, string description)
     {
         if (!await db.GlobalParameters.AnyAsync(x => x.Key == key)) db.GlobalParameters.Add(new GlobalParameter { Key = key, Value = value, DataType = type, Category = category, Description = description });

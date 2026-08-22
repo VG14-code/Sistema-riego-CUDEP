@@ -126,11 +126,46 @@ public static class DbSeeder
             db.AccessAudits.Add(new AccessAudit { EventType = "PLAN_MODULES_SEEDED", Detail = "Módulos 1 al 7 preparados con estructura territorial, agronomía, ciclo y telemetría." });
             await db.SaveChangesAsync();
         }
+        await SeedReferenceCropsAsync(db);
         await Sprint3Seeder.SeedAsync(db);
         await Modules7To10Seeder.SeedAsync(db);
         await Sprint4Seeder.SeedAsync(db);
         await Sprint5Seeder.SeedAsync(db);
         await Sprint6Seeder.SeedAsync(db);
         await EmpiricalDashboardSeeder.SeedAsync(db);
+        await Sprint3Seeder.SeedAsync(db);
     }
-}
+
+    private static async Task SeedReferenceCropsAsync(AppDbContext db)
+    {
+        await UpsertCrop(db,"MAIZ","Maíz","Zea mays","GRANOS_BASICOS",new[]{
+            ("Emergencia y establecimiento",1,10,"Duración referencial conservadora; germinación, emergencia y arraigo inicial."),
+            ("Desarrollo vegetativo",2,35,"Duración referencial; expansión foliar y crecimiento del tallo."),
+            ("Floración y llenado de grano",3,45,"Duración referencial; floración, fecundación y llenado del grano."),
+            ("Maduración",4,30,"Duración referencial hasta madurez fisiológica y cosecha.")});
+        await UpsertCrop(db,"FRIJOL","Frijol","Phaseolus vulgaris","LEGUMINOSA",new[]{
+            ("Germinación y establecimiento",1,15,"Duración referencial conservadora; emergencia y establecimiento."),
+            ("Desarrollo vegetativo",2,25,"Duración referencial; crecimiento de hojas, tallos y raíces."),
+            ("Floración y formación de vainas",3,35,"Duración referencial; floración, cuajado y formación de vainas."),
+            ("Llenado y maduración",4,25,"Duración referencial; llenado de semilla y secado para cosecha.")});
+        await UpsertCrop(db,"ARROZ","Arroz","Oryza sativa","CEREAL",new[]{
+            ("Germinación y establecimiento",1,15,"Duración referencial conservadora; emergencia y establecimiento."),
+            ("Macollamiento",2,40,"Duración referencial; formación de macollos y desarrollo vegetativo."),
+            ("Paniculación y floración",3,35,"Duración referencial; iniciación de panícula, espigamiento y floración."),
+            ("Llenado y maduración",4,30,"Duración referencial; llenado del grano hasta madurez de cosecha.")});
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task UpsertCrop(AppDbContext db,string code,string name,string scientificName,string cropTypeCode,(string Name,int Sequence,int Days,string Description)[] stages)
+    {
+        var crop=await db.Crops.Include(x=>x.Stages).SingleOrDefaultAsync(x=>x.Code==code);
+        if(crop is null)
+        {
+            var type=await db.CropTypes.SingleAsync(x=>x.Code==cropTypeCode);
+            crop=new Crop{Code=code,Name=name,ScientificName=scientificName,CropTypeId=type.Id,Description="Cultivo de referencia para la granja experimental CUDEP; duraciones fenológicas orientativas, ajustables según variedad, fecha de siembra y condiciones locales."};
+            db.Crops.Add(crop);
+        }
+        foreach(var stage in stages)
+            if(crop.Stages.All(x=>x.Sequence!=stage.Sequence))
+                crop.Stages.Add(new PhenologicalStage{Name=stage.Name,Sequence=stage.Sequence,EstimatedDays=stage.Days,Description=stage.Description});
+    }}
