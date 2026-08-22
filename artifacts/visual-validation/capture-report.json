@@ -1,8 +1,9 @@
 {
-  "generatedAtUtc": "2026-08-22T05:31:07.633Z",
+  "generatedAtUtc": "2026-08-22T05:44:28.210Z",
   "baseUrl": "http://localhost:5173",
   "dashboardPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\dashboard-module-1.png",
   "notificationsPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\notifications-panel.png",
+  "module8Path": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\module-8-notifications-drawer.png",
   "visualChecks": {
     "panelBackground": "rgb(255, 255, 255)",
     "panelColor": "rgb(24, 63, 54)",
@@ -22,5 +23,144 @@
       "La condición crítica 6 requiere atención del operador."
     ],
     "realtimeStatus": "Tiempo real activo"
+  },
+  "module1Layout": {
+    "panel": {
+      "x": 1114,
+      "y": 80,
+      "width": 460,
+      "height": 800,
+      "top": 80,
+      "right": 1574,
+      "bottom": 880,
+      "left": 1114
+    },
+    "content": [
+      {
+        "selector": ".m-kpis",
+        "rect": {
+          "x": 328,
+          "y": 293.0093078613281,
+          "width": 716,
+          "height": 249.99996948242188,
+          "top": 293.0093078613281,
+          "right": 1044,
+          "bottom": 543.00927734375,
+          "left": 328
+        }
+      },
+      {
+        "selector": ".s1-dashboard-grid",
+        "rect": {
+          "x": 328,
+          "y": 558.6875,
+          "width": 716,
+          "height": 728.546875,
+          "top": 558.6875,
+          "right": 1044,
+          "bottom": 1287.234375,
+          "left": 328
+        }
+      },
+      {
+        "selector": ".s1-readings",
+        "rect": {
+          "x": 328,
+          "y": 1303.55615234375,
+          "width": 716,
+          "height": 532.296875,
+          "top": 1303.55615234375,
+          "right": 1044,
+          "bottom": 1835.85302734375,
+          "left": 328
+        }
+      }
+    ],
+    "centerClass": "n-center open",
+    "contentPaddingRight": "556px",
+    "viewportWidth": 1600,
+    "overlaps": []
+  },
+  "module8Layout": {
+    "panel": {
+      "x": 1114,
+      "y": 80,
+      "width": 460,
+      "height": 800,
+      "top": 80,
+      "right": 1574,
+      "bottom": 880,
+      "left": 1114
+    },
+    "pump": {
+      "x": 349.796875,
+      "y": 525.90625,
+      "width": 672.40625,
+      "height": 115.53125,
+      "top": 525.90625,
+      "right": 1022.203125,
+      "bottom": 641.4375,
+      "left": 349.796875
+    },
+    "stopButton": {
+      "x": 920.140625,
+      "y": 560.484375,
+      "width": 85.0625,
+      "height": 46.375,
+      "top": 560.484375,
+      "right": 1005.203125,
+      "bottom": 606.859375,
+      "left": 920.140625
+    },
+    "pumpOverlapsPanel": false,
+    "stopButtonAccessible": true
+  },
+  "automationLayout": {
+    "selector": ".o-rule-grid",
+    "panel": {
+      "x": 1114,
+      "y": 80,
+      "width": 460,
+      "height": 800,
+      "top": 80,
+      "right": 1574,
+      "bottom": 880,
+      "left": 1114
+    },
+    "target": {
+      "x": 328,
+      "y": 414.53125,
+      "width": 716,
+      "height": 376.6875,
+      "top": 414.53125,
+      "right": 1044,
+      "bottom": 791.21875,
+      "left": 328
+    },
+    "overlapsPanel": false
+  },
+  "manualIrrigationLayout": {
+    "selector": ".o-manual-layout",
+    "panel": {
+      "x": 1114,
+      "y": 80,
+      "width": 460,
+      "height": 800,
+      "top": 80,
+      "right": 1574,
+      "bottom": 880,
+      "left": 1114
+    },
+    "target": {
+      "x": 328,
+      "y": 292.921875,
+      "width": 716,
+      "height": 829.59375,
+      "top": 292.921875,
+      "right": 1044,
+      "bottom": 1122.515625,
+      "left": 328
+    },
+    "overlapsPanel": false
   }
 }

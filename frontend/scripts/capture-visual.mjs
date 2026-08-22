@@ -53,6 +53,36 @@ const referenceAlerts = [
     escalationLevel: 0,
   })),
 ]
+const referenceSupply = [{
+  id: 'tanque-visual',
+  name: 'Tanque principal CUDEP',
+  capacityLiters: 10000,
+  currentLevelLiters: 7200,
+  levelPercent: 72,
+  minimumSafePercent: 15,
+  maximumFillPercent: 95,
+  status: 'Disponible',
+  lastLevelReadingUtc: fixtureTime(5),
+  capacityValveLimit: 3,
+  pumps: [{
+    id: 'bomba-visual',
+    name: 'Bomba de abastecimiento 1',
+    status: 'Esperando ACK de parada',
+    isRunning: true,
+    maximumRunMinutes: 45,
+    minimumRestMinutes: 10,
+    startedAtUtc: fixtureTime(600),
+    lastStoppedAtUtc: fixtureTime(7200),
+    lockedUntilUtc: null,
+    failureReason: null,
+    hasUnacknowledgedFault: false,
+    lastPressureBar: 3.2,
+    lastMotorCurrentAmps: 8.2,
+    lastTelemetryAtUtc: fixtureTime(5),
+    ratedFlowLitersMinute: 25,
+    minimumPressureBar: 1.5,
+  }],
+}]
 
 if (!email || !password) {
   throw new Error('Define VISUAL_EMAIL y VISUAL_PASSWORD antes de ejecutar la captura.')
@@ -72,6 +102,8 @@ try {
   const page = context.pages()[0] ?? await context.newPage()
   await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 45_000 })
   await page.route('**/api/alerts', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(referenceAlerts) }))
+  await page.route('**/api/water-supply/status', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(referenceSupply) }))
+  await page.route('**/api/water-supply/history**', route => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
 
   await page.locator('input[type="email"]').fill(email)
   await page.locator('input[type="password"]').fill(password)
@@ -110,12 +142,64 @@ try {
     throw new Error('Validación visual CSS falló: ' + JSON.stringify(visualChecks))
   }
 
+  const module1Layout = await page.evaluate(() => {
+    const panel = document.querySelector('.n-center aside')?.getBoundingClientRect()
+    const selectors = ['.m-kpis', '.s1-dashboard-grid', '.s1-readings']
+    const content = selectors.map(selector => ({ selector, rect: document.querySelector(selector)?.getBoundingClientRect().toJSON() }))
+    if (!panel || content.some(item => !item.rect)) throw new Error('No se pudo medir el layout del Módulo 1.')
+    return { panel: panel.toJSON(), content, centerClass: document.querySelector('.n-center')?.className, contentPaddingRight: getComputedStyle(document.querySelector('.w2-content')).paddingRight, viewportWidth: window.innerWidth, overlaps: content.filter(item => item.rect.right > panel.left).map(item => item.selector) }
+  })
+  if (module1Layout.overlaps.length > 0) throw new Error('El panel cubre contenido del Módulo 1: ' + JSON.stringify(module1Layout))
+
   const notificationsPath = path.join(outputDir, 'notifications-panel.png')
   await page.screenshot({ path: notificationsPath })
-  const reportPath = path.join(outputDir, 'capture-report.json')
-  await writeFile(reportPath, JSON.stringify({ generatedAtUtc: new Date().toISOString(), baseUrl, dashboardPath, notificationsPath, visualChecks }, null, 2))
 
-  console.log(JSON.stringify({ dashboardPath, notificationsPath, reportPath, userDataDir, visualChecks }, null, 2))
+  await page.getByRole('button', { name: 'Bomba y tanque' }).click()
+  await page.getByText('BOMBA MQTT · Esperando ACK de parada', { exact: true }).waitFor({ timeout: 15_000 })
+  const stopButton = page.getByRole('button', { name: 'Detener' })
+  await stopButton.waitFor({ state: 'visible', timeout: 10_000 })
+  const module8Layout = await page.evaluate(() => {
+    const panel = document.querySelector('.n-center aside')?.getBoundingClientRect()
+    const pump = document.querySelector('.o-pump')?.getBoundingClientRect()
+    const stop = Array.from(document.querySelectorAll('.o-pump button')).find(button => button.textContent?.trim() === 'Detener')
+    const stopRect = stop?.getBoundingClientRect()
+    if (!panel || !pump || !stop || !stopRect) throw new Error('No se pudo medir la tarjeta activa de la bomba.')
+    const pointElement = document.elementFromPoint(stopRect.left + stopRect.width / 2, stopRect.top + stopRect.height / 2)
+    return {
+      panel: panel.toJSON(),
+      pump: pump.toJSON(),
+      stopButton: stopRect.toJSON(),
+      pumpOverlapsPanel: pump.right > panel.left,
+      stopButtonAccessible: pointElement === stop || stop.contains(pointElement),
+    }
+  })
+  if (module8Layout.pumpOverlapsPanel || !module8Layout.stopButtonAccessible) {
+    throw new Error('La bomba o su botón Detener quedan ocultos por el panel: ' + JSON.stringify(module8Layout))
+  }
+
+  const module8Path = path.join(outputDir, 'module-8-notifications-drawer.png')
+  await page.screenshot({ path: module8Path })
+
+  const measureModule = async (navigationName, selector) => {
+    await page.getByRole('button', { name: navigationName }).click()
+    await page.locator(selector).waitFor({ state: 'visible', timeout: 15_000 })
+    return page.evaluate(targetSelector => {
+      const panel = document.querySelector('.n-center aside')?.getBoundingClientRect()
+      const target = document.querySelector(targetSelector)?.getBoundingClientRect()
+      if (!panel || !target) throw new Error('No se pudo medir ' + targetSelector + '.')
+      return { selector: targetSelector, panel: panel.toJSON(), target: target.toJSON(), overlapsPanel: target.right > panel.left }
+    }, selector)
+  }
+  const automationLayout = await measureModule('Automatización', '.o-rule-grid')
+  const manualIrrigationLayout = await measureModule('Riego manual', '.o-manual-layout')
+  if (automationLayout.overlapsPanel || manualIrrigationLayout.overlapsPanel) {
+    throw new Error('Otra pantalla operativa queda cubierta: ' + JSON.stringify({ automationLayout, manualIrrigationLayout }))
+  }
+
+  const reportPath = path.join(outputDir, 'capture-report.json')
+  await writeFile(reportPath, JSON.stringify({ generatedAtUtc: new Date().toISOString(), baseUrl, dashboardPath, notificationsPath, module8Path, visualChecks, module1Layout, module8Layout, automationLayout, manualIrrigationLayout }, null, 2))
+
+  console.log(JSON.stringify({ dashboardPath, notificationsPath, module8Path, reportPath, userDataDir, visualChecks, module1Layout, module8Layout, automationLayout, manualIrrigationLayout }, null, 2))
 } finally {
   await context?.close()
   await new Promise(resolve => setTimeout(resolve, 300))

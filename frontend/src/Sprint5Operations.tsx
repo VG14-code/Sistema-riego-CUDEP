@@ -89,7 +89,7 @@ export function NotificationCenter({ session }: { session: Session }) {
     await load()
   }
   const realtimeLabel = realtimeStatus === 'online' ? 'Tiempo real activo' : realtimeStatus === 'reconnecting' ? 'Reconectando en tiempo real' : realtimeStatus === 'connecting' ? 'Conectando en tiempo real' : 'Tiempo real no disponible'
-  return <div className="n-center">
+  return <div className={`n-center${open ? ' open' : ''}`}>
     <span className={`n-realtime ${realtimeStatus}`} role="status" title={realtimeStatus === 'reconnecting' ? 'Se perdió temporalmente la conexión en tiempo real. Reintentando automáticamente.' : realtimeLabel}><i/>{realtimeLabel}</span>
     <button className="n-bell" onClick={() => setOpen(!open)} aria-label="Centro de notificaciones">♢{active.length > 0 && <b>{active.length}</b>}</button>
     {toast && <section className={`n-toast ${toast.severity.toLocaleLowerCase('es')}`} role="status" aria-live="assertive"><header><b>Nueva alerta {toast.severity.toLocaleLowerCase('es')}</b><button aria-label="Descartar notificación" onClick={() => setToast(null)}>×</button></header><Message description={toast.description} name={toast.relatedEntityName} type={toast.relatedEntityType} id={toast.relatedEntityId}/><small>{when(toast.raisedAtUtc)}</small><button className="n-toast-detail" onClick={() => { setOpen(true); setToast(null) }}>Ver detalle</button></section>}
