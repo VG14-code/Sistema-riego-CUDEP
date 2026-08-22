@@ -44,6 +44,25 @@ public sealed class TelemetryController(AppDbContext db, ITelemetryIngestionServ
         return Ok(await Project(query).ToListAsync(cancellationToken));
     }
 
+    [HttpGet("history/paged")]
+    public async Task<ActionResult<PagedReadingResponse>> PagedHistory(Guid? sensorId, DateTime? from, DateTime? to, int page = 1, int pageSize = 50, CancellationToken cancellationToken = default)
+    {
+        page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 10, 200);
+        var query = FilterHistory(sensorId, from, to);
+        var total = await query.CountAsync(cancellationToken);
+        var items = await Project(query.OrderByDescending(x => x.CapturedAtUtc).Skip((page - 1) * pageSize).Take(pageSize)).ToListAsync(cancellationToken);
+        return Ok(new PagedReadingResponse(items, page, pageSize, total, Math.Max(1, (int)Math.Ceiling(total / (decimal)pageSize))));
+    }
+
+    [HttpGet("aggregates")]
+    public async Task<ActionResult<IReadOnlyCollection<TelemetryAggregateResponse>>> Aggregates(Guid? sensorId, DateTime? from, DateTime? to, CancellationToken cancellationToken = default)
+    {
+        var query = FilterHistory(sensorId, from ?? DateTime.UtcNow.AddDays(-7), to);
+        var rows = await query.GroupBy(x => new { x.SensorId, x.Sensor.Name, x.Sensor.MeasurementUnit.Symbol })
+            .Select(group => new { group.Key.SensorId, group.Key.Name, group.Key.Symbol, Count = group.Count(), Minimum = group.Min(x => x.Value), Maximum = group.Max(x => x.Value), Average = group.Average(x => x.Value), FromUtc = group.Min(x => x.CapturedAtUtc), ToUtc = group.Max(x => x.CapturedAtUtc) })
+            .OrderBy(x => x.Name).ToListAsync(cancellationToken);
+        return Ok(rows.Select(row => new TelemetryAggregateResponse(row.SensorId, row.Name, row.Symbol, row.Count, row.Minimum, row.Maximum, Math.Round(row.Average, 2), row.FromUtc, row.ToUtc)).ToList());
+    }
     [HttpGet("quality")]
     public async Task<IActionResult> Quality(CancellationToken cancellationToken)
     {
@@ -104,6 +123,14 @@ public sealed class TelemetryController(AppDbContext db, ITelemetryIngestionServ
         return NoContent();
     }
 
+    private IQueryable<SensorReading> FilterHistory(Guid? sensorId, DateTime? from, DateTime? to)
+    {
+        var query = db.SensorReadings.AsNoTracking().AsQueryable();
+        if (sensorId.HasValue) query = query.Where(x => x.SensorId == sensorId);
+        if (from.HasValue) query = query.Where(x => x.CapturedAtUtc >= from);
+        if (to.HasValue) query = query.Where(x => x.CapturedAtUtc <= to);
+        return query;
+    }
     private static IQueryable<ReadingResponse> Project(IQueryable<SensorReading> query) => query.Select(x => new ReadingResponse(
         x.Id, x.SensorId, x.Sensor.Name, x.IrrigationZone != null ? x.IrrigationZone.Name : null,
         x.CapturedAtUtc, x.Value, x.Sensor.MeasurementUnit.Symbol, x.BatteryPercent, x.SignalStrength,

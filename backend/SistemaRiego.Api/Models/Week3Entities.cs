@@ -45,6 +45,7 @@ public sealed class SensorCalibration
     public Guid Id { get; set; } = Guid.NewGuid(); public Guid SensorId { get; set; } public IoTSensor Sensor { get; set; } = null!;
     public DateTime CalibratedAtUtc { get; set; } = DateTime.UtcNow; public decimal ReferenceValue { get; set; }
     public decimal MeasuredValue { get; set; } public decimal AppliedOffset { get; set; } public string? Notes { get; set; }
+    public string? CalibrationPattern { get; set; } public string? TechnicianName { get; set; } public DateOnly? NextCalibrationDate { get; set; }
     public Guid? CalibratedByUserId { get; set; }
 }
 

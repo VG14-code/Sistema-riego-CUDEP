@@ -20,7 +20,8 @@ public sealed record RequirementRequest(Guid CropId,Guid? PhenologicalStageId,Gu
 public sealed record CycleRequest(Guid CropId,Guid IrrigationZoneId,Guid? CurrentStageId,[Required,MaxLength(140)] string Name,DateOnly SowingDate,DateOnly ExpectedHarvestDate,DateOnly? ActualHarvestDate,decimal AreaHectares,int PlantCount,[Required,MaxLength(30)] string Status,[MaxLength(500)] string? Notes);
 
 public sealed record IrrigationRecommendationResponse(Guid CycleId,string CycleName,string Crop,string Zone,decimal? CurrentMoisture,decimal MinimumMoisture,decimal TargetMoisture,string Decision,int SuggestedMinutes,decimal SuggestedLiters,string Explanation);
-public sealed record SystemDashboardResponse(int ActiveSensors,int ActiveZones,int ActiveDevices,int InvalidReadings,int ActiveCropCycles,decimal AverageMoisture,DateTime GeneratedAtUtc,IReadOnlyCollection<ReadingResponse> LatestReadings,IReadOnlyCollection<ActivityItemResponse> RecentActivity);
+public sealed record SystemDashboardResponse(int ActiveSensors,int ActiveZones,int ActiveDevices,int InvalidReadings,int ActiveCropCycles,decimal AverageMoisture,DateTime GeneratedAtUtc,IReadOnlyCollection<ReadingResponse> LatestReadings,IReadOnlyCollection<ActivityItemResponse> RecentActivity,int ZonesIrrigating=0,decimal? TankLevelPercent=null,string PumpStatus="Sin datos",decimal? BatteryPercent=null,decimal TodayConsumptionLiters=0,int ActiveAlerts=0);
 public sealed record ActivityItemResponse(string Type,string Detail,DateTime OccurredAtUtc);
+public sealed record PagedReadingResponse(IReadOnlyCollection<ReadingResponse> Items,int Page,int PageSize,int Total,int TotalPages);
+public sealed record TelemetryAggregateResponse(Guid SensorId,string SensorName,string? UnitSymbol,int Count,decimal Minimum,decimal Maximum,decimal Average,DateTime FromUtc,DateTime ToUtc);
 public sealed record CropCycleResponse(Guid Id,string Name,Guid CropId,string Crop,Guid IrrigationZoneId,string Zone,Guid? CurrentStageId,string CurrentStage,DateOnly SowingDate,DateOnly ExpectedHarvestDate,DateOnly? ActualHarvestDate,decimal AreaHectares,int PlantCount,string Status,string? Notes);
-

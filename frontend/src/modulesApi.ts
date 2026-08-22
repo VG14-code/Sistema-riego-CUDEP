@@ -24,6 +24,12 @@ export interface DashboardData {
   generatedAtUtc: string
   latestReadings: Reading[]
   recentActivity: ActivityItem[]
+  zonesIrrigating: number
+  tankLevelPercent: number | null
+  pumpStatus: string
+  batteryPercent: number | null
+  todayConsumptionLiters: number
+  activeAlerts: number
 }
 export interface Zone { id: string; code: string; name: string; areaHectares: number; status: string; sensor: string | null; latitude: number | null; longitude: number | null; boundaryGeoJson: string | null; sensors: Array<{ sensorId: string; name: string; isPrimary: boolean }>; valves: Array<{ deviceId: string; name: string }> }
 export interface Sector { id: string; code: string; name: string; boundaryGeoJson: string | null; zones: Zone[] }
@@ -34,6 +40,8 @@ export interface IoTNode { id: string; code: string; name: string; operationalSt
 export interface IoTDevice { id: string; code: string; name: string; operationalStatus: string; nodeId: string | null; nodeName: string | null; lastCommunicationUtc: string | null; sensorCount: number; isActive: boolean }
 export interface IoTSensor { id: string; code: string; name: string; operationalStatus: string; deviceId: string | null; deviceName: string | null; lastReadingUtc: string | null; unitSymbol: string | null; isActive: boolean }
 export interface Quality { total: number; valid: number; invalid: number; validPercent: number; activeSensors: number; reportingSensors: number; availabilityPercent: number }
+export interface PagedReadings { items: Reading[]; page: number; pageSize: number; total: number; totalPages: number }
+export interface TelemetryAggregate { sensorId: string; sensorName: string; unitSymbol: string | null; count: number; minimum: number; maximum: number; average: number; fromUtc: string; toUtc: string }
 
 type JsonObject = Record<string, unknown>
 interface ApiError { message?: string }
@@ -58,6 +66,8 @@ export const modulesApi = {
   devices: (token: string) => call<IoTDevice[]>('/iot/devices', token),
   sensors: (token: string) => call<IoTSensor[]>('/iot/sensors', token),
   telemetry: (token: string, query = '?take=250') => call<Reading[]>(`/telemetry/history${query}`, token),
+  telemetryPage: (token: string, page = 1, sensorId = 'all') => call<PagedReadings>(`/telemetry/history/paged?page=${page}&pageSize=30${sensorId === 'all' ? '' : `&sensorId=${sensorId}`}`, token),
+  telemetryAggregates: (token: string, sensorId = 'all') => call<TelemetryAggregate[]>(`/telemetry/aggregates${sensorId === 'all' ? '' : `?sensorId=${sensorId}`}`, token),
   quality: (token: string) => call<Quality>('/telemetry/quality', token),
   centers: (token: string) => call<unknown[]>('/territory/centers', token),
   farms: (token: string) => call<unknown[]>('/territory/farms', token),

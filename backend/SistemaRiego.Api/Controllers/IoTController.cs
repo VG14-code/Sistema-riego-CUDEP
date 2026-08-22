@@ -100,15 +100,15 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
     public async Task<IActionResult> DeactivateSensor(Guid id, CancellationToken ct) => await Deactivate(db.IoTSensors, id, "IOT_SENSOR_DEACTIVATED", ct);
 
     [HttpGet("calibrations")]
-    public async Task<ActionResult<IReadOnlyCollection<SensorCalibrationResponse>>> Calibrations(CancellationToken ct) => Ok(await db.SensorCalibrations.AsNoTracking().Include(x => x.Sensor).OrderByDescending(x => x.CalibratedAtUtc).Select(x => new SensorCalibrationResponse(x.Id, x.SensorId, x.Sensor.Name, x.CalibratedAtUtc, x.ReferenceValue, x.MeasuredValue, x.AppliedOffset, x.Notes)).ToListAsync(ct));
+    public async Task<ActionResult<IReadOnlyCollection<SensorCalibrationResponse>>> Calibrations(CancellationToken ct) => Ok(await db.SensorCalibrations.AsNoTracking().Include(x => x.Sensor).OrderByDescending(x => x.CalibratedAtUtc).Select(x => new SensorCalibrationResponse(x.Id, x.SensorId, x.Sensor.Name, x.CalibratedAtUtc, x.ReferenceValue, x.MeasuredValue, x.AppliedOffset, x.Notes, x.CalibrationPattern, x.TechnicianName, x.NextCalibrationDate)).ToListAsync(ct));
 
     [HttpPost("calibrations"), Authorize(Policy = Policies.Technician)]
     public async Task<ActionResult<SensorCalibrationResponse>> Calibrate(SensorCalibrationRequest request, CancellationToken ct)
     {
         var sensor = await db.IoTSensors.SingleOrDefaultAsync(x => x.Id == request.SensorId && x.IsActive, ct); if (sensor is null) return BadRequest(new { message = "El sensor seleccionado no existe o está inactivo." });
-        var offset = request.ReferenceValue - request.MeasuredValue; var item = new SensorCalibration { SensorId = sensor.Id, CalibratedAtUtc = request.CalibratedAtUtc ?? DateTime.UtcNow, ReferenceValue = request.ReferenceValue, MeasuredValue = request.MeasuredValue, AppliedOffset = offset, Notes = Trim(request.Notes), CalibratedByUserId = CurrentUserId() };
+        var offset = request.ReferenceValue - request.MeasuredValue; var item = new SensorCalibration { SensorId = sensor.Id, CalibratedAtUtc = request.CalibratedAtUtc ?? DateTime.UtcNow, ReferenceValue = request.ReferenceValue, MeasuredValue = request.MeasuredValue, AppliedOffset = offset, Notes = Trim(request.Notes), CalibrationPattern = Trim(request.CalibrationPattern), TechnicianName = Trim(request.TechnicianName), NextCalibrationDate = request.NextCalibrationDate, CalibratedByUserId = CurrentUserId() };
         sensor.CalibrationOffset = offset; sensor.UpdatedAtUtc = DateTime.UtcNow; db.SensorCalibrations.Add(item); Audit("IOT_SENSOR_CALIBRATED", sensor.Code); await db.SaveChangesAsync(ct);
-        return CreatedAtAction(nameof(Calibrations), new SensorCalibrationResponse(item.Id, sensor.Id, sensor.Name, item.CalibratedAtUtc, item.ReferenceValue, item.MeasuredValue, item.AppliedOffset, item.Notes));
+        return CreatedAtAction(nameof(Calibrations), new SensorCalibrationResponse(item.Id, sensor.Id, sensor.Name, item.CalibratedAtUtc, item.ReferenceValue, item.MeasuredValue, item.AppliedOffset, item.Notes, item.CalibrationPattern, item.TechnicianName, item.NextCalibrationDate));
     }
 
     private IQueryable<IoTSensor> SensorQuery() => db.IoTSensors.AsNoTracking().Include(x => x.SensorType).Include(x => x.MeasurementUnit).Include(x => x.OperationalStatus).Include(x => x.Device).Include(x => x.Calibrations);

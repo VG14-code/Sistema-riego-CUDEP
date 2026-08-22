@@ -76,6 +76,20 @@ public sealed class ThesisTraceabilityTests
         Assert.Contains(recommendations, x => x.Decision == "ESPERAR" && x.Explanation.Contains("humedad ambiental"));
     }
 
+    [Fact]
+    public async Task Calibration_PreservesPatternTechnicianAndNextDate()
+    {
+        var setup = await Setup();
+        var sensorType = new MasterCatalogItem { Kind = CatalogKind.SensorType, Code = "CAL", Name = "Calibrable" };
+        var sensor = new IoTSensor { Code = "CAL-1", Name = "Sensor calibrable", SerialNumber = "CAL-SER", SensorType = sensorType, MeasurementUnit = setup.Unit, OperationalStatus = setup.Active };
+        setup.Db.AddRange(sensorType, sensor); await setup.Db.SaveChangesAsync();
+        var next = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(6));
+        var controller = new IoTController(setup.Db) { ControllerContext = setup.IoT.ControllerContext };
+        var result = await controller.Calibrate(new(sensor.Id, null, 50, 48, "Banco de prueba", "Patrón ISO-17025", "Técnico CUDEP", next), default);
+        Assert.IsType<CreatedAtActionResult>(result.Result);
+        var calibration = await setup.Db.SensorCalibrations.SingleAsync();
+        Assert.Equal("Patrón ISO-17025", calibration.CalibrationPattern); Assert.Equal("Técnico CUDEP", calibration.TechnicianName); Assert.Equal(next, calibration.NextCalibrationDate);
+    }
     private static async Task<SetupData> Setup()
     {
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

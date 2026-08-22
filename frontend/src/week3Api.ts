@@ -35,6 +35,7 @@ export const week3Api = {
   nodes: (token: string) => request<IoTRecord[]>('/iot/nodes', {}, token),
   devices: (token: string) => request<IoTRecord[]>('/iot/devices', {}, token),
   sensors: (token: string) => request<IoTRecord[]>('/iot/sensors', {}, token),
+  communication: (token: string) => request<IoTRecord>("/iot/communication", {}, token),
   installations: (token: string) => request<IoTRecord[]>("/iot/traceability/installations", {}, token),
   remoteConfigurations: (token: string) => request<IoTRecord[]>("/iot/traceability/remote-configurations", {}, token),
   firmwareHistory: (token: string) => request<IoTRecord[]>("/iot/traceability/firmware", {}, token),

@@ -53,11 +53,14 @@ public sealed record SensorCalibrationRequest(
     DateTime? CalibratedAtUtc,
     decimal ReferenceValue,
     decimal MeasuredValue,
-    [MaxLength(500)] string? Notes);
+    [MaxLength(500)] string? Notes,
+    [MaxLength(160)] string? CalibrationPattern = null,
+    [MaxLength(160)] string? TechnicianName = null,
+    DateOnly? NextCalibrationDate = null);
 
 public sealed record IoTNodeResponse(Guid Id, string Code, string Name, string? Location, string? IpAddress, string? MacAddress, string CommunicationProtocol, string? FirmwareVersion, Guid OperationalStatusId, string OperationalStatus, bool IsActive, DateTime? LastCommunicationUtc, int DeviceCount);
 public sealed record IoTDeviceResponse(Guid Id, string Code, string Name, string SerialNumber, string? Manufacturer, string? Model, string? InstallationLocation, DateOnly? InstallationDate, Guid DeviceTypeId, string DeviceType, Guid OperationalStatusId, string OperationalStatus, Guid? NodeId, string? NodeName, bool IsActive, DateTime? LastCommunicationUtc, int SensorCount, Guid? DeviceModelId, string? DeviceModel, string? Owner, string InventoryStatus, DateOnly? PurchaseDate, DateOnly? WarrantyUntil, decimal? AcquisitionCost, string Currency);
 public sealed record IoTSensorResponse(Guid Id, string Code, string Name, string SerialNumber, string? Model, string? Channel, decimal MinimumValue, decimal MaximumValue, decimal CalibrationOffset, Guid SensorTypeId, string SensorType, Guid MeasurementUnitId, string MeasurementUnit, string? UnitSymbol, Guid OperationalStatusId, string OperationalStatus, Guid? DeviceId, string? DeviceName, bool IsActive, DateTime? LastReadingUtc, DateTime? LastCalibrationUtc);
-public sealed record SensorCalibrationResponse(Guid Id, Guid SensorId, string SensorName, DateTime CalibratedAtUtc, decimal ReferenceValue, decimal MeasuredValue, decimal AppliedOffset, string? Notes);
+public sealed record SensorCalibrationResponse(Guid Id, Guid SensorId, string SensorName, DateTime CalibratedAtUtc, decimal ReferenceValue, decimal MeasuredValue, decimal AppliedOffset, string? Notes, string? CalibrationPattern, string? TechnicianName, DateOnly? NextCalibrationDate);
 public sealed record IoTSummaryResponse(int Nodes, int Devices, int Sensors, int ActiveSensors, int OfflineItems, int CalibratedSensors);
 

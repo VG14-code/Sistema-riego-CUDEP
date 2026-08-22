@@ -3,7 +3,7 @@ import { HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/s
 import { CircleMarker, MapContainer, Polygon, Popup, TileLayer } from 'react-leaflet'
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import 'leaflet/dist/leaflet.css'
-import { modulesApi as api, type ActivityItem, type Center, type DashboardData, type IoTDevice, type IoTNode, type IoTSensor, type Quality, type Reading, type Zone } from './modulesApi'
+import { modulesApi as api, type ActivityItem, type Center, type DashboardData, type IoTDevice, type IoTNode, type IoTSensor, type Quality, type Reading, type TelemetryAggregate, type Zone } from './modulesApi'
 import './sprint1.css'
 
 interface Session { accessToken: string; user: { fullName: string } }
@@ -106,7 +106,9 @@ export function OperationalDashboard({ session, onNavigate, notify }: DashboardP
   return <>
     <SectionHead kicker="MÓDULO 1 · INICIO OPERATIVO" title={`Buen día, ${session.user.fullName.split(' ')[0]}`} copy="Cartografía, telemetría multi-nodo y trazabilidad en una sola vista." action={<div className="s1-head-actions"><StatusPill status={connection} /><button onClick={() => load().catch(() => undefined)}>Actualizar</button></div>} />
     <div className="m-kpis">{[
-      ['💧', `${fmt(data.averageMoisture)}%`, 'Humedad media'], ['◉', `${onlineNodes}/${nodes.length}`, 'Nodos online'], ['⌁', `${onlineDevices}/${devices.length}`, 'Dispositivos online'], ['▦', data.activeZones, 'Zonas de riego'], ['⚠', data.invalidReadings, 'Lecturas a revisar'],
+      ['💧', `${fmt(data.averageMoisture)}%`, 'Humedad media'], ['◉', `${onlineNodes}/${nodes.length}`, 'Nodos online'], ['⌁', `${onlineDevices}/${devices.length}`, 'Dispositivos online'], ['▦', data.activeZones, 'Zonas de riego'],
+      ['🚿', data.zonesIrrigating, 'Zonas regando'], ['▰', data.tankLevelPercent == null ? 'Sin datos' : `${fmt(data.tankLevelPercent)}%`, 'Nivel de tanque'], ['⚙', data.pumpStatus, 'Estado de bomba'],
+      ['☀', data.batteryPercent == null ? 'Sin datos' : `${fmt(data.batteryPercent)}%`, 'Batería solar'], ['≈', `${fmt(data.todayConsumptionLiters)} L`, 'Consumo de hoy'], ['⚠', data.activeAlerts, 'Alertas activas'], ['⌁', data.invalidReadings, 'Lecturas a revisar'],
     ].map(item => <article key={item[2]}><b>{item[0]}</b><div><strong>{item[1]}</strong><span>{item[2]}</span></div></article>)}</div>
     <div className="s1-dashboard-grid"><section className="m-panel"><header><div><small>MAPA PRODUCTIVO</small><h2>Centro → finca → bloque → sector → zona</h2></div></header><FarmMap hierarchy={hierarchy} /></section>
       <section className="m-panel"><header><div><small>RED IOT</small><h2>Última comunicación</h2></div><button onClick={() => onNavigate('iot')}>Infraestructura →</button></header><div className="s1-node-list">{nodes.map(node => <article key={node.id}><i className={/online|activo/i.test(node.operationalStatus) ? 'online' : 'offline'} /><div><strong>{node.name}</strong><span>{node.code} · {node.deviceCount} dispositivos</span></div><time>{when(node.lastCommunicationUtc)}</time></article>)}</div></section></div>
@@ -120,25 +122,31 @@ export function TelemetryMonitor({ session, notify }: SharedProps) {
   const [quality, setQuality] = useState<Quality | null>(null)
   const [sensors, setSensors] = useState<IoTSensor[]>([])
   const [selectedSensor, setSelectedSensor] = useState('all')
+  const [page, setPage] = useState(1)
+  const [pageInfo, setPageInfo] = useState({ total: 0, totalPages: 1 })
+  const [aggregates, setAggregates] = useState<TelemetryAggregate[]>([])
   const [connection, setConnection] = useState<ConnectionStatus>('Conectando')
   const load = useCallback(async () => {
-    const [readings, qualityData, sensorRows] = await Promise.all([api.telemetry(session.accessToken), api.quality(session.accessToken), api.sensors(session.accessToken)])
-    setItems(readings); setQuality(qualityData); setSensors(sensorRows)
-  }, [session.accessToken])
+    const [history, aggregateRows, qualityData, sensorRows] = await Promise.all([
+      api.telemetryPage(session.accessToken, page, selectedSensor), api.telemetryAggregates(session.accessToken, selectedSensor),
+      api.quality(session.accessToken), api.sensors(session.accessToken),
+    ])
+    setItems(history.items); setPageInfo({ total: history.total, totalPages: history.totalPages }); setAggregates(aggregateRows); setQuality(qualityData); setSensors(sensorRows)
+  }, [session.accessToken, page, selectedSensor])
   useEffect(() => { load().catch(error => notify(error instanceof Error ? error.message : 'No fue posible cargar telemetría.')) }, [load, notify])
   useEffect(() => {
     const hub = new HubConnectionBuilder().withUrl(hubUrl, { accessTokenFactory: () => session.accessToken }).withAutomaticReconnect().configureLogging(LogLevel.Warning).build()
     hub.onreconnecting(() => setConnection('Reconectando')); hub.onreconnected(() => setConnection('Online')); hub.onclose(() => setConnection('Offline'))
-    hub.on('telemetryReadingReceived', (reading: Reading) => setItems(current => [reading, ...current.filter(item => item.id !== reading.id)].slice(0, 500)))
+    hub.on('telemetryReadingReceived', (reading: Reading) => { if (page === 1 && (selectedSensor === 'all' || selectedSensor === reading.sensorId)) setItems(current => [reading, ...current.filter(item => item.id !== reading.id)].slice(0, 30)) })
     hub.start().then(() => setConnection('Online')).catch(() => setConnection('Offline'))
     return () => { if (hub.state !== HubConnectionState.Disconnected) void hub.stop() }
-  }, [session.accessToken])
-  const filtered = useMemo(() => selectedSensor === 'all' ? items : items.filter(item => item.sensorId === selectedSensor), [items, selectedSensor])
-  const chart = useMemo(() => filtered.slice(0, 120).reverse().map(item => ({ time: new Date(item.capturedAtUtc).toLocaleString('es-GT', { day: '2-digit', hour: '2-digit', minute: '2-digit' }), value: Number(item.value), sensor: item.sensorName })), [filtered])
+  }, [session.accessToken, page, selectedSensor])
+  const chart = useMemo(() => items.slice(0, 120).reverse().map(item => ({ time: new Date(item.capturedAtUtc).toLocaleString('es-GT', { day: '2-digit', hour: '2-digit', minute: '2-digit' }), value: Number(item.value), sensor: item.sensorName })), [items])
   return <>
     <SectionHead kicker="MÓDULO 5 · SENSORES Y LECTURAS" title="Telemetría histórica y en vivo" copy="Series por sensor, calidad, mensajes atrasados y origen transparente." action={<StatusPill status={connection} />} />
     {quality && <div className="m-quality"><article><strong>{quality.validPercent}%</strong><span>Datos válidos</span></article><article><strong>{quality.availabilityPercent}%</strong><span>Disponibilidad</span></article><article><strong>{quality.reportingSensors}/{quality.activeSensors}</strong><span>Sensores reportando</span></article><article><strong>{quality.invalid}</strong><span>Lecturas observadas</span></article></div>}
-    <section className="m-panel s1-history"><header><div><small>SERIE DE TIEMPO</small><h2>Histórico por sensor</h2></div><select value={selectedSensor} onChange={event => setSelectedSensor(event.target.value)}><option value="all">Todos los sensores</option>{sensors.map(sensor => <option key={sensor.id} value={sensor.id}>{sensor.name}</option>)}</select></header><div className="s1-chart"><ResponsiveContainer width="100%" height="100%"><LineChart data={chart}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="time" minTickGap={28} /><YAxis /><Tooltip /><Legend /><Line type="monotone" dataKey="value" name="Lectura" stroke="#087f6a" strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></div></section>
-    <section className="m-panel m-readings"><header><div><small>HISTORIAL</small><h2>Lecturas recibidas</h2></div></header>{filtered.slice(0, 30).map(reading => <div key={reading.id}><span className={reading.isValid ? 'm-valid' : 'm-invalid'}>{reading.validationStatus}</span><b>{reading.sensorName}</b><strong>{fmt(reading.value)} {reading.unitSymbol}</strong><time>{when(reading.capturedAtUtc)}</time>{simulated(reading) && <em className="s1-simulated">Simulado</em>}</div>)}</section>
+    <section className="m-quality s1-aggregates">{aggregates.map(row => <article key={row.sensorId}><strong>{fmt(row.average)} {row.unitSymbol}</strong><span>{row.sensorName} · mín. {fmt(row.minimum)} · máx. {fmt(row.maximum)} · {row.count} lecturas</span></article>)}</section>
+    <section className="m-panel s1-history"><header><div><small>SERIE DE TIEMPO</small><h2>Histórico por sensor</h2></div><select value={selectedSensor} onChange={event => { setSelectedSensor(event.target.value); setPage(1) }}><option value="all">Todos los sensores</option>{sensors.map(sensor => <option key={sensor.id} value={sensor.id}>{sensor.name}</option>)}</select></header><div className="s1-chart"><ResponsiveContainer width="100%" height="100%"><LineChart data={chart}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="time" minTickGap={28} /><YAxis /><Tooltip /><Legend /><Line type="monotone" dataKey="value" name="Lectura" stroke="#087f6a" strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></div></section>
+    <section className="m-panel m-readings"><header><div><small>HISTORIAL PAGINADO</small><h2>Lecturas recibidas</h2><span>{pageInfo.total} registros · página {page} de {pageInfo.totalPages}</span></div><div className="s1-pagination"><button disabled={page <= 1} onClick={() => setPage(value => Math.max(1, value - 1))}>← Anterior</button><button disabled={page >= pageInfo.totalPages} onClick={() => setPage(value => Math.min(pageInfo.totalPages, value + 1))}>Siguiente →</button></div></header>{items.map(reading => <div key={reading.id}><span className={reading.isValid ? 'm-valid' : 'm-invalid'}>{reading.validationStatus}</span><b>{reading.sensorName}</b><strong>{fmt(reading.value)} {reading.unitSymbol}</strong><time>{when(reading.capturedAtUtc)}</time>{simulated(reading) && <em className="s1-simulated">Simulado</em>}</div>)}</section>
   </>
 }
