@@ -1,0 +1,30 @@
+{
+  "formularioGestionVisible": true,
+  "validacionVisible": "Los umbrales deben cumplir: 0 ≤ mínimo < máximo ≤ 100.",
+  "segundoTanqueCreado": {
+    "nombre": "Tanque experimental UI 20260822152123",
+    "capacidadLitros": 4500,
+    "minimo": 20,
+    "maximo": 88
+  },
+  "dosTanquesSimultaneos": true,
+  "tanquePrincipalEditado": {
+    "capacidadLitros": 11000,
+    "minimo": 25,
+    "maximo": 93
+  },
+  "proteccionReal": {
+    "verificada": true,
+    "nivelPorcentaje": 64.6,
+    "minimoEnsayado": 66,
+    "mensaje": "Arranque bloqueado: nivel bajo y riesgo de trabajo en seco."
+  },
+  "segundoTanqueDesactivado": true,
+  "desaparecioVistaOperativa": true,
+  "capturas": [
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\tank-crud-e2e\\01-dos-tanques-configurados.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\tank-crud-e2e\\02-tanque-principal-editado.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\tank-crud-e2e\\03-proteccion-umbral-real.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\tank-crud-e2e\\04-segundo-tanque-desactivado.png"
+  ]
+}

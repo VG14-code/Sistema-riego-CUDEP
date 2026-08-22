@@ -67,6 +67,27 @@ public sealed class Modules7To10ControllerTests
         Assert.Equal(2,await setup.Db.WaterTanks.CountAsync());
     }
     [Fact]
+    public async Task Pump_Start_UsesMinimumThresholdEditedThroughTankCrud()
+    {
+        var setup=await CreateSetup();
+        var updated=await setup.Supply.UpdateTank(setup.Tank.Id,new WaterTankRequest("Tanque",1000,800,85,95,[setup.Pump.Id],true),default);
+        Assert.IsType<NoContentResult>(updated);
+        var result=await setup.Supply.Start(setup.Pump.Id,new PumpCommandRequest("Validar umbral configurable"),default);
+        Assert.IsType<ConflictObjectResult>(result);
+        Assert.False((await setup.Db.WaterPumps.FindAsync(setup.Pump.Id))!.IsRunning);
+    }
+
+    [Fact]
+    public async Task Tank_CannotBeDeactivatedWhileAssociatedPumpIsRunning()
+    {
+        var setup=await CreateSetup();
+        setup.Pump.IsRunning=true;
+        await setup.Db.SaveChangesAsync();
+        var result=await setup.Supply.UpdateTank(setup.Tank.Id,new WaterTankRequest("Tanque",1000,800,10,95,[setup.Pump.Id],false),default);
+        Assert.IsType<ConflictObjectResult>(result);
+        Assert.NotEqual("Inactivo",(await setup.Db.WaterTanks.FindAsync(setup.Tank.Id))!.Status);
+    }
+    [Fact]
     public async Task Automation_Evaluate_StartsRunWhenMoistureIsBelowThreshold()
     {
         var setup=await CreateSetup();
