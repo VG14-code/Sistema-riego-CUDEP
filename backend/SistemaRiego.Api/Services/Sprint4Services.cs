@@ -107,12 +107,13 @@ public sealed class WaterCapacityService(AppDbContext db) : IWaterCapacityServic
     public async Task<int> GetMaximumValveCountAsync(CancellationToken ct)
     {
         var configured = int.TryParse(await db.GlobalParameters.Where(x => x.Key == "MAX_SIMULTANEOUS_VALVES").Select(x => x.Value).SingleOrDefaultAsync(ct), out var max) ? Math.Max(1, max) : 2;
-        var pump = await db.WaterPumps.Include(x => x.WaterTank).OrderBy(x => x.Name).FirstOrDefaultAsync(ct);
+        var pumps = await db.WaterPumps.Include(x => x.WaterTank).Where(x => x.WaterTank.Status != "Inactivo").ToListAsync(ct);
         var safety = await db.SystemSafetyStates.FindAsync([1], ct);
-        if (pump is null || safety?.EmergencyStopActive == true || pump.HasUnacknowledgedFault || pump.WaterTank.CurrentLevelLiters <= pump.WaterTank.CapacityLiters * pump.WaterTank.MinimumSafePercent / 100) return 0;
-        var byFlow = Math.Max(1, (int)Math.Floor(pump.RatedFlowLitersMinute / Math.Max(1, pump.NominalValveFlowLitersMinute)));
-        var byPressure = pump.LastPressureBar <= 0 ? configured : Math.Max(1, (int)Math.Floor(pump.LastPressureBar / Math.Max(.1m, pump.MinimumPressureBar)));
-        return Math.Min(configured, Math.Min(byFlow, byPressure));
+        if (safety?.EmergencyStopActive == true) return 0;
+        var available = pumps.Where(p => !p.HasUnacknowledgedFault && p.WaterTank.CurrentLevelLiters > p.WaterTank.CapacityLiters * p.WaterTank.MinimumSafePercent / 100).ToList();
+        if (available.Count == 0) return 0;
+        var total = available.Sum(p => { var byFlow=Math.Max(1,(int)Math.Floor(p.RatedFlowLitersMinute/Math.Max(1,p.NominalValveFlowLitersMinute)));var byPressure=p.LastPressureBar<=0?configured:Math.Max(1,(int)Math.Floor(p.LastPressureBar/Math.Max(.1m,p.MinimumPressureBar)));return Math.Min(byFlow,byPressure); });
+        return Math.Min(configured,total);
     }
 }
 

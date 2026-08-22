@@ -14,8 +14,26 @@ public sealed class WaterSupplyController(AppDbContext db, IPumpCommandService? 
 {
     [HttpGet("status")]
     public async Task<ActionResult> Status(CancellationToken ct)
-    { var tanks=await db.WaterTanks.AsNoTracking().Include(x=>x.Pumps).ToListAsync(ct);var capacityValveLimit=capacityService is null?(int?)null:await capacityService.GetMaximumValveCountAsync(ct); return Ok(tanks.Select(x=>new{x.Id,x.Name,x.CapacityLiters,x.CurrentLevelLiters,LevelPercent=x.CapacityLiters==0?0:Math.Round(x.CurrentLevelLiters/x.CapacityLiters*100,1),x.MinimumSafePercent,x.MaximumFillPercent,x.Status,x.LastLevelReadingUtc,CapacityValveLimit=capacityValveLimit,Pumps=x.Pumps.Select(p=>new{p.Id,p.Name,p.Status,p.IsRunning,p.MaximumRunMinutes,p.MinimumRestMinutes,p.StartedAtUtc,p.LastStoppedAtUtc,p.LockedUntilUtc,p.FailureReason,p.HasUnacknowledgedFault,p.LastPressureBar,p.LastMotorCurrentAmps,p.LastTelemetryAtUtc,p.RatedFlowLitersMinute,p.MinimumPressureBar})})); }
+    { var tanks=await db.WaterTanks.AsNoTracking().Include(x=>x.Pumps).Where(x=>x.Status!="Inactivo").ToListAsync(ct);var capacityValveLimit=capacityService is null?(int?)null:await capacityService.GetMaximumValveCountAsync(ct); return Ok(tanks.Select(x=>new{x.Id,x.Name,x.CapacityLiters,x.CurrentLevelLiters,LevelPercent=x.CapacityLiters==0?0:Math.Round(x.CurrentLevelLiters/x.CapacityLiters*100,1),x.MinimumSafePercent,x.MaximumFillPercent,x.Status,x.LastLevelReadingUtc,CapacityValveLimit=capacityValveLimit,Pumps=x.Pumps.Select(p=>new{p.Id,p.Name,p.Status,p.IsRunning,p.MaximumRunMinutes,p.MinimumRestMinutes,p.StartedAtUtc,p.LastStoppedAtUtc,p.LockedUntilUtc,p.FailureReason,p.HasUnacknowledgedFault,p.LastPressureBar,p.LastMotorCurrentAmps,p.LastTelemetryAtUtc,p.RatedFlowLitersMinute,p.MinimumPressureBar})})); }
 
+    [HttpGet("tanks"),Authorize(Policy=Policies.Technician)]
+    public async Task<ActionResult> Tanks(CancellationToken ct)=>Ok(await db.WaterTanks.AsNoTracking().OrderBy(x=>x.Name).Select(x=>new{x.Id,x.Name,x.CapacityLiters,x.CurrentLevelLiters,x.MinimumSafePercent,x.MaximumFillPercent,x.Status,PumpCount=x.Pumps.Count}).ToListAsync(ct));
+
+    [HttpPost("tanks"),Authorize(Policy=Policies.Technician)]
+    public async Task<ActionResult> CreateTank(WaterTankRequest request,CancellationToken ct)
+    { var error=Validate(request);if(error is not null)return BadRequest(new{message=error});var tank=new WaterTank{Name=request.Name.Trim(),CapacityLiters=request.CapacityLiters,CurrentLevelLiters=request.CurrentLevelLiters,MinimumSafePercent=request.MinimumSafePercent,MaximumFillPercent=request.MaximumFillPercent,Status="Disponible",LastLevelReadingUtc=DateTime.UtcNow};db.WaterTanks.Add(tank);await db.SaveChangesAsync(ct);return CreatedAtAction(nameof(Tanks),new{id=tank.Id},new{tank.Id}); }
+
+    [HttpPut("tanks/{id:guid}"),Authorize(Policy=Policies.Technician)]
+    public async Task<ActionResult> UpdateTank(Guid id,WaterTankRequest request,CancellationToken ct)
+    { var error=Validate(request);if(error is not null)return BadRequest(new{message=error});var tank=await db.WaterTanks.FindAsync([id],ct);if(tank is null)return NotFound();tank.Name=request.Name.Trim();tank.CapacityLiters=request.CapacityLiters;tank.CurrentLevelLiters=request.CurrentLevelLiters;tank.MinimumSafePercent=request.MinimumSafePercent;tank.MaximumFillPercent=request.MaximumFillPercent;tank.Status=Percent(tank)<=tank.MinimumSafePercent?"Nivel bajo":"Disponible";tank.LastLevelReadingUtc=DateTime.UtcNow;await db.SaveChangesAsync(ct);return NoContent(); }
+
+    [HttpPatch("tanks/{id:guid}/deactivate"),Authorize(Policy=Policies.Technician)]
+    public async Task<ActionResult> DeactivateTank(Guid id,CancellationToken ct)
+    { var tank=await db.WaterTanks.Include(x=>x.Pumps).SingleOrDefaultAsync(x=>x.Id==id,ct);if(tank is null)return NotFound();if(tank.Pumps.Any(x=>x.IsRunning))return Conflict(new{message="Detén las bombas asociadas antes de desactivar el tanque."});tank.Status="Inactivo";await db.SaveChangesAsync(ct);return NoContent(); }
+
+    [HttpPatch("tanks/{id:guid}/activate"),Authorize(Policy=Policies.Technician)]
+    public async Task<ActionResult> ActivateTank(Guid id,CancellationToken ct)
+    { var tank=await db.WaterTanks.FindAsync([id],ct);if(tank is null)return NotFound();tank.Status=Percent(tank)<=tank.MinimumSafePercent?"Nivel bajo":"Disponible";await db.SaveChangesAsync(ct);return NoContent(); }
     [HttpPost("tanks/{id:guid}/level"),Authorize(Policy=Policies.Technician)]
     public async Task<ActionResult> Level(Guid id,TankLevelRequest request,CancellationToken ct)
     { var tank=await db.WaterTanks.FindAsync([id],ct); if(tank is null)return NotFound(); if(request.LevelLiters<0||request.LevelLiters>tank.CapacityLiters)return BadRequest(new{message="El nivel debe estar dentro de la capacidad del tanque."}); tank.CurrentLevelLiters=request.LevelLiters;tank.LastLevelReadingUtc=DateTime.UtcNow;tank.Status=Percent(tank)<tank.MinimumSafePercent?"Nivel bajo":"Disponible";db.OperationalEvents.Add(Event("Tanque","TANK_LEVEL_UPDATED",request.Detail??$"Nivel actualizado a {request.LevelLiters:0} L"));await db.SaveChangesAsync(ct);return NoContent(); }
@@ -37,6 +55,7 @@ public sealed class WaterSupplyController(AppDbContext db, IPumpCommandService? 
     [HttpGet("history")]
     public async Task<ActionResult> History(int take=50,CancellationToken ct=default)=>Ok(await db.WaterSupplyEvents.AsNoTracking().Include(x=>x.WaterPump).OrderByDescending(x=>x.StartedAtUtc).Take(Math.Clamp(take,1,200)).Select(x=>new{x.Id,Pump=x.WaterPump.Name,x.EventType,x.Status,x.StartedAtUtc,x.EndedAtUtc,x.InitialLevelLiters,x.FinalLevelLiters,x.SuppliedLiters,x.Detail}).ToListAsync(ct));
     private static decimal Percent(WaterTank x)=>x.CapacityLiters==0?0:x.CurrentLevelLiters/x.CapacityLiters*100;
+    private static string? Validate(WaterTankRequest x)=>string.IsNullOrWhiteSpace(x.Name)?"El nombre es obligatorio.":x.CapacityLiters<=0?"La capacidad debe ser mayor que cero.":x.CurrentLevelLiters<0||x.CurrentLevelLiters>x.CapacityLiters?"El nivel debe estar dentro de la capacidad.":x.MinimumSafePercent<0||x.MaximumFillPercent>100||x.MinimumSafePercent>=x.MaximumFillPercent?"Los umbrales deben cumplir 0 ≤ mínimo < máximo ≤ 100.":null;
     private OperationalEvent Event(string category,string type,string detail)=>new(){Category=category,EventType=type,UserId=UserId(),UserEmail=User.FindFirstValue(ClaimTypes.Email),Detail=detail};
     private Guid? UserId()=>Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier),out var id)?id:null;
 }

@@ -47,6 +47,19 @@ public sealed class Sprint4InfrastructureTests
     }
 
     [Fact]
+    public async Task HydraulicCapacity_AggregatesHealthyPumpsAcrossMultipleTanks()
+    {
+        await using var db=Db();
+        var a=new WaterTank{Name="A",CapacityLiters=1000,CurrentLevelLiters=800,MinimumSafePercent=15};
+        var b=new WaterTank{Name="B",CapacityLiters=2000,CurrentLevelLiters=1600,MinimumSafePercent=20};
+        db.WaterPumps.AddRange(new WaterPump{WaterTank=a,Name="P1",Code="M-01",RatedFlowLitersMinute=24,NominalValveFlowLitersMinute=12},new WaterPump{WaterTank=b,Name="P2",Code="M-02",RatedFlowLitersMinute=36,NominalValveFlowLitersMinute=12});
+        db.GlobalParameters.Add(new GlobalParameter{Key="MAX_SIMULTANEOUS_VALVES",Value="5",DataType="integer",Category="Test",Description="Test"});await db.SaveChangesAsync();
+        Assert.Equal(5,await new WaterCapacityService(db).GetMaximumValveCountAsync(default));
+        b.Status="Inactivo";await db.SaveChangesAsync();
+        Assert.Equal(2,await new WaterCapacityService(db).GetMaximumValveCountAsync(default));
+    }
+
+    [Fact]
     public async Task Consumption_UsesMeasuredFlowAndCalculatesCost()
     {
         await using var db = Db(); var zone = new IrrigationZone { IrrigationSectorId = Guid.NewGuid(), OperationalStatusId = Guid.NewGuid(), Code = "Z1", Name = "Zona 1" };
