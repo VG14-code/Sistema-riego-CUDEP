@@ -25,7 +25,13 @@ public sealed record IoTDeviceRequest(
     Guid OperationalStatusId,
     Guid? NodeId,
     bool IsActive = true,
-    Guid? DeviceModelId = null);
+    Guid? DeviceModelId = null,
+    [MaxLength(150)] string? Owner = null,
+    [MaxLength(30)] string InventoryStatus = "Instalado",
+    DateOnly? PurchaseDate = null,
+    DateOnly? WarrantyUntil = null,
+    decimal? AcquisitionCost = null,
+    [MaxLength(3)] string Currency = "GTQ");
 
 public sealed record IoTSensorRequest(
     [Required, MaxLength(50)] string Code,
@@ -50,7 +56,8 @@ public sealed record SensorCalibrationRequest(
     [MaxLength(500)] string? Notes);
 
 public sealed record IoTNodeResponse(Guid Id, string Code, string Name, string? Location, string? IpAddress, string? MacAddress, string CommunicationProtocol, string? FirmwareVersion, Guid OperationalStatusId, string OperationalStatus, bool IsActive, DateTime? LastCommunicationUtc, int DeviceCount);
-public sealed record IoTDeviceResponse(Guid Id, string Code, string Name, string SerialNumber, string? Manufacturer, string? Model, string? InstallationLocation, DateOnly? InstallationDate, Guid DeviceTypeId, string DeviceType, Guid OperationalStatusId, string OperationalStatus, Guid? NodeId, string? NodeName, bool IsActive, DateTime? LastCommunicationUtc, int SensorCount, Guid? DeviceModelId, string? DeviceModel);
+public sealed record IoTDeviceResponse(Guid Id, string Code, string Name, string SerialNumber, string? Manufacturer, string? Model, string? InstallationLocation, DateOnly? InstallationDate, Guid DeviceTypeId, string DeviceType, Guid OperationalStatusId, string OperationalStatus, Guid? NodeId, string? NodeName, bool IsActive, DateTime? LastCommunicationUtc, int SensorCount, Guid? DeviceModelId, string? DeviceModel, string? Owner, string InventoryStatus, DateOnly? PurchaseDate, DateOnly? WarrantyUntil, decimal? AcquisitionCost, string Currency);
 public sealed record IoTSensorResponse(Guid Id, string Code, string Name, string SerialNumber, string? Model, string? Channel, decimal MinimumValue, decimal MaximumValue, decimal CalibrationOffset, Guid SensorTypeId, string SensorType, Guid MeasurementUnitId, string MeasurementUnit, string? UnitSymbol, Guid OperationalStatusId, string OperationalStatus, Guid? DeviceId, string? DeviceName, bool IsActive, DateTime? LastReadingUtc, DateTime? LastCalibrationUtc);
 public sealed record SensorCalibrationResponse(Guid Id, Guid SensorId, string SensorName, DateTime CalibratedAtUtc, decimal ReferenceValue, decimal MeasuredValue, decimal AppliedOffset, string? Notes);
 public sealed record IoTSummaryResponse(int Nodes, int Devices, int Sensors, int ActiveSensors, int OfflineItems, int CalibratedSensors);
+

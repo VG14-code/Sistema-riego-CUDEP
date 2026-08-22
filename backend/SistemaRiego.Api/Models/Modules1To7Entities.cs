@@ -91,6 +91,7 @@ public sealed class CropWaterRequirement
     public decimal MinimumMoisturePercent { get; set; } public decimal TargetMoisturePercent { get; set; } public decimal MaximumMoisturePercent { get; set; }
     public decimal BaseVolumeLiters { get; set; } public int FrequencyHours { get; set; } public int BaseDurationMinutes { get; set; }
     public decimal? MinimumTemperatureCelsius { get; set; } public decimal? MaximumTemperatureCelsius { get; set; }
+    public decimal? MinimumAmbientHumidityPercent { get; set; } public decimal? MaximumAmbientHumidityPercent { get; set; }
     public TimeOnly? AllowedFrom { get; set; } public TimeOnly? AllowedUntil { get; set; } public bool IsActive { get; set; } = true;
 }
 public sealed class CropCycle
@@ -101,3 +102,4 @@ public sealed class CropCycle
     public decimal AreaHectares { get; set; } public int PlantCount { get; set; } public string Status { get; set; } = "Planificado"; public string? Notes { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }
+

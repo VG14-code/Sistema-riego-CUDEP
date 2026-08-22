@@ -20,6 +20,7 @@ public sealed class IoTDevice
     public Guid DeviceTypeId { get; set; } public MasterCatalogItem DeviceType { get; set; } = null!;
     public Guid OperationalStatusId { get; set; } public MasterCatalogItem OperationalStatus { get; set; } = null!;
     public Guid? NodeId { get; set; } public IoTNode? Node { get; set; }
+    public string? Owner { get; set; } public string InventoryStatus { get; set; } = "Instalado"; public DateOnly? PurchaseDate { get; set; } public DateOnly? WarrantyUntil { get; set; } public decimal? AcquisitionCost { get; set; } public string Currency { get; set; } = "GTQ";
     public bool IsActive { get; set; } = true; public DateTime? LastCommunicationUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow; public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
     public ICollection<IoTSensor> Sensors { get; set; } = [];
@@ -46,3 +47,4 @@ public sealed class SensorCalibration
     public decimal MeasuredValue { get; set; } public decimal AppliedOffset { get; set; } public string? Notes { get; set; }
     public Guid? CalibratedByUserId { get; set; }
 }
+
