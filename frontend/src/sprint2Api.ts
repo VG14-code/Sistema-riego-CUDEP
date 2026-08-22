@@ -31,6 +31,7 @@ export const sprint2Api = {
   saveSoil: (s:AuthSession, body:Body, id?:string) => call<Soil|void>(s, `/agronomy/soil-types${id?`/${id}`:''}`, id?'PUT':'POST', body),
   deleteSoil: (s:AuthSession,id:string) => call<void>(s,`/agronomy/soil-types/${id}`,'DELETE'),
   cropTypes: (s:AuthSession) => call<CropType[]>(s,'/agronomy/crop-types'),
+  saveCropType: (s:AuthSession,body:Body,id?:string) => call<CropType|void>(s,`/agronomy/crop-types${id?`/${id}`:''}`,id?'PUT':'POST',body),
   crops: (s:AuthSession) => call<Crop[]>(s,'/agronomy/crops'),
   saveCrop: (s:AuthSession,body:Body,id?:string) => call<Crop|void>(s,`/agronomy/crops${id?`/${id}`:''}`,id?'PUT':'POST',body),
   deleteCrop: (s:AuthSession,id:string) => call<void>(s,`/agronomy/crops/${id}`,'DELETE'),

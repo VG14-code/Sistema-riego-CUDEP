@@ -55,6 +55,23 @@ public static class DbSeeder
         }
         foreach (var existingRole in await db.Roles.ToListAsync()) { existingRole.NormalizedName ??= existingRole.Name?.ToUpperInvariant(); existingRole.ConcurrencyStamp ??= Guid.NewGuid().ToString(); }
         await db.SaveChangesAsync();
+        var cropTypeDefinitions = new (string Code, string Name)[]
+        {
+            ("HORTALIZA", "Hortaliza"),
+            ("FRUTAL", "Frutal"),
+            ("GRANOS_BASICOS", "Granos básicos"),
+            ("CEREAL", "Cereal"),
+            ("LEGUMINOSA", "Leguminosa"),
+            ("TUBERCULO_RAIZ", "Tubérculo / raíz"),
+            ("ORNAMENTAL", "Ornamental"),
+            ("FORRAJE", "Forraje"),
+            ("AROMATICA_MEDICINAL", "Aromática / medicinal"),
+            ("AGROINDUSTRIAL", "Agroindustrial")
+        };
+        foreach (var item in cropTypeDefinitions)
+            if (!await db.CropTypes.AnyAsync(x => x.Code == item.Code))
+                db.CropTypes.Add(new CropType { Code = item.Code, Name = item.Name });
+        await db.SaveChangesAsync();
         if (!await db.IoTNodes.AnyAsync())
         {
             var active = await db.MasterCatalogItems.SingleAsync(x => x.Kind == CatalogKind.OperationalStatus && x.Code == "ACTIVE");
@@ -90,13 +107,13 @@ public static class DbSeeder
             var block = new FarmBlock { Farm = farm, SoilType = soil, Code = "BLOQUE-A", Name = "Bloque productivo A", AreaHectares = 1.25m, Description = "Área piloto instrumentada." };
             var sector = new IrrigationSector { FarmBlock = block, Code = "SECTOR-A", Name = "Sector de riego norte", AreaHectares = .65m, SlopePercent = 2.5m };
             var zone = new IrrigationZone { IrrigationSector = sector, Code = "ZONA-A1", Name = "Zona tomate A1", AreaHectares = .32m, OperationalStatusId = active.Id, PrimarySensorId = sensor.Id, Latitude = 16.91915m, Longitude = -89.88590m };
-            var cropType = new CropType { Code = "HORTALIZA", Name = "Hortaliza" };
+            var cropType = await db.CropTypes.SingleAsync(x => x.Code == "HORTALIZA");
             var crop = new Crop { CropType = cropType, Code = "TOMATE", Name = "Tomate", ScientificName = "Solanum lycopersicum", Description = "Cultivo piloto para recomendaciones de riego." };
             var germination = new PhenologicalStage { Crop = crop, Name = "Germinación", Sequence = 1, EstimatedDays = 12, Description = "Emergencia y establecimiento inicial." };
             var growth = new PhenologicalStage { Crop = crop, Name = "Crecimiento vegetativo", Sequence = 2, EstimatedDays = 30, Description = "Desarrollo de follaje y raíces." };
             var flowering = new PhenologicalStage { Crop = crop, Name = "Floración y fructificación", Sequence = 3, EstimatedDays = 45, Description = "Mayor demanda hídrica." };
             var maturity = new PhenologicalStage { Crop = crop, Name = "Maduración", Sequence = 4, EstimatedDays = 30, Description = "Control de humedad previo a cosecha." };
-            db.AddRange(center, soil, farm, block, sector, zone, cropType, crop, germination, growth, flowering, maturity);
+            db.AddRange(center, soil, farm, block, sector, zone, crop, germination, growth, flowering, maturity);
             await db.SaveChangesAsync();
             db.CropWaterRequirements.AddRange(
                 new CropWaterRequirement { CropId = crop.Id, SoilTypeId = soil.Id, MinimumMoisturePercent = 42, TargetMoisturePercent = 58, MaximumMoisturePercent = 74, BaseVolumeLiters = 950, FrequencyHours = 24, BaseDurationMinutes = 18, AllowedFrom = new TimeOnly(5, 0), AllowedUntil = new TimeOnly(9, 0) },
