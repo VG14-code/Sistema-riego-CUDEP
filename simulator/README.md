@@ -10,7 +10,7 @@ Este proyecto emula temporalmente nodos ESP32 mientras no exista hardware físic
 
 La configuración admite múltiples zonas y sensores. Cada sensor publica humedad o temperatura en `granja/{zona}/sensor/{sensor}/lectura` con intervalo, rango, variación y semilla aleatoria configurables.
 
-El simulador escucha órdenes de válvula y bomba, y responde en el tópico hermano `ack` con el estado confirmado. También publica estación hidráulica (nivel, presión y corriente), generación/batería/consumo solar y caudal instantáneo por zona. Mosquitto de `docker-compose` se reserva para staging/producción.
+El archivo `simulator-settings.node-a.json` asigna al nodo A la estación de bombeo `BOMBA-ABAST-01`: escucha `ENCENDER_BOMBA`/`APAGAR_BOMBA`, responde en el tópico hermano `ack` y publica nivel, presión y corriente. `simulator-settings.node-b.json` deja `pumpStation` en `null`, por lo que el nodo B no responde comandos de bomba. No hace falta levantar un simulador adicional para la bomba. Ambos nodos publican además generación/batería/consumo solar y caudal por zona. Mosquitto de `docker-compose` se reserva para staging/producción.
 
 Los códigos de sensor y zona deben existir en los datos maestros de la API. Para una demo estable, conserva los códigos sembrados incluidos en el archivo de ejemplo.
 

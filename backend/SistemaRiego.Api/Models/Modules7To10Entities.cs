@@ -78,6 +78,8 @@ public sealed class WaterSupplyEvent
     public decimal SuppliedLiters { get; set; }
     public Guid? RequestedByUserId { get; set; }
     public string? Detail { get; set; }
+    public Guid? StartCommandId { get; set; }
+    public Guid? StopCommandId { get; set; }
 }
 
 public sealed class IrrigationRun

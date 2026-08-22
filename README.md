@@ -41,6 +41,8 @@ No se requiere Docker. Abre terminales separadas y conserva este orden.
 
    Para simular dos nodos independientes, usa dos terminales: `simulator-settings.node-a.json` con el secreto de `esp32-virtual-cudep`, y `simulator-settings.node-b.json` con el de `esp32-virtual-norte`. No ejecutes al mismo tiempo el archivo predeterminado y node-a porque comparten ClientId.
 
+   El **nodo A es también el simulador oficial de la estación de bombeo** `BOMBA-ABAST-01`; no hace falta un tercer proceso. Atiende `ENCENDER_BOMBA`/`APAGAR_BOMBA`, publica sus ACK y reporta nivel, presión y corriente en `granja/estacion/telemetria`. El nodo B simula únicamente su nodo, sensores y válvulas; no se suscribe a comandos de bomba. Esta asignación evita ACK duplicados y telemetría hidráulica contradictoria cuando ambos nodos están activos.
+
 La telemetría sigue el flujo simulador → MQTT → servicio de ingestión → base de datos → SignalR (`telemetryReadingReceived`). Los comandos se publican en `granja/{zona}/valvula/{dispositivo}/comando`; el simulador responde en el tópico `/ack` y el backend marca el comando como confirmado.
 
 ## Validación visual oficial con Playwright

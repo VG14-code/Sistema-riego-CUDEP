@@ -24,6 +24,7 @@ public sealed class IrrigationWatchdogWorker(IServiceScopeFactory scopes, ILogge
         var alerts = scope.ServiceProvider.GetRequiredService<IAlertService>();
         var now = DateTime.UtcNow;
         var maximumAttempts = await ParameterInt(db, "AUTOMATION_MAX_COMMAND_ATTEMPTS", 3, ct);
+        var commandTimeoutSeconds = await ParameterInt(db, "MQTT_COMMAND_TIMEOUT_SECONDS", 15, ct);
         var expired = await db.IoTCommands.Include(x => x.Device).Where(x => (x.Status == "Pendiente" || x.Status == "Publicado") && x.ExpiresAtUtc <= now).ToListAsync(ct);
         foreach (var command in expired)
         {
@@ -43,6 +44,25 @@ public sealed class IrrigationWatchdogWorker(IServiceScopeFactory scopes, ILogge
                 }
                 db.OperationalEvents.Add(new OperationalEvent { Category = "Seguridad", EventType = "MQTT_ACK_TIMEOUT", Severity = "Error", IrrigationZoneId = command.IrrigationZoneId, IrrigationRunId = id, Detail = $"Comando {command.CommandType} {command.Id} expiró sin ACK." });
             }
+            var pump = await db.WaterPumps.Include(x => x.WaterTank).SingleOrDefaultAsync(x => x.IoTDeviceId == command.DeviceId, ct);
+            if (pump is not null)
+            {
+                var supplyEvent = await db.WaterSupplyEvents.Where(x => x.StartCommandId == command.Id || x.StopCommandId == command.Id).OrderByDescending(x => x.StartedAtUtc).FirstOrDefaultAsync(ct);
+                if (supplyEvent is not null && supplyEvent.Status == "En curso")
+                {
+                    supplyEvent.Status = "Fallido"; supplyEvent.EndedAtUtc = now; supplyEvent.FinalLevelLiters = pump.WaterTank.CurrentLevelLiters; supplyEvent.SuppliedLiters = Math.Max(0, pump.WaterTank.CurrentLevelLiters - supplyEvent.InitialLevelLiters); supplyEvent.Detail = $"{supplyEvent.Detail} · {command.CommandType} expiró sin ACK MQTT.";
+                }
+                pump.Status = "Sin respuesta"; pump.FailureReason = command.FailureReason;
+                if (command.CommandType == "ENCENDER_BOMBA") pump.IsRunning = false;
+                db.OperationalEvents.Add(new OperationalEvent { Category = "Abastecimiento", EventType = "PUMP_COMMAND_TIMEOUT", Severity = "Crítico", Detail = $"{pump.Name}: {command.CommandType} expiró sin ACK; ciclo marcado como fallido." });
+            }
+        }
+        var orphanCutoff = now.AddSeconds(-commandTimeoutSeconds);
+        var orphanedSupplyEvents = await db.WaterSupplyEvents.Include(x => x.WaterPump).ThenInclude(x => x.WaterTank).Where(x => x.Status == "En curso" && !x.WaterPump.IsRunning && x.StartedAtUtc <= orphanCutoff).ToListAsync(ct);
+        foreach (var supplyEvent in orphanedSupplyEvents)
+        {
+            supplyEvent.Status = "Fallido"; supplyEvent.EndedAtUtc = now; supplyEvent.FinalLevelLiters = supplyEvent.WaterPump.WaterTank.CurrentLevelLiters; supplyEvent.SuppliedLiters = Math.Max(0, supplyEvent.WaterPump.WaterTank.CurrentLevelLiters - supplyEvent.InitialLevelLiters); supplyEvent.Detail = $"{supplyEvent.Detail} · Ciclo cerrado automáticamente porque no quedó una bomba operando.";
+            if (supplyEvent.WaterPump.Status == "Esperando ACK") { supplyEvent.WaterPump.Status = "Detenida"; supplyEvent.WaterPump.FailureReason = "El comando anterior expiró sin ACK MQTT."; }
         }
         await db.SaveChangesAsync(ct);
 

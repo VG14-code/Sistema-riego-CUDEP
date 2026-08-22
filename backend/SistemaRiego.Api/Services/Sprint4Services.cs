@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using SistemaRiego.Api.Data;
 using SistemaRiego.Api.Models;
+using SistemaRiego.Api.Hubs;
 
 namespace SistemaRiego.Api.Services;
 
@@ -14,8 +16,9 @@ public sealed class PumpCommandService(AppDbContext db, IMqttCommandPublisher mq
     public async Task<IoTCommand> SendAsync(WaterPump pump, string commandType, Guid? userId, CancellationToken ct)
     {
         if (pump.IoTDeviceId is null) throw new InvalidOperationException("La bomba no tiene dispositivo IoT asociado.");
+        var timeout = await ParameterInt("MQTT_COMMAND_TIMEOUT_SECONDS", 15, ct);
         var now = DateTime.UtcNow;
-        var command = new IoTCommand { DeviceId = pump.IoTDeviceId.Value, CommandType = commandType, Status = "Pendiente", RequestedAtUtc = now, ExpiresAtUtc = now.AddSeconds(15), RequestedByUserId = userId };
+        var command = new IoTCommand { DeviceId = pump.IoTDeviceId.Value, CommandType = commandType, Status = "Pendiente", RequestedAtUtc = now, ExpiresAtUtc = now.AddSeconds(timeout), RequestedByUserId = userId };
         db.IoTCommands.Add(command); await db.SaveChangesAsync(ct);
         var payload = new { commandId = command.Id, commandType, pumpId = pump.Id };
         command.Payload = System.Text.Json.JsonSerializer.Serialize(payload);
@@ -25,9 +28,11 @@ public sealed class PumpCommandService(AppDbContext db, IMqttCommandPublisher mq
         if (command.Status == "Fallido") throw new InvalidOperationException("No fue posible publicar el comando de bomba en MQTT.");
         return command;
     }
+    private async Task<int> ParameterInt(string key, int fallback, CancellationToken ct) =>
+        int.TryParse(await db.GlobalParameters.Where(x => x.Key == key).Select(x => x.Value).SingleOrDefaultAsync(ct), out var value) ? Math.Clamp(value, 1, 120) : fallback;
 }
 
-public sealed class PumpAckService(AppDbContext db)
+public sealed class PumpAckService(AppDbContext db, IHubContext<TelemetryHub>? hub = null)
 {
     public async Task<Guid?> ProcessAsync(Guid deviceId, string payload, CancellationToken ct)
     {
@@ -39,20 +44,23 @@ public sealed class PumpAckService(AppDbContext db)
         if (pump is null) return null;
         var now = DateTime.UtcNow; command.Status = "Confirmado"; command.ConfirmedAtUtc = now;
         var running = root.TryGetProperty("isRunning", out value) && value.ValueKind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False ? value.GetBoolean() : command.CommandType == "ENCENDER_BOMBA";
-        pump.IsRunning = running; pump.Status = running ? "Encendida" : "Detenida";
+        pump.IsRunning = running; pump.Status = running ? "Encendida" : "Detenida"; pump.FailureReason = null;
         if (running) pump.StartedAtUtc ??= now;
-        else { pump.LastStoppedAtUtc = now; pump.StartedAtUtc = null; await CompleteSupplyEvent(pump, now, ct); }
+        else { pump.LastStoppedAtUtc = now; pump.StartedAtUtc = null; await CompleteSupplyEvent(pump, command.Id, now, ct); }
+        var recovered = await db.SystemAlerts.Where(x => x.RelatedEntityId == deviceId.ToString() && x.Fingerprint.StartsWith("MQTT:") && (x.Status == "Activa" || x.Status == "Reconocida")).ToListAsync(ct);
+        foreach (var alert in recovered) { alert.Status = "Resuelta"; alert.ResolvedAtUtc = now; }
         db.OperationalEvents.Add(new OperationalEvent { Category = "Abastecimiento", EventType = running ? "PUMP_START_ACK" : "PUMP_STOP_ACK", Detail = $"{pump.Name}: estado confirmado por MQTT/ACK." });
-        await db.SaveChangesAsync(ct); return command.Id;
+        await db.SaveChangesAsync(ct);
+        if (hub is not null) foreach (var alert in recovered) await hub.Clients.All.SendAsync(TelemetryHub.AlertResolved, new { alert.Id, alert.Status, alert.ResolvedAtUtc }, ct);
+        return command.Id;
     }
-    private async Task CompleteSupplyEvent(WaterPump pump, DateTime now, CancellationToken ct)
+    private async Task CompleteSupplyEvent(WaterPump pump, Guid stopCommandId, DateTime now, CancellationToken ct)
     {
-        var evt = await db.WaterSupplyEvents.Where(x => x.WaterPumpId == pump.Id && x.Status == "En curso").OrderByDescending(x => x.StartedAtUtc).FirstOrDefaultAsync(ct);
+        var evt = await db.WaterSupplyEvents.Where(x => x.WaterPumpId == pump.Id && x.Status == "En curso" && (x.StopCommandId == stopCommandId || x.StopCommandId == null)).OrderByDescending(x => x.StopCommandId == stopCommandId).ThenByDescending(x => x.StartedAtUtc).FirstOrDefaultAsync(ct);
         if (evt is null) return;
         evt.Status = "Completado"; evt.EndedAtUtc = now; evt.FinalLevelLiters = pump.WaterTank.CurrentLevelLiters; evt.SuppliedLiters = Math.Max(0, pump.WaterTank.CurrentLevelLiters - evt.InitialLevelLiters);
     }
 }
-
 public interface ISprint4TelemetryService
 {
     Task IngestStationAsync(PumpStationTelemetry telemetry, CancellationToken ct);

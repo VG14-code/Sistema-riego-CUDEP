@@ -20,5 +20,16 @@
         }
       ]
     }
-  ]
+  ],
+  "pumpStation": {
+    "enabled": true,
+    "pumpCode": "BOMBA-ABAST-01",
+    "capacityLiters": 11000,
+    "initialLevelLiters": 7106,
+    "fillLitersPerInterval": 25,
+    "idleLossLitersPerInterval": 0,
+    "runningPressureBar": 3.2,
+    "idlePressureBar": 0.2,
+    "runningCurrentAmps": 7.2
+  }
 }
