@@ -1,5 +1,5 @@
 {
-  "generatedAtUtc": "2026-08-22T04:59:42.966Z",
+  "generatedAtUtc": "2026-08-22T05:05:05.278Z",
   "baseUrl": "http://localhost:5173",
   "dashboardPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\dashboard-module-1.png",
   "notificationsPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\notifications-panel.png",
@@ -7,8 +7,8 @@
     "panelBackground": "rgb(255, 255, 255)",
     "panelColor": "rgb(24, 63, 54)",
     "panelZIndex": "120",
-    "cardColor": "rgb(25, 63, 70)",
-    "actionBackground": "rgb(27, 89, 105)",
+    "cardColor": "rgb(25, 63, 54)",
+    "actionBackground": "rgb(27, 80, 62)",
     "actionColor": "rgb(255, 255, 255)",
     "severityBadge": "INFORMATIVA",
     "renderedMessages": [
