@@ -1,0 +1,30 @@
+{
+  "usuario": "AD\nAdministrador del sistema\nAdministrador",
+  "accesoGestionVisible": true,
+  "resumenGestionVisible": true,
+  "formularioVisible": true,
+  "listaTanquesVisible": true,
+  "tanqueOperativoVisible": true,
+  "tanquePrincipal": "64.6%\nRESERVA CONFIGURADA\nTanque principal CUDEP\n\n7,106 L de 11,000 L\n\nMínimo 25%\nMáximo 93%\nCapacidad total 2 válvulas\nSimular +500 L\nBOMBA MQTT · Esperando ACK\nBomba de abastecimiento 1\n\nPresión 2.4 bar · corriente 0 A\nÚltima parada 22/8/2026, 5:32:24 a. m.\n\nEncender",
+  "posicionesEnPagina": {
+    "acceso": {
+      "x": 1621.09375,
+      "y": 150.390625,
+      "width": 152.90625,
+      "height": 49.59375
+    },
+    "formulario": {
+      "x": 394,
+      "y": 346.015625,
+      "width": 545.59375,
+      "height": 612.484375
+    },
+    "tanque": {
+      "x": 394,
+      "y": 974.5,
+      "width": 1380,
+      "height": 235.59375
+    }
+  },
+  "captura": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\tank-crud-visible\\modulo-11-crud-y-tanque-pagina-completa.png"
+}
