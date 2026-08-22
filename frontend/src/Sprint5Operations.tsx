@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as signalR from '@microsoft/signalr'
+import { humanizeInterfaceMessage } from './notificationMessages'
 import './sprint5.css'
 
 interface Session { accessToken: string; user: { fullName: string; roles: string[] } }
@@ -7,6 +8,7 @@ interface Props { session: Session; notify: (message: string) => void }
 interface AlertItem { id: number; type: string; severity: string; status: string; origin: string; description: string; relatedEntityType?: string; relatedEntityId?: string; relatedEntityName?: string; raisedAtUtc: string; escalationLevel: number }
 interface LocalNotice { id: string; message: string; raisedAtUtc: string }
 interface AlertGroup { key: string; items: AlertItem[] }
+type RealtimeStatus = 'connecting' | 'online' | 'reconnecting' | 'offline'
 interface Plan { id: string; name: string; frequency: string; intervalDays?: number; equipmentType: string; equipmentId: string; scheduledAtUtc: string; status: string; assignedToEmail?: string; notes?: string }
 interface Incident { id: number; title: string; description: string; equipmentType: string; equipmentId: string; equipmentName?: string; severity: string; status: string; origin: string; createdAtUtc: string; assignedToEmail?: string; notes?: string }
 interface Activity { id: number; title: string; equipmentType: string; equipmentId: string; status: string; scheduledAtUtc: string; performedAtUtc?: string }
@@ -19,6 +21,7 @@ async function api<T>(path: string, token: string, method = 'GET', body?: unknow
   return data as T
 }
 const when = (value: string) => new Date(value).toLocaleString('es-GT')
+
 function Message({ description, name, type, id, heading = false }: { description: string; name?: string; type?: string; id?: string; heading?: boolean }) {
   const marker = '\nDetalle técnico: '
   const parts = description.split(marker)
@@ -44,7 +47,7 @@ function groupAlerts(items: AlertItem[]): AlertGroup[] {
   })).sort((left, right) => new Date(right.items[0].raisedAtUtc).getTime() - new Date(left.items[0].raisedAtUtc).getTime())
 }
 
-function useAlerts(session: Session, notify: (message: string) => void, onRaised?: (alert: AlertItem) => void) {
+function useAlerts(session: Session, notify: (message: string) => void, onRaised?: (alert: AlertItem) => void, onConnectionState?: (status: RealtimeStatus) => void) {
   const [items, setItems] = useState<AlertItem[]>([])
   const onRaisedRef = useRef(onRaised)
   useEffect(() => { onRaisedRef.current = onRaised }, [onRaised])
@@ -53,18 +56,24 @@ function useAlerts(session: Session, notify: (message: string) => void, onRaised
     load()
     const connection = new signalR.HubConnectionBuilder().withUrl(`${hubRoot}/hubs/telemetry`, { accessTokenFactory: () => session.accessToken }).withAutomaticReconnect().configureLogging(signalR.LogLevel.None).build()
     connection.on('alertRaised', (alert: AlertItem) => { onRaisedRef.current?.(alert); void load() })
-    connection.start().catch((error: Error) => notify(`SignalR alertas: ${error.message}`))
+    onConnectionState?.('connecting')
+    connection.onreconnecting(() => onConnectionState?.('reconnecting'))
+    connection.onreconnected(() => onConnectionState?.('online'))
+    connection.onclose(() => onConnectionState?.('offline'))
+    connection.start().then(() => onConnectionState?.('online')).catch(() => onConnectionState?.('offline'))
     return () => { void connection.stop() }
-  }, [load, notify, session.accessToken])
+  }, [load, onConnectionState, session.accessToken])
   return { items, load }
 }
 
 export function NotificationCenter({ session, localNotices, onAcknowledgeLocal }: { session: Session; localNotices: LocalNotice[]; onAcknowledgeLocal: (id: string) => void }) {
   const [open, setOpen] = useState(false)
   const [toast, setToast] = useState<AlertItem | null>(null)
+  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting')
   const quiet = useCallback(() => undefined, [])
   const handleRaised = useCallback((alert: AlertItem) => setToast(alert), [])
-  const { items, load } = useAlerts(session, quiet, handleRaised)
+  const handleConnectionState = useCallback((status: RealtimeStatus) => setRealtimeStatus(status), [])
+  const { items, load } = useAlerts(session, quiet, handleRaised, handleConnectionState)
   const active = useMemo(() => items.filter(item => item.status === 'Activa'), [items])
   const groups = useMemo(() => groupAlerts(active), [active])
   const summary = useMemo(() => {
@@ -82,11 +91,13 @@ export function NotificationCenter({ session, localNotices, onAcknowledgeLocal }
     await Promise.all(alerts.map(item => api(`/alerts/${item.id}/acknowledge`, session.accessToken, 'POST')))
     await load()
   }
+  const realtimeLabel = realtimeStatus === 'online' ? 'Tiempo real activo' : realtimeStatus === 'reconnecting' ? 'Reconectando en tiempo real' : realtimeStatus === 'connecting' ? 'Conectando en tiempo real' : 'Tiempo real no disponible'
   return <div className="n-center">
+    <span className={`n-realtime ${realtimeStatus}`} role="status" title={realtimeStatus === 'reconnecting' ? 'Se perdió temporalmente la conexión en tiempo real. Reintentando automáticamente.' : realtimeLabel}><i/>{realtimeLabel}</span>
     <button className="n-bell" onClick={() => setOpen(!open)} aria-label="Centro de notificaciones">♢{active.length + localNotices.length > 0 && <b>{active.length + localNotices.length}</b>}</button>
     {toast && <section className={`n-toast ${toast.severity.toLocaleLowerCase('es')}`} role="status" aria-live="assertive"><header><b>Nueva alerta {toast.severity.toLocaleLowerCase('es')}</b><button aria-label="Descartar notificación" onClick={() => setToast(null)}>×</button></header><Message description={toast.description} name={toast.relatedEntityName} type={toast.relatedEntityType} id={toast.relatedEntityId}/><small>{when(toast.raisedAtUtc)}</small><button className="n-toast-detail" onClick={() => { setOpen(true); setToast(null) }}>Ver detalle</button></section>}
     {open && <aside><header><div><small>CENTRO DE NOTIFICACIONES</small><h2>Alertas activas</h2></div><button onClick={() => setOpen(false)}>×</button></header>
-      {localNotices.map(notice => <div className="n-local" key={notice.id}><b>Actividad de interfaz</b><span>{notice.message}</span><small>Origen: interacción local · {when(notice.raisedAtUtc)}</small><button onClick={() => onAcknowledgeLocal(notice.id)}>Reconocer</button></div>)}
+      {localNotices.map(notice => <article className="n-local" key={notice.id}><span className="n-local-icon" aria-hidden="true">ⓘ</span><div className="n-local-heading"><b>Actividad de interfaz</b><em>INFORMATIVA</em></div><p>{humanizeInterfaceMessage(notice.message)}</p><small>Origen: interacción local · {when(notice.raisedAtUtc)}</small><button onClick={() => onAcknowledgeLocal(notice.id)}>Reconocer</button></article>)}
       {active.length > 0 && <section className="n-summary" aria-label="Resumen de alertas activas"><b>{summary}</b><small>{groups.length} {groups.length === 1 ? 'condición activa' : 'condiciones activas'} agrupadas</small></section>}
       <div className="n-mini-list">{groups.slice(0, 8).map(group => {
         const latest = group.items[0]

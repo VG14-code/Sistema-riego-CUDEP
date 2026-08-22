@@ -36,15 +36,24 @@ try {
   const dashboardPath = path.join(outputDir, 'dashboard-module-1.png')
   await page.screenshot({ path: dashboardPath, fullPage: true })
 
-  await page.getByRole('button', { name: 'Centro de notificaciones' }).click()
-  await page.locator('.n-center aside').waitFor({ timeout: 10_000 })
-  await page.locator('.n-summary').waitFor({ timeout: 10_000 })
+  await page.evaluate(() => sessionStorage.setItem('riego.localNotices', JSON.stringify([
+    { id: crypto.randomUUID(), message: 'Suelo guardado.', raisedAtUtc: new Date().toISOString() },
+    { id: crypto.randomUUID(), message: 'SignalR alertas: The connection was stopped during negotiation.', raisedAtUtc: new Date().toISOString() },
+  ])))
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.locator('.w2-app').waitFor({ timeout: 30_000 })
+
+  const notificationPanel = page.locator('.n-center aside')
+  if (!await notificationPanel.isVisible()) await page.getByRole('button', { name: 'Centro de notificaciones' }).click()
+  await notificationPanel.waitFor({ timeout: 10_000 })
+  await page.locator('.n-local').first().waitFor({ timeout: 10_000 })
   const visualChecks = await page.evaluate(() => {
     const panel = document.querySelector('.n-center aside')
-    const card = document.querySelector('.n-mini-list article')
-    const title = card?.querySelector('.n-group-heading > b')
+    const card = document.querySelector('.n-local')
+    const badge = card?.querySelector('.n-local-heading em')
     const button = card?.querySelector(':scope > button')
-    if (!panel || !card || !title || !button) throw new Error('El panel no contiene una tarjeta completa para validar.')
+    const renderedMessages = Array.from(document.querySelectorAll('.n-local p')).map(item => item.textContent)
+    if (!panel || !card || !badge || !button) throw new Error('El panel no contiene una tarjeta informativa completa para validar.')
     return {
       panelBackground: getComputedStyle(panel).backgroundColor,
       panelColor: getComputedStyle(panel).color,
@@ -52,10 +61,12 @@ try {
       cardColor: getComputedStyle(card).color,
       actionBackground: getComputedStyle(button).backgroundColor,
       actionColor: getComputedStyle(button).color,
-      severityBadge: getComputedStyle(title, '::after').content,
+      severityBadge: badge.textContent,
+      renderedMessages,
+      realtimeStatus: document.querySelector('.n-realtime')?.textContent,
     }
   })
-  if (visualChecks.panelBackground !== 'rgb(255, 255, 255)' || visualChecks.actionBackground === 'rgba(0, 0, 0, 0)' || visualChecks.severityBadge === 'none') {
+  if (visualChecks.panelBackground !== 'rgb(255, 255, 255)' || visualChecks.actionBackground === 'rgba(0, 0, 0, 0)' || visualChecks.severityBadge !== 'INFORMATIVA' || visualChecks.renderedMessages.some(message => /SignalR|negotiation/i.test(message ?? ''))) {
     throw new Error('Validación visual CSS falló: ' + JSON.stringify(visualChecks))
   }
 
