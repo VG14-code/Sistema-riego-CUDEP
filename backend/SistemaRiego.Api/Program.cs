@@ -115,6 +115,8 @@ builder.Services.AddAuthorization(o =>
 builder.Services.AddCors(o => o.AddPolicy("Frontend", p => p.WithOrigins(builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? ["http://localhost:5173"]).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
 var app = builder.Build();
+var activeEmailProvider = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<EmailOptions>>().Value.Provider;
+app.Logger.LogInformation("Proveedor de correo activo: {EmailProvider}", activeEmailProvider);
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<GlobalExceptionMiddleware>();

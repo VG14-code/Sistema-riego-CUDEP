@@ -20,4 +20,6 @@ public sealed class EmailOptions
     public string SmtpUsername { get; init; } = "vgbm123456@gmail.com";
     public string? SmtpPassword { get; init; }
     public bool EnableSsl { get; init; } = true;
+    public int SmtpTimeoutSeconds { get; init; } = 15;
+    public bool ArchiveSentMessages { get; init; }
 }

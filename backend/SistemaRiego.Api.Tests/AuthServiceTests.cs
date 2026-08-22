@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using SistemaRiego.Api.Contracts;
 using SistemaRiego.Api.Controllers;
 using SistemaRiego.Api.Data;
@@ -112,6 +113,35 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
+    public async Task SmtpFailure_IsLogged_AndForgotResponseRemainsNeutral()
+    {
+        var logger = new CapturingLogger();
+        var setup = Create(new FailingEmailSender(), logger);
+        await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
+        var controller = new AuthController(setup.Service) { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
+
+        var existing = Assert.IsType<AcceptedResult>((await controller.Forgot(new("persona@correo.gt"), default)).Result);
+        var missing = Assert.IsType<AcceptedResult>((await controller.Forgot(new("nadie@correo.gt"), default)).Result);
+
+        Assert.Equal(Assert.IsType<ForgotPasswordResponse>(existing.Value).Message, Assert.IsType<ForgotPasswordResponse>(missing.Value).Message);
+        Assert.Contains(logger.Entries, entry => entry.Level == LogLevel.Error && entry.Message.Contains("535 5.7.8 Authentication rejected", StringComparison.Ordinal));
+        Assert.DoesNotContain(logger.Entries, entry => entry.Message.Contains("app-password", StringComparison.OrdinalIgnoreCase));
+    }
+    [Fact]
+    public async Task SmtpTimeout_IsLogged_AndForgotResponseRemainsNeutral()
+    {
+        var logger = new CapturingLogger();
+        var setup = Create(new TimeoutEmailSender(), logger);
+        await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
+        var controller = new AuthController(setup.Service) { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
+
+        var result = Assert.IsType<AcceptedResult>((await controller.Forgot(new("persona@correo.gt"), default)).Result);
+
+        Assert.Equal("Si el correo está registrado, recibirás un enlace en unos minutos.", Assert.IsType<ForgotPasswordResponse>(result.Value).Message);
+        Assert.Contains(logger.Entries, entry => entry.Level == LogLevel.Error && entry.Message.Contains("SMTP timeout simulado", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task AdminReset_RequiresForcedChange_AndNeverAuditsTemporaryPassword()
     {
         var setup = Create();
@@ -132,7 +162,7 @@ public sealed class AuthServiceTests
         Assert.DoesNotContain(temporary!, audit.Detail, StringComparison.Ordinal);
     }
 
-    private static Setup Create()
+    private static Setup Create(IEmailSender? sender = null, ILogger<AuthService>? logger = null)
     {
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         db.Roles.AddRange(
@@ -146,7 +176,8 @@ public sealed class AuthServiceTests
         services.AddLogging();
         services.AddDataProtection();
         services.AddSingleton(db);
-        services.AddSingleton<IEmailSender>(mail);
+        services.AddSingleton<IEmailSender>(sender ?? mail);
+        if (logger is not null) services.AddSingleton(logger);
         services.AddSingleton<IOptions<JwtOptions>>(Options.Create(new JwtOptions { Issuer = "tests", Audience = "tests", SigningKey = "clave-de-pruebas-con-mas-de-32-caracteres-segura", AccessTokenMinutes = 15, RefreshTokenDays = 7, PasswordRecoveryMinutes = 30 }));
         services.AddSingleton<IOptions<EmailOptions>>(Options.Create(new EmailOptions { FrontendBaseUrl = "http://localhost:5173" }));
         services.AddIdentityCore<User>(options =>
@@ -174,5 +205,26 @@ public sealed class AuthServiceTests
             LastLink = resetLink;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FailingEmailSender : IEmailSender
+    {
+        public Task SendPasswordRecoveryAsync(string recipient, string displayName, string resetLink, DateTime expiresAtUtc, CancellationToken ct) =>
+            throw new System.Net.Mail.SmtpException("535 5.7.8 Authentication rejected");
+    }
+
+    private sealed class TimeoutEmailSender : IEmailSender
+    {
+        public Task SendPasswordRecoveryAsync(string recipient, string displayName, string resetLink, DateTime expiresAtUtc, CancellationToken ct) =>
+            throw new TimeoutException("SMTP timeout simulado");
+    }
+
+    private sealed class CapturingLogger : ILogger<AuthService>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception) + (exception is null ? string.Empty : " · " + exception.Message)));
     }
 }

@@ -90,32 +90,32 @@ Una cuenta recién sembrada inicia con 2FA desactivado. Para operaciones crític
 
 El login expone **¿Olvidaste tu contraseña?** y siempre responde: “Si el correo está registrado, recibirás un enlace en unos minutos.” El enlace vence en 30 minutos, solo se acepta una vez y, al completarse, revoca los refresh tokens y los JWT activos mediante el sello de seguridad de Identity. Las solicitudes y los cambios se auditan sin guardar contraseñas ni tokens.
 
-### Correo local por defecto (Development)
+### Proveedor de correo en Development
 
-`Email:Provider` usa `File`. Cada solicitud válida crea un correo HTML en:
+Development queda configurado con `Email:Provider = Smtp` en `appsettings.Development.json`. La configuración versionada contiene únicamente datos no sensibles: `smtp.gmail.com:587`, STARTTLS, remitente y timeout. La contraseña de aplicación vive exclusivamente en .NET User Secrets bajo `Email:SmtpPassword`; nunca debe copiarse a `appsettings`, logs, capturas ni commits.
+
+Para usar Gmail SMTP:
+
+~~~powershell
+dotnet user-secrets set "Email:Provider" "Smtp" --project .\backend\SistemaRiego.Api\SistemaRiego.Api.csproj
+# Email:SmtpPassword debe existir previamente en User Secrets.
+~~~
+
+Para alternar al buzón de archivos sin enviar correo real:
+
+~~~powershell
+dotnet user-secrets set "Email:Provider" "File" --project .\backend\SistemaRiego.Api\SistemaRiego.Api.csproj
+~~~
+
+Reinicia la API después de cambiar el proveedor. En modo `File`, cada solicitud válida crea un HTML ignorado por Git en:
 
 ~~~text
 backend/SistemaRiego.Api/dev-mailbox/password-recovery-*.html
 ~~~
 
-La carpeta está ignorada por Git. Abre el archivo y pulsa **Definir una nueva contraseña**; no hace falta SMTP, MailHog ni Docker.
+Cuando `Smtp` está activo en Development, `ArchiveSentMessages` guarda en esa misma carpeta una copia de verificación **solo después** de que Gmail acepta el mensaje; no funciona como fallback ante un fallo SMTP.
 
-### Gmail SMTP opcional
-
-La API ya está preparada para Gmail con `smtp.gmail.com:587`, STARTTLS y remitente `vgbm123456@gmail.com`. La cuenta institucional `@miumg.edu.gt` se usa únicamente como destinataria de prueba. El propietario debe colocar personalmente su contraseña de aplicación en User Secrets; no debe enviarla ni escribirla en archivos versionados.
-
-Desde la raíz del repositorio:
-
-~~~powershell
-dotnet user-secrets set "Email:Provider" "Smtp" --project .\backend\SistemaRiego.Api\SistemaRiego.Api.csproj
-dotnet user-secrets set "Email:SmtpPassword" "<PEGA_AQUÍ_TU_CONTRASEÑA_DE_APLICACIÓN>" --project .\backend\SistemaRiego.Api\SistemaRiego.Api.csproj
-~~~
-
-Para volver al correo local:
-
-~~~powershell
-dotnet user-secrets set "Email:Provider" "File" --project .\backend\SistemaRiego.Api\SistemaRiego.Api.csproj
-~~~
+Para diagnosticar un envío, confirma al arrancar la línea `Proveedor de correo activo: Smtp` y revisa la consola o `backend/SistemaRiego.Api/logs/sistema-riego-YYYYMMDD.log`. Busca `Servidor SMTP ... aceptó el correo` o `No fue posible entregar el correo de recuperación`. El usuario siempre recibe el mensaje neutro y nunca detalles internos. Verifica host `smtp.gmail.com`, puerto `587`, STARTTLS, usuario remitente y que `Email:SmtpPassword` exista en User Secrets. Si Google revoca o invalida la App Password, revócala/regenera una nueva desde la seguridad de la cuenta de Google y actualiza únicamente User Secrets.
 
 En producción se usan variables de entorno o el almacén de secretos del despliegue; nunca `appsettings.json`:
 
