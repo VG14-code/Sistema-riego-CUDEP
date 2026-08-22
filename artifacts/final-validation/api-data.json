@@ -1,0 +1,210 @@
+{
+  "farm": {
+    "code": "GRANJA-CUDEP",
+    "name": "Granja Experimental CUDEP",
+    "location": "Centro Universitario de Petén, Santa Elena, Flores, Petén, Guatemala",
+    "latitude": 16.88375,
+    "longitude": -89.90087
+  },
+  "sectors": [
+    {
+      "code": "SECTOR-C",
+      "boundaryGeoJson": "{\"type\":\"Polygon\",\"coordinates\":[[[-89.8996,16.8807],[-89.8966,16.8807],[-89.8966,16.8860],[-89.8996,16.8860],[-89.8996,16.8807]]]}"
+    },
+    {
+      "code": "SECTOR-A",
+      "boundaryGeoJson": "{\"type\":\"Polygon\",\"coordinates\":[[[-89.9069,16.8815],[-89.9026,16.8815],[-89.9026,16.8860],[-89.9069,16.8860],[-89.9069,16.8815]]]}"
+    },
+    {
+      "code": "SECTOR-B",
+      "boundaryGeoJson": "{\"type\":\"Polygon\",\"coordinates\":[[[-89.9025,16.8797],[-89.8997,16.8797],[-89.8997,16.8855],[-89.9025,16.8855],[-89.9025,16.8797]]]}"
+    }
+  ],
+  "zones": [
+    {
+      "code": "ZONA-B1",
+      "latitude": 16.8832,
+      "longitude": -89.901,
+      "boundaryGeoJson": "{\"type\":\"Polygon\",\"coordinates\":[[[-89.9024,16.8800],[-89.8998,16.8800],[-89.8998,16.8852],[-89.9024,16.8852],[-89.9024,16.8800]]]}"
+    },
+    {
+      "code": "ZONA-C1",
+      "latitude": 16.8838,
+      "longitude": -89.8978,
+      "boundaryGeoJson": "{\"type\":\"Polygon\",\"coordinates\":[[[-89.8995,16.8810],[-89.8967,16.8810],[-89.8967,16.8857],[-89.8995,16.8857],[-89.8995,16.8810]]]}"
+    },
+    {
+      "code": "ZONA-A1",
+      "latitude": 16.8843,
+      "longitude": -89.9045,
+      "boundaryGeoJson": "{\"type\":\"Polygon\",\"coordinates\":[[[-89.9066,16.8820],[-89.9029,16.8820],[-89.9029,16.8858],[-89.9066,16.8858],[-89.9066,16.8820]]]}"
+    }
+  ],
+  "crops": [
+    {
+      "code": "ARROZ",
+      "name": "Arroz",
+      "scientificName": "Oryza sativa",
+      "cropType": "Cereal",
+      "stageCount": 4,
+      "stages": [
+        {
+          "id": "a42708a6-58a6-43da-8370-313a2b87896b",
+          "name": "Germinación y establecimiento",
+          "sequence": 1,
+          "estimatedDays": 15,
+          "description": "Duración referencial conservadora; emergencia y establecimiento."
+        },
+        {
+          "id": "f1c232d1-8902-4f35-a6f1-b35546a25047",
+          "name": "Macollamiento",
+          "sequence": 2,
+          "estimatedDays": 40,
+          "description": "Duración referencial; formación de macollos y desarrollo vegetativo."
+        },
+        {
+          "id": "8a59789b-d156-4ebf-bda0-10d74757b811",
+          "name": "Paniculación y floración",
+          "sequence": 3,
+          "estimatedDays": 35,
+          "description": "Duración referencial; iniciación de panícula, espigamiento y floración."
+        },
+        {
+          "id": "d1f794e4-f850-457f-a2c9-c98ddde34c79",
+          "name": "Llenado y maduración",
+          "sequence": 4,
+          "estimatedDays": 30,
+          "description": "Duración referencial; llenado del grano hasta madurez de cosecha."
+        }
+      ]
+    },
+    {
+      "code": "FRIJOL",
+      "name": "Frijol",
+      "scientificName": "Phaseolus vulgaris",
+      "cropType": "Leguminosa",
+      "stageCount": 4,
+      "stages": [
+        {
+          "id": "4c822d64-b6e6-4c16-bef5-117dbdfc3262",
+          "name": "Germinación y establecimiento",
+          "sequence": 1,
+          "estimatedDays": 15,
+          "description": "Duración referencial conservadora; emergencia y establecimiento."
+        },
+        {
+          "id": "5165e7ea-d298-4159-a6a3-ec4f58345e17",
+          "name": "Desarrollo vegetativo",
+          "sequence": 2,
+          "estimatedDays": 25,
+          "description": "Duración referencial; crecimiento de hojas, tallos y raíces."
+        },
+        {
+          "id": "4e52727e-b174-499a-a8d8-f0edbe7a4e72",
+          "name": "Floración y formación de vainas",
+          "sequence": 3,
+          "estimatedDays": 35,
+          "description": "Duración referencial; floración, cuajado y formación de vainas."
+        },
+        {
+          "id": "d792333c-dfc8-4fda-b967-42139d32a539",
+          "name": "Llenado y maduración",
+          "sequence": 4,
+          "estimatedDays": 25,
+          "description": "Duración referencial; llenado de semilla y secado para cosecha."
+        }
+      ]
+    },
+    {
+      "code": "MAIZ",
+      "name": "Maíz",
+      "scientificName": "Zea mays",
+      "cropType": "Granos básicos",
+      "stageCount": 4,
+      "stages": [
+        {
+          "id": "00f1fa6d-0c40-4430-a81d-2bcb7081c42e",
+          "name": "Emergencia y establecimiento",
+          "sequence": 1,
+          "estimatedDays": 10,
+          "description": "Duración referencial conservadora; germinación, emergencia y arraigo inicial."
+        },
+        {
+          "id": "a6d99a5b-eada-4a1e-8940-9fdd3508b4bf",
+          "name": "Desarrollo vegetativo",
+          "sequence": 2,
+          "estimatedDays": 35,
+          "description": "Duración referencial; expansión foliar y crecimiento del tallo."
+        },
+        {
+          "id": "0f3aef5c-e87c-4568-bf3c-156122b7ba0c",
+          "name": "Floración y llenado de grano",
+          "sequence": 3,
+          "estimatedDays": 45,
+          "description": "Duración referencial; floración, fecundación y llenado del grano."
+        },
+        {
+          "id": "b2773b87-779a-46a4-9ad2-43e70b2f6bb9",
+          "name": "Maduración",
+          "sequence": 4,
+          "estimatedDays": 30,
+          "description": "Duración referencial hasta madurez fisiológica y cosecha."
+        }
+      ]
+    },
+    {
+      "code": "TOMATE",
+      "name": "Tomate",
+      "scientificName": "Solanum lycopersicum",
+      "cropType": "Hortaliza",
+      "stageCount": 4,
+      "stages": [
+        {
+          "id": "d7c62c11-b9df-4fca-87b8-44b3fb3a7caa",
+          "name": "Germinación",
+          "sequence": 1,
+          "estimatedDays": 12,
+          "description": "Emergencia y establecimiento inicial."
+        },
+        {
+          "id": "4666c471-4aa3-4c70-bb2a-ed53cbafe647",
+          "name": "Crecimiento vegetativo",
+          "sequence": 2,
+          "estimatedDays": 30,
+          "description": "Desarrollo de follaje y raíces."
+        },
+        {
+          "id": "0a26e9ff-4342-47a7-a936-b3285d565166",
+          "name": "Floración y fructificación",
+          "sequence": 3,
+          "estimatedDays": 45,
+          "description": "Mayor demanda hídrica."
+        },
+        {
+          "id": "fc33833d-0b52-4ead-9946-a308b1b24181",
+          "name": "Maduración",
+          "sequence": 4,
+          "estimatedDays": 30,
+          "description": "Control de humedad previo a cosecha."
+        }
+      ]
+    }
+  ],
+  "alerts": [
+    {
+      "status": "Activa",
+      "count": 5,
+      "allMatch": true
+    },
+    {
+      "status": "Reconocida",
+      "count": 0,
+      "allMatch": true
+    },
+    {
+      "status": "Resuelta",
+      "count": 73,
+      "allMatch": true
+    }
+  ]
+}

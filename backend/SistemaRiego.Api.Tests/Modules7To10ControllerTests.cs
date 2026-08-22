@@ -56,11 +56,12 @@ public sealed class Modules7To10ControllerTests
     public async Task Tanks_Crud_SupportsMultipleIndependentReservoirs()
     {
         var setup=await CreateSetup();
-        var created=await setup.Supply.CreateTank(new WaterTankRequest("Tanque secundario",2500,1200,20,90),default);
+        var created=await setup.Supply.CreateTank(new WaterTankRequest("Tanque secundario",2500,1200,20,90,[setup.Pump.Id]),default);
         Assert.IsType<CreatedAtActionResult>(created);
         var second=await setup.Db.WaterTanks.SingleAsync(x=>x.Name=="Tanque secundario");
         await setup.Supply.UpdateTank(second.Id,new WaterTankRequest("Tanque experimental",3000,1500,25,92),default);
         Assert.Equal(3000,(await setup.Db.WaterTanks.FindAsync(second.Id))!.CapacityLiters);
+        Assert.Equal(second.Id,(await setup.Db.WaterPumps.FindAsync(setup.Pump.Id))!.WaterTankId);
         Assert.IsType<NoContentResult>(await setup.Supply.DeactivateTank(second.Id,default));
         Assert.Equal("Inactivo",(await setup.Db.WaterTanks.FindAsync(second.Id))!.Status);
         Assert.Equal(2,await setup.Db.WaterTanks.CountAsync());

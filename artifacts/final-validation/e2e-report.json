@@ -1,0 +1,11 @@
+{
+  "qrPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\final-validation\\2fa-qr-setup.png",
+  "mapPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\final-validation\\territorio-real-cudep.png",
+  "tanksPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\final-validation\\tanques-crud-configurable.png",
+  "alertsPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\final-validation\\alertas-estado-resuelta.png",
+  "notificationsPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\final-validation\\notificaciones-activas.png",
+  "otpauthStandard": true,
+  "enabled": true,
+  "criticalOperation": "Matriz de permisos reenviada sin cambios con X-TOTP-Code válido",
+  "disabled": true
+}
