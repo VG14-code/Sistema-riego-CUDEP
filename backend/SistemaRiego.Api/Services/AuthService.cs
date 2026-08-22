@@ -12,21 +12,28 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Services;
 
-public sealed class AuthService(AppDbContext db, IOptions<JwtOptions> options, ILogger<AuthService> logger, UserManager<User> userManager) : IAuthService
+public sealed class AuthService(
+    AppDbContext db,
+    IOptions<JwtOptions> options,
+    IOptions<EmailOptions> emailOptions,
+    ILogger<AuthService> logger,
+    UserManager<User> userManager,
+    IEmailSender emailSender) : IAuthService
 {
     private readonly JwtOptions jwt = options.Value;
+    private readonly EmailOptions email = emailOptions.Value;
 
     public async Task<UserSummary> RegisterAsync(RegisterRequest request, CancellationToken ct)
     {
         var normalized = request.Email.Trim().ToUpperInvariant();
         if (await db.Users.AnyAsync(x => x.NormalizedEmail == normalized, ct)) throw new InvalidOperationException("El correo ya se encuentra registrado.");
         ValidatePassword(request.Password);
-        var email = request.Email.Trim().ToLowerInvariant();
-        var user = new User { Email = email, UserName = email, EmailConfirmed = true, FullName = request.FullName.Trim() };
+        var address = request.Email.Trim().ToLowerInvariant();
+        var user = new User { Email = address, UserName = address, EmailConfirmed = true, FullName = request.FullName.Trim() };
         var created = await userManager.CreateAsync(user, request.Password);
-        if (!created.Succeeded) throw new InvalidOperationException(string.Join(" ", created.Errors.Select(x => x.Description)));
+        if (!created.Succeeded) throw new InvalidOperationException(Errors(created));
         var assigned = await userManager.AddToRoleAsync(user, RoleNames.Operator);
-        if (!assigned.Succeeded) throw new InvalidOperationException(string.Join(" ", assigned.Errors.Select(x => x.Description)));
+        if (!assigned.Succeeded) throw new InvalidOperationException(Errors(assigned));
         db.AccessAudits.Add(new AccessAudit { UserId = user.Id, EventType = "USER_REGISTERED", Detail = "Cuenta creada" });
         await db.SaveChangesAsync(ct);
         return Summary((await LoadUser(normalized, ct))!);
@@ -36,12 +43,16 @@ public sealed class AuthService(AppDbContext db, IOptions<JwtOptions> options, I
     {
         var user = await LoadUser(request.Email.Trim().ToUpperInvariant(), ct);
         var locked = user is not null && await userManager.IsLockedOutAsync(user);
-        if (user is null || user.Status != UserStatus.Active || locked || string.IsNullOrWhiteSpace(user.PasswordHash ?? user.Credential?.PasswordHash)) { await Failed(user?.Id, context, ct); return null; }
-        var valid = await userManager.CheckPasswordAsync(user, request.Password);
-        if (!valid)
+        if (user is null || user.Status != UserStatus.Active || locked || string.IsNullOrWhiteSpace(user.PasswordHash ?? user.Credential?.PasswordHash))
+        {
+            await Failed(user?.Id, context, ct);
+            return null;
+        }
+        if (!await userManager.CheckPasswordAsync(user, request.Password))
         {
             await userManager.AccessFailedAsync(user);
-            await Failed(user.Id, context, ct); return null;
+            await Failed(user.Id, context, ct);
+            return null;
         }
         await userManager.ResetAccessFailedCountAsync(user);
         return await CreateSession(user, context, ct);
@@ -51,55 +62,152 @@ public sealed class AuthService(AppDbContext db, IOptions<JwtOptions> options, I
     {
         var old = await db.Sessions.Include(x => x.User).ThenInclude(x => x.UserRoles).ThenInclude(x => x.Role).SingleOrDefaultAsync(x => x.RefreshTokenHash == Hash(raw), ct);
         if (old is null || !old.IsActive || old.User.Status != UserStatus.Active) return null;
-        old.RevokedAtUtc = DateTime.UtcNow; var response = await CreateSession(old.User, context, ct, false);
+        old.RevokedAtUtc = DateTime.UtcNow;
+        var response = await CreateSession(old.User, context, ct, false);
         old.ReplacedBySessionId = await db.Sessions.Where(x => x.UserId == old.UserId).OrderByDescending(x => x.CreatedAtUtc).Select(x => x.Id).FirstAsync(ct);
-        await db.SaveChangesAsync(ct); return response;
+        await db.SaveChangesAsync(ct);
+        return response;
     }
 
     public async Task<bool> LogoutAsync(string raw, CancellationToken ct)
     {
-        var session = await db.Sessions.SingleOrDefaultAsync(x => x.RefreshTokenHash == Hash(raw), ct); if (session is null || session.RevokedAtUtc is not null) return false;
-        session.RevokedAtUtc = DateTime.UtcNow; db.AccessAudits.Add(new AccessAudit { UserId = session.UserId, EventType = "LOGOUT", Detail = "Sesión cerrada" }); await db.SaveChangesAsync(ct); return true;
+        var session = await db.Sessions.SingleOrDefaultAsync(x => x.RefreshTokenHash == Hash(raw), ct);
+        if (session is null || session.RevokedAtUtc is not null) return false;
+        session.RevokedAtUtc = DateTime.UtcNow;
+        db.AccessAudits.Add(new AccessAudit { UserId = session.UserId, EventType = "LOGOUT", Detail = "Sesión cerrada" });
+        await db.SaveChangesAsync(ct);
+        return true;
     }
 
-    public async Task<string?> RequestPasswordRecoveryAsync(string email, CancellationToken ct)
+    public async Task RequestPasswordRecoveryAsync(string address, AuthContext context, CancellationToken ct)
     {
-        var user = await db.Users.SingleOrDefaultAsync(x => x.NormalizedEmail == email.Trim().ToUpperInvariant(), ct); if (user is null || user.Status == UserStatus.Disabled) return null;
+        var user = await db.Users.SingleOrDefaultAsync(x => x.NormalizedEmail == address.Trim().ToUpperInvariant(), ct);
+        db.AccessAudits.Add(new AccessAudit { UserId = user?.Id, EventType = "PASSWORD_RECOVERY_REQUESTED", Detail = "Solicitud de recuperación recibida", IpAddress = context.IpAddress });
+        if (user is null || user.Status == UserStatus.Disabled)
+        {
+            await db.SaveChangesAsync(ct);
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        foreach (var previous in await db.PasswordRecoveryTokens.Where(x => x.UserId == user.Id && x.UsedAtUtc == null).ToListAsync(ct)) previous.UsedAtUtc = now;
         var raw = await userManager.GeneratePasswordResetTokenAsync(user);
-        db.PasswordRecoveryTokens.Add(new PasswordRecoveryToken { UserId = user.Id, TokenHash = Hash(raw), ExpiresAtUtc = DateTime.UtcNow.AddMinutes(jwt.PasswordRecoveryMinutes) });
-        db.AccessAudits.Add(new AccessAudit { UserId = user.Id, EventType = "PASSWORD_RECOVERY_REQUESTED", Detail = "Recuperación solicitada" }); await db.SaveChangesAsync(ct);
-        logger.LogInformation("Token de recuperación de desarrollo generado para {Email}", user.Email); return raw;
+        var expires = now.AddMinutes(jwt.PasswordRecoveryMinutes);
+        var recovery = new PasswordRecoveryToken { UserId = user.Id, TokenHash = Hash(raw), ExpiresAtUtc = expires };
+        db.PasswordRecoveryTokens.Add(recovery);
+        await db.SaveChangesAsync(ct);
+
+        var link = $"{email.FrontendBaseUrl.TrimEnd('/')}/?resetToken={Uri.EscapeDataString(raw)}";
+        try
+        {
+            await emailSender.SendPasswordRecoveryAsync(user.Email!, user.FullName, link, expires, ct);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "No fue posible entregar el correo de recuperación para la solicitud {RecoveryRequestId}", recovery.Id);
+        }
     }
 
-    public async Task<bool> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken ct)
+    public async Task<bool> ResetPasswordAsync(ResetPasswordRequest request, AuthContext context, CancellationToken ct)
     {
         ValidatePassword(request.NewPassword);
-        var token = await db.PasswordRecoveryTokens.Include(x => x.User).ThenInclude(x => x.Credential).SingleOrDefaultAsync(x => x.TokenHash == Hash(request.Token), ct);
-        if (token is null || token.UsedAtUtc is not null || token.ExpiresAtUtc <= DateTime.UtcNow) return false;
+        var token = await db.PasswordRecoveryTokens.Include(x => x.User).SingleOrDefaultAsync(x => x.TokenHash == Hash(request.Token), ct);
+        var now = DateTime.UtcNow;
+        if (token is null || token.UsedAtUtc is not null || token.ExpiresAtUtc <= now) return false;
         var reset = await userManager.ResetPasswordAsync(token.User, request.Token, request.NewPassword);
         if (!reset.Succeeded) return false;
-        token.UsedAtUtc = DateTime.UtcNow;
-        foreach (var session in await db.Sessions.Where(x => x.UserId == token.UserId && x.RevokedAtUtc == null).ToListAsync(ct)) session.RevokedAtUtc = DateTime.UtcNow;
-        db.AccessAudits.Add(new AccessAudit { UserId = token.UserId, EventType = "PASSWORD_RESET", Detail = "Contraseña actualizada y sesiones revocadas" }); await db.SaveChangesAsync(ct); return true;
+
+        token.User.MustChangePassword = false;
+        token.User.UpdatedAtUtc = now;
+        foreach (var recovery in await db.PasswordRecoveryTokens.Where(x => x.UserId == token.UserId && x.UsedAtUtc == null).ToListAsync(ct)) recovery.UsedAtUtc = now;
+        await RevokeSessions(token.UserId, now, ct);
+        db.AccessAudits.Add(new AccessAudit { UserId = token.UserId, EventType = "PASSWORD_RESET", Detail = "Contraseña actualizada y sesiones revocadas", IpAddress = context.IpAddress });
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<string?> AdminResetPasswordAsync(Guid actorId, Guid targetUserId, AuthContext context, CancellationToken ct)
+    {
+        var target = await db.Users.SingleOrDefaultAsync(x => x.Id == targetUserId, ct);
+        if (target is null) return null;
+        var temporaryPassword = TemporaryPassword();
+        var identityToken = await userManager.GeneratePasswordResetTokenAsync(target);
+        var reset = await userManager.ResetPasswordAsync(target, identityToken, temporaryPassword);
+        if (!reset.Succeeded) throw new InvalidOperationException(Errors(reset));
+
+        var now = DateTime.UtcNow;
+        target.MustChangePassword = true;
+        target.UpdatedAtUtc = now;
+        foreach (var recovery in await db.PasswordRecoveryTokens.Where(x => x.UserId == targetUserId && x.UsedAtUtc == null).ToListAsync(ct)) recovery.UsedAtUtc = now;
+        await RevokeSessions(targetUserId, now, ct);
+        db.AccessAudits.Add(new AccessAudit { UserId = actorId, EventType = "PASSWORD_ADMIN_RESET", Detail = $"Contraseña restablecida administrativamente para usuario {targetUserId}; cambio obligatorio activado", IpAddress = context.IpAddress });
+        await db.SaveChangesAsync(ct);
+        return temporaryPassword;
+    }
+
+    public async Task<AuthResponse?> ChangeRequiredPasswordAsync(Guid userId, RequiredPasswordChangeRequest request, AuthContext context, CancellationToken ct)
+    {
+        ValidatePassword(request.NewPassword);
+        var user = await LoadUser(userId, ct);
+        if (user is null || !user.MustChangePassword || user.Status != UserStatus.Active) return null;
+        var changed = await userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+        if (!changed.Succeeded) throw new InvalidOperationException(Errors(changed));
+
+        var now = DateTime.UtcNow;
+        user.MustChangePassword = false;
+        user.UpdatedAtUtc = now;
+        await RevokeSessions(userId, now, ct);
+        db.AccessAudits.Add(new AccessAudit { UserId = userId, EventType = "PASSWORD_REQUIRED_CHANGE_COMPLETED", Detail = "Contraseña temporal reemplazada y sesiones anteriores revocadas", IpAddress = context.IpAddress });
+        return await CreateSession(user, context, ct);
     }
 
     private async Task<AuthResponse> CreateSession(User user, AuthContext context, CancellationToken ct, bool save = true)
     {
-        var now = DateTime.UtcNow; var accessExpiry = now.AddMinutes(jwt.AccessTokenMinutes); var refresh = RandomToken();
+        var now = DateTime.UtcNow;
+        var accessExpiry = now.AddMinutes(jwt.AccessTokenMinutes);
+        var refresh = RandomToken();
         db.Sessions.Add(new Session { UserId = user.Id, RefreshTokenHash = Hash(refresh), ExpiresAtUtc = now.AddDays(jwt.RefreshTokenDays), IpAddress = context.IpAddress, UserAgent = context.UserAgent });
-        db.AccessAudits.Add(new AccessAudit { UserId = user.Id, EventType = "LOGIN_SUCCESS", Detail = "Sesión iniciada", IpAddress = context.IpAddress }); if (save) await db.SaveChangesAsync(ct);
+        db.AccessAudits.Add(new AccessAudit { UserId = user.Id, EventType = "LOGIN_SUCCESS", Detail = user.MustChangePassword ? "Sesión restringida: cambio de contraseña requerido" : "Sesión iniciada", IpAddress = context.IpAddress });
+        if (save) await db.SaveChangesAsync(ct);
+
         var roles = user.UserRoles.Select(x => x.Role.Name ?? string.Empty).Where(x => x.Length > 0).ToArray();
-        var email = user.Email ?? throw new InvalidOperationException("La cuenta no tiene correo.");
-        var claims = new List<Claim> { new(JwtRegisteredClaimNames.Sub, user.Id.ToString()), new(JwtRegisteredClaimNames.Email, email), new(ClaimTypes.NameIdentifier, user.Id.ToString()), new(ClaimTypes.Name, user.FullName) };
+        var address = user.Email ?? throw new InvalidOperationException("La cuenta no tiene correo.");
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Email, address),
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Name, user.FullName),
+            new("security_stamp", await userManager.GetSecurityStampAsync(user)),
+            new("pwd_change_required", user.MustChangePassword ? "true" : "false")
+        };
         claims.AddRange(roles.Select(x => new Claim(ClaimTypes.Role, x)));
         var token = new JwtSecurityToken(jwt.Issuer, jwt.Audience, claims, now, accessExpiry, new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)), SecurityAlgorithms.HmacSha256));
         return new AuthResponse(new JwtSecurityTokenHandler().WriteToken(token), refresh, accessExpiry, Summary(user));
     }
 
+    private async Task RevokeSessions(Guid userId, DateTime now, CancellationToken ct)
+    {
+        foreach (var session in await db.Sessions.Where(x => x.UserId == userId && x.RevokedAtUtc == null).ToListAsync(ct)) session.RevokedAtUtc = now;
+    }
+
     private Task<User?> LoadUser(string normalized, CancellationToken ct) => db.Users.Include(x => x.Credential).Include(x => x.UserRoles).ThenInclude(x => x.Role).SingleOrDefaultAsync(x => x.NormalizedEmail == normalized, ct);
-    private async Task Failed(Guid? id, AuthContext context, CancellationToken ct) { db.AccessAudits.Add(new AccessAudit { UserId = id, EventType = "LOGIN_FAILED", Detail = "Credenciales inválidas o cuenta no disponible", IpAddress = context.IpAddress }); await db.SaveChangesAsync(ct); }
-    private static UserSummary Summary(User user) => new(user.Id, user.Email ?? string.Empty, user.FullName, user.Status.ToString(), user.UserRoles.Select(x => x.Role.Name ?? string.Empty).Where(x => x.Length > 0).Order().ToArray());
+    private Task<User?> LoadUser(Guid id, CancellationToken ct) => db.Users.Include(x => x.Credential).Include(x => x.UserRoles).ThenInclude(x => x.Role).SingleOrDefaultAsync(x => x.Id == id, ct);
+
+    private async Task Failed(Guid? id, AuthContext context, CancellationToken ct)
+    {
+        db.AccessAudits.Add(new AccessAudit { UserId = id, EventType = "LOGIN_FAILED", Detail = "Credenciales inválidas o cuenta no disponible", IpAddress = context.IpAddress });
+        await db.SaveChangesAsync(ct);
+    }
+
+    private static UserSummary Summary(User user) => new(user.Id, user.Email ?? string.Empty, user.FullName, user.Status.ToString(), user.UserRoles.Select(x => x.Role.Name ?? string.Empty).Where(x => x.Length > 0).Order().ToArray(), user.MustChangePassword);
     private static string RandomToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)).Replace("+", "-").Replace("/", "_").TrimEnd('=');
+    private static string TemporaryPassword() => $"Tmp!7a{Convert.ToHexString(RandomNumberGenerator.GetBytes(8))}";
     private static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
-    private static void ValidatePassword(string password) { if (password.Length < 8 || !password.Any(char.IsUpper) || !password.Any(char.IsLower) || !password.Any(char.IsDigit) || !password.Any(x => !char.IsLetterOrDigit(x))) throw new InvalidOperationException("La contraseña debe tener al menos 8 caracteres, mayúscula, minúscula, número y símbolo."); }
+    private static string Errors(IdentityResult result) => string.Join(" ", result.Errors.Select(x => x.Description));
+    private static void ValidatePassword(string password)
+    {
+        if (password.Length < 8 || !password.Any(char.IsUpper) || !password.Any(char.IsLower) || !password.Any(char.IsDigit) || !password.Any(x => !char.IsLetterOrDigit(x)))
+            throw new InvalidOperationException("La contraseña debe tener al menos 8 caracteres, mayúscula, minúscula, número y símbolo.");
+    }
 }

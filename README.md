@@ -86,6 +86,63 @@ dotnet user-secrets list --project .\backend\SistemaRiego.Api\SistemaRiego.Api.c
 
 Una cuenta recién sembrada inicia con 2FA desactivado. Para operaciones críticas, entra en **Seguridad 2FA**, genera la clave, agrégala a una aplicación TOTP y confirma con el código de seis dígitos. No existe un secreto TOTP fijo de pruebas; generar una clave reemplaza la anterior.
 
+## Recuperación de contraseña
+
+El login expone **¿Olvidaste tu contraseña?** y siempre responde: “Si el correo está registrado, recibirás un enlace en unos minutos.” El enlace vence en 30 minutos, solo se acepta una vez y, al completarse, revoca los refresh tokens y los JWT activos mediante el sello de seguridad de Identity. Las solicitudes y los cambios se auditan sin guardar contraseñas ni tokens.
+
+### Correo local por defecto (Development)
+
+`Email:Provider` usa `File`. Cada solicitud válida crea un correo HTML en:
+
+~~~text
+backend/SistemaRiego.Api/dev-mailbox/password-recovery-*.html
+~~~
+
+La carpeta está ignorada por Git. Abre el archivo y pulsa **Definir una nueva contraseña**; no hace falta SMTP, MailHog ni Docker.
+
+### Gmail SMTP opcional
+
+La API ya está preparada para Gmail con `smtp.gmail.com:587`, STARTTLS y remitente `vgbm123456@gmail.com`. La cuenta institucional `@miumg.edu.gt` se usa únicamente como destinataria de prueba. El propietario debe colocar personalmente su contraseña de aplicación en User Secrets; no debe enviarla ni escribirla en archivos versionados.
+
+Desde la raíz del repositorio:
+
+~~~powershell
+dotnet user-secrets set "Email:Provider" "Smtp" --project .\backend\SistemaRiego.Api\SistemaRiego.Api.csproj
+dotnet user-secrets set "Email:SmtpPassword" "<PEGA_AQUÍ_TU_CONTRASEÑA_DE_APLICACIÓN>" --project .\backend\SistemaRiego.Api\SistemaRiego.Api.csproj
+~~~
+
+Para volver al correo local:
+
+~~~powershell
+dotnet user-secrets set "Email:Provider" "File" --project .\backend\SistemaRiego.Api\SistemaRiego.Api.csproj
+~~~
+
+En producción se usan variables de entorno o el almacén de secretos del despliegue; nunca `appsettings.json`:
+
+~~~text
+Email__Provider=Smtp
+Email__SmtpHost=smtp.gmail.com
+Email__SmtpPort=587
+Email__SmtpUsername=vgbm123456@gmail.com
+Email__SmtpPassword=<secreto administrado fuera de Git>
+Email__EnableSsl=true
+Email__FrontendBaseUrl=https://<dominio-del-frontend>
+~~~
+
+### Respaldo administrativo y cambio obligatorio
+
+En **Usuarios**, cada fila ofrece **Restablecer contraseña**. La operación exige el TOTP vigente del administrador, revoca todas las sesiones del usuario y muestra una contraseña temporal una única vez. Al iniciar sesión con ella solo se permite la pantalla de cambio obligatorio; el resto de la API responde `403` hasta que el usuario defina su contraseña definitiva.
+
+Validación visual reproducible, con backend y frontend activos:
+
+~~~powershell
+cd .\frontend
+$env:E2E_PASSWORD = "<contraseña actual del administrador>"
+node .\scripts\password-recovery-e2e.mjs
+~~~
+
+El escenario cubre los nueve casos solicitados, restaura la contraseña original, conserva la configuración TOTP, elimina los tokens de recuperación creados y guarda el reporte/capturas en `artifacts/password-recovery/`.
+
 ## Seguridad y simulación multi-nodo
 
 En Development, el broker exige credenciales por cliente MQTT. Las credenciales de la API se cargan desde .NET User Secrets y el simulador recibe `SISTEMA_RIEGO_MQTT_PASSWORD`; no se almacenan en `appsettings*.json`. Producción debe usar variables de entorno o su almacén de secretos.

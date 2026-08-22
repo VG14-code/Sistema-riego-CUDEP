@@ -1,6 +1,6 @@
 const baseUrl = import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:5080/api`
 
-export interface UserSummary { id: string; email: string; fullName: string; status: string; roles: string[] }
+export interface UserSummary { id: string; email: string; fullName: string; status: string; roles: string[]; mustChangePassword: boolean }
 export interface AuthSession { accessToken: string; refreshToken: string; accessTokenExpiresAtUtc: string; user: UserSummary }
 export interface Role { name: string; description: string; permissions: string[] }
 export interface Permission { id: string; code: string; description: string }
@@ -38,7 +38,9 @@ async function downloadAudit(token: string, query: string, format: 'csv' | 'xlsx
 
 export const week2Api = {
   login: (email: string, password: string) => request<AuthSession>('/auth/login', { method: 'POST', ...json({ email, password }) }),
-  forgot: (email: string) => request<unknown>('/auth/forgot-password', { method: 'POST', ...json({ email }) }),
+  forgot: (email: string) => request<{ message: string }>('/auth/forgot-password', { method: 'POST', ...json({ email }) }),
+  resetPassword: (token: string, newPassword: string) => request<void>('/auth/reset-password', { method: 'POST', ...json({ token, newPassword }) }),
+  changeRequiredPassword: (token: string, currentPassword: string, newPassword: string) => request<AuthSession>('/auth/change-required-password', { method: 'POST', ...json({ currentPassword, newPassword }) }, token),
   logout: (session: AuthSession) => request<void>('/auth/logout', { method: 'POST', ...json({ refreshToken: session.refreshToken }) }, session.accessToken),
   createUser: (token: string, body: { email: string; password: string; fullName: string }, totp: string) => request<UserSummary>('/auth/register', { method: 'POST', ...json(body) }, token, totp),
   users: (token: string) => request<UserSummary[]>('/users', {}, token),
@@ -46,6 +48,7 @@ export const week2Api = {
   permissions: (token: string) => request<Permission[]>('/roles/permissions', {}, token),
   setUserStatus: (token: string, id: string, status: string, totp: string) => request<void>(`/users/${id}/status`, { method: 'PATCH', ...json({ status }) }, token, totp),
   setUserRoles: (token: string, id: string, roles: string[], totp: string) => request<void>(`/users/${id}/roles`, { method: 'PUT', ...json({ roles }) }, token, totp),
+  resetUserPassword: (token: string, id: string, totp: string) => request<{ temporaryPassword: string }>(`/users/${id}/reset-password`, { method: 'POST' }, token, totp),
   setRolePermissions: (token: string, role: string, permissions: string[], totp: string) => request<void>(`/roles/${encodeURIComponent(role)}/permissions`, { method: 'PUT', ...json({ permissions }) }, token, totp),
   totpStatus: (token: string) => request<TotpStatus>('/security/2fa/status', {}, token),
   totpSetup: (token: string) => request<TotpSetup>('/security/2fa/setup', { method: 'POST' }, token),

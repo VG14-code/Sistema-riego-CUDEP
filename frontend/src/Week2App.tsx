@@ -20,9 +20,57 @@ const parameterLabels = { SENSOR_OFFLINE_MINUTES:'Tiempo para detectar un sensor
 const emptyCatalogForm = {code:'',name:'',description:'',symbol:'',isActive:true}
 
 function Access({ onLogin }) {
-  const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false)
-  const submit = async e => { e.preventDefault(); setBusy(true); setMessage(''); try { onLogin(await api.login(email, password)) } catch (error) { setMessage(error.message) } finally { setBusy(false) } }
-  return <main className="w2-login"><section className="w2-login-story"><div className="w2-logo"><span><Leaf/></span> Sistema de Riego</div><div><p className="w2-kicker">CUDEP · AGRICULTURA INTELIGENTE</p><h1>Seguridad para<br/>cada <em>decisión.</em></h1><p>Acceso por roles, datos maestros centralizados y trazabilidad de las operaciones del sistema.</p></div><small>Avance académico · Semana 2</small></section><section className="w2-login-form"><form onSubmit={submit}><p className="w2-kicker">ACCESO INSTITUCIONAL</p><h2>Bienvenido de nuevo</h2><p>Ingresa con uno de los perfiles habilitados.</p><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label>{message&&<div className="w2-alert">{message}</div>}<button disabled={busy}>{busy?'Validando…':'Iniciar sesión'} <b>→</b></button></form></section></main>
+  const resetToken = useMemo(() => new URLSearchParams(window.location.search).get('resetToken') ?? '', [])
+  const [mode, setMode] = useState(resetToken ? 'reset' : 'login')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmation, setConfirmation] = useState('')
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const goToLogin = () => {
+    window.history.replaceState({}, document.title, window.location.pathname)
+    setMode('login'); setPassword(''); setConfirmation(''); setMessage('')
+  }
+
+  const submit = async event => {
+    event.preventDefault(); setBusy(true); setMessage('')
+    try {
+      if (mode === 'forgot') {
+        const result = await api.forgot(email)
+        setMessage(result.message)
+        return
+      }
+      if (mode === 'reset') {
+        if (password !== confirmation) throw new Error('Las contraseñas no coinciden.')
+        await api.resetPassword(resetToken, password)
+        window.history.replaceState({}, document.title, window.location.pathname)
+        setMode('login'); setPassword(''); setConfirmation('')
+        setMessage('Contraseña actualizada. Ya puedes iniciar sesión.')
+        return
+      }
+      onLogin(await api.login(email, password))
+    } catch (error) { setMessage(error.message) } finally { setBusy(false) }
+  }
+
+  const title = mode === 'login' ? 'Bienvenido de nuevo' : mode === 'forgot' ? 'Recupera tu acceso' : 'Define tu nueva contraseña'
+  const subtitle = mode === 'login' ? 'Ingresa con uno de los perfiles habilitados.' : mode === 'forgot' ? 'Te enviaremos un enlace de un solo uso si el correo está registrado.' : 'El enlace es válido durante 30 minutos y solo puede utilizarse una vez.'
+
+  return <main className="w2-login"><section className="w2-login-story"><div className="w2-logo"><span><Leaf/></span> Sistema de Riego</div><div><p className="w2-kicker">CUDEP · AGRICULTURA INTELIGENTE</p><h1>Seguridad para<br/>cada <em>decisión.</em></h1><p>Acceso por roles, datos maestros centralizados y trazabilidad de las operaciones del sistema.</p></div><small>Avance académico · Semana 2</small></section><section className="w2-login-form"><form onSubmit={submit}><p className="w2-kicker">ACCESO INSTITUCIONAL</p><h2>{title}</h2><p>{subtitle}</p>
+    {mode !== 'reset' && <label>Correo electrónico<input type="email" value={email} onChange={event=>setEmail(event.target.value)} required autoComplete="email"/></label>}
+    {mode === 'login' && <label>Contraseña<input type="password" value={password} onChange={event=>setPassword(event.target.value)} required autoComplete="current-password"/></label>}
+    {mode === 'reset' && <><label>Nueva contraseña<input type="password" value={password} onChange={event=>setPassword(event.target.value)} required minLength={8} autoComplete="new-password"/></label><label>Confirmar nueva contraseña<input type="password" value={confirmation} onChange={event=>setConfirmation(event.target.value)} required minLength={8} autoComplete="new-password"/></label><p className="w2-password-rules">Mínimo 8 caracteres, con mayúscula, minúscula, número y símbolo.</p></>}
+    {message&&<div className="w2-alert" role="status">{message}</div>}
+    <button disabled={busy}>{busy?'Procesando…':mode==='login'?'Iniciar sesión':mode==='forgot'?'Enviar enlace':'Guardar nueva contraseña'} <b>→</b></button>
+    {mode==='login'&&<button type="button" className="w2-forgot-link" onClick={()=>{setMode('forgot');setMessage('')}}>¿Olvidaste tu contraseña?</button>}
+    {mode!=='login'&&<button type="button" className="w2-forgot-link" onClick={goToLogin}>← Volver al inicio de sesión</button>}
+  </form></section></main>
+}
+
+function RequiredPasswordChange({ session, onComplete, onLogout }) {
+  const [currentPassword,setCurrentPassword]=useState(''),[newPassword,setNewPassword]=useState(''),[confirmation,setConfirmation]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false)
+  const submit=async event=>{event.preventDefault();setMessage('');if(newPassword!==confirmation){setMessage('Las contraseñas no coinciden.');return}setBusy(true);try{onComplete(await api.changeRequiredPassword(session.accessToken,currentPassword,newPassword))}catch(error){setMessage(error.message)}finally{setBusy(false)}}
+  return <main className="w2-login"><section className="w2-login-story"><div className="w2-logo"><span><Leaf/></span> Sistema de Riego</div><div><p className="w2-kicker">PROTECCIÓN DE CUENTA</p><h1>Una clave<br/><em>solo tuya.</em></h1><p>La contraseña temporal cumplió su propósito. Reemplázala antes de acceder a cualquier módulo.</p></div><small>Sesión restringida hasta completar el cambio</small></section><section className="w2-login-form"><form onSubmit={submit}><p className="w2-kicker">CAMBIO OBLIGATORIO</p><h2>Crea tu contraseña definitiva</h2><p>Por seguridad, vuelve a escribir la contraseña temporal y elige una nueva.</p><label>Contraseña temporal<input type="password" value={currentPassword} onChange={event=>setCurrentPassword(event.target.value)} required autoComplete="current-password"/></label><label>Nueva contraseña<input type="password" value={newPassword} onChange={event=>setNewPassword(event.target.value)} required minLength={8} autoComplete="new-password"/></label><label>Confirmar nueva contraseña<input type="password" value={confirmation} onChange={event=>setConfirmation(event.target.value)} required minLength={8} autoComplete="new-password"/></label><p className="w2-password-rules">Mínimo 8 caracteres, con mayúscula, minúscula, número y símbolo.</p>{message&&<div className="w2-alert" role="alert">{message}</div>}<button disabled={busy}>{busy?'Actualizando…':'Cambiar contraseña y continuar'} <b>→</b></button><button type="button" className="w2-forgot-link" onClick={onLogout}>Cancelar y cerrar sesión</button></form></section></main>
 }
 
 function Overview({ session, onNavigate }) {
@@ -75,4 +123,4 @@ function Shell({ session, onLogout }) {
   return <main className="w2-app"><aside><div className="w2-logo"><span><Leaf/></span><div>Sistema de Riego<small>Agua inteligente</small></div></div><nav>{nav.map(item=><button key={item.id} className={view===item.id?'active':''} onClick={()=>setView(item.id)}><span className="w2-nav-icon">{item.icon}</span>{item.label}</button>)}</nav><div className="w2-profile"><span>{session.user.fullName.slice(0,2).toUpperCase()}</span><div><b>{session.user.fullName}</b><small>{session.user.roles.join(', ')}</small></div></div><button className="w2-logout" onClick={onLogout}>Cerrar sesión</button></aside><NotificationCenter session={session} onOpenChange={setNotificationsOpen} onNavigate={setView}/>{interfaceToast&&<div className="n-interface-toast" role="status" aria-live="polite"><span>{interfaceToast}</span><button aria-label="Cerrar mensaje" onClick={()=>setInterfaceToast(null)}>×</button></div>}<section className={`w2-content${notificationsOpen ? ' notification-drawer-open' : ''}`}>{view==='inicio'&&<OperationalDashboard session={session} onNavigate={setView} notify={notify}/>} {view==='territory'&&<TerritoryManager session={session} notify={notify}/>} {view==='telemetry'&&<TelemetryMonitor session={session} notify={notify}/>} {view==='agronomy'&&<AgronomyManager session={session} notify={notify}/>} {view==='planning'&&<CropPlanner session={session} notify={notify}/>} {view==='automation'&&<AutomationPanel session={session} notify={notify}/>} {view==='supply'&&<WaterSupplyPanel session={session} notify={notify}/>} {view==='energy'&&<EnergyPanel session={session} notify={notify}/>} {view==='manual'&&<ManualIrrigationPanel session={session} notify={notify}/>} {view==='operations'&&<WaterOperationsPanel session={session} notify={notify}/>} {view==='alerts'&&<AlertsPanel session={session} notify={notify}/>} {view==='maintenance'&&<MaintenancePanel session={session} notify={notify}/>} {view==='overview'&&<Overview session={session} onNavigate={setView}/>} {view==='users'&&<UserSecurityManager session={session} notify={notify}/>} {view==='security'&&<TwoFactorSetup session={session} notify={notify}/>} {view==='catalogs'&&<MasterCatalogManager session={session} notify={notify}/>} {view==='iot'&&<Week3IoT session={session} notify={notify}/>} {view==='settings'&&<Settings session={session} notify={notify}/>} {view==='audit'&&<Audit session={session} notify={notify}/>}</section></main>
 }
 
-export default function Week2App(){const [session,setSession]=useState(()=>{try{return JSON.parse(sessionStorage.getItem('riego.session'))}catch{return null}});const login=data=>{sessionStorage.setItem('riego.session',JSON.stringify(data));setSession(data)};const logout=async()=>{try{await api.logout(session)}finally{sessionStorage.removeItem('riego.session');setSession(null)}};return session?<Shell session={session} onLogout={logout}/>:<Access onLogin={login}/>} 
+export default function Week2App(){const [session,setSession]=useState(()=>{try{return JSON.parse(sessionStorage.getItem('riego.session'))}catch{return null}});const login=data=>{sessionStorage.setItem('riego.session',JSON.stringify(data));setSession(data)};const logout=async()=>{try{if(session)await api.logout(session)}finally{sessionStorage.removeItem('riego.session');setSession(null)}};return session?.user?.mustChangePassword?<RequiredPasswordChange session={session} onComplete={login} onLogout={logout}/>:session?<Shell session={session} onLogout={logout}/>:<Access onLogin={login}/>}

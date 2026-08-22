@@ -11,6 +11,7 @@ public sealed class User : IdentityUser<Guid>
     public UserStatus Status { get; set; } = UserStatus.Active;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+    public bool MustChangePassword { get; set; }
     public PasswordCredential? Credential { get; set; }
     public ICollection<UserRole> UserRoles { get; set; } = [];
     public ICollection<Session> Sessions { get; set; } = [];

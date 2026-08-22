@@ -55,6 +55,7 @@ builder.Services.AddSingleton<IMqttCommandPublisher>(serviceProvider => serviceP
 builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<MqttWorker>());
 builder.Services.AddDbContext<AppDbContext>((services, options) => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")).AddInterceptors(services.GetRequiredService<AuditSaveChangesInterceptor>()));
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
 builder.Services.AddIdentityCore<User>(options =>
 {
     options.Password.RequiredLength = 8; options.Password.RequireUppercase = true; options.Password.RequireLowercase = true; options.Password.RequireDigit = true; options.Password.RequireNonAlphanumeric = true;
@@ -62,6 +63,13 @@ builder.Services.AddIdentityCore<User>(options =>
     options.User.RequireUniqueEmail = true;
 }).AddRoles<Role>().AddEntityFrameworkStores<AppDbContext>().AddDefaultTokenProviders();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IEmailSender>(services =>
+{
+    var settings = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<EmailOptions>>().Value;
+    return string.Equals(settings.Provider, "Smtp", StringComparison.OrdinalIgnoreCase)
+        ? ActivatorUtilities.CreateInstance<SmtpEmailSender>(services)
+        : ActivatorUtilities.CreateInstance<FileEmailSender>(services);
+});
 builder.Services.AddScoped<ITotpService, TotpService>();
 
 
@@ -81,6 +89,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
             var accessToken = context.Request.Query["access_token"];
             if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/hubs")) context.Token = accessToken;
             return Task.CompletedTask;
+        },
+        OnTokenValidated = async context =>
+        {
+            var userManager = context.HttpContext.RequestServices.GetRequiredService<UserManager<User>>();
+            var id = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var stamp = context.Principal?.FindFirst("security_stamp")?.Value;
+            if (!Guid.TryParse(id, out var userId) || string.IsNullOrWhiteSpace(stamp))
+            {
+                context.Fail("Token sin sello de seguridad.");
+                return;
+            }
+            var user = await userManager.FindByIdAsync(userId.ToString());
+            if (user is null || user.Status != UserStatus.Active || !string.Equals(stamp, await userManager.GetSecurityStampAsync(user), StringComparison.Ordinal))
+                context.Fail("La sesión fue invalidada.");
         }
     };
 });
@@ -101,6 +123,7 @@ app.UseHttpsRedirection();
 app.UseCors("Frontend");
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseMiddleware<RequiredPasswordChangeMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<TelemetryHub>("/hubs/telemetry");

@@ -1,0 +1,24 @@
+{
+  "steps": [
+    "1. Enlace visible en login: OK",
+    "2. Correo de desarrollo generado para cuenta válida: OK",
+    "3. Correo inexistente recibe respuesta idéntica: OK",
+    "4. Enlace usado, contraseña cambiada e inicio de sesión correcto: OK",
+    "5. Reutilización del enlace rechazada: OK",
+    "6. Token expirado rechazado: OK",
+    "7. Restablecimiento administrativo desde Usuarios con TOTP: OK",
+    "8. Contraseña temporal mostrada una sola vez y retirada al cerrar: OK",
+    "9. Login temporal bloqueado hasta cambiar contraseña; contraseña original restaurada: OK"
+  ],
+  "captures": [
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\password-recovery\\01-enlace-recuperacion-login.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\password-recovery\\02-respuesta-no-revelacion.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\password-recovery\\03-enlace-reutilizado-rechazado.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\password-recovery\\04-enlace-expirado-rechazado.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\password-recovery\\05-password-temporal-una-vez.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\password-recovery\\06-cambio-obligatorio-primer-login.png"
+  ],
+  "totpDialogCount": 2,
+  "finalPasswordRestored": true,
+  "identicalResponse": "Si el correo está registrado, recibirás un enlace en unos minutos."
+}
