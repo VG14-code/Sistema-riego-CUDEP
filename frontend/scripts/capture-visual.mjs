@@ -8,6 +8,52 @@ const email = process.env.VISUAL_EMAIL
 const password = process.env.VISUAL_PASSWORD
 const outputDir = path.resolve(process.env.VISUAL_OUTPUT_DIR ?? path.join(process.cwd(), '..', 'artifacts', 'visual-validation'))
 
+let fixtureId = 1
+const fixtureTime = (secondsAgo) => new Date(Date.now() - secondsAgo * 1000).toISOString()
+const commandAlerts = (count, command, startSecondsAgo) => Array.from({ length: count }, (_, index) => ({
+  id: fixtureId++,
+  type: 'Comando MQTT sin confirmar',
+  severity: 'Crítica',
+  status: 'Activa',
+  origin: 'Motor de alertas',
+  description: `El dispositivo Válvula solenoide A1 no respondió al comando ${command} dentro del tiempo esperado.\nDetalle técnico: Comando MQTT expirado sin confirmación del dispositivo.`,
+  relatedEntityType: 'Válvula solenoide',
+  relatedEntityId: 'VALVULA-A1',
+  relatedEntityName: 'Válvula solenoide A1 · VALVULA-A1',
+  raisedAtUtc: fixtureTime(startSecondsAgo + index * 20),
+  escalationLevel: 1,
+}))
+const referenceAlerts = [
+  ...commandAlerts(23, 'ABRIR_VALVULA', 10),
+  ...commandAlerts(4, 'CONSULTAR_ESTADO', 90),
+  ...Array.from({ length: 7 }, (_, index) => ({
+    id: fixtureId++,
+    type: 'Condición crítica',
+    severity: 'Crítica',
+    status: 'Activa',
+    origin: 'Motor de alertas',
+    description: `La condición crítica ${index + 1} requiere atención del operador.`,
+    relatedEntityType: 'Dispositivo IoT',
+    relatedEntityId: `CRITICO-${index + 1}`,
+    relatedEntityName: `Equipo crítico ${index + 1}`,
+    raisedAtUtc: fixtureTime(600 + index * 60),
+    escalationLevel: 1,
+  })),
+  ...[0, 0, 1, 1, 2].map((group, index) => ({
+    id: fixtureId++,
+    type: 'Advertencia operativa',
+    severity: 'Advertencia',
+    status: 'Activa',
+    origin: 'Motor de alertas',
+    description: `La condición de advertencia ${group + 1} requiere revisión.`,
+    relatedEntityType: 'Sensor',
+    relatedEntityId: `ADVERTENCIA-${group + 1}`,
+    relatedEntityName: `Sensor de control ${group + 1}`,
+    raisedAtUtc: fixtureTime(1200 + index * 60),
+    escalationLevel: 0,
+  })),
+]
+
 if (!email || !password) {
   throw new Error('Define VISUAL_EMAIL y VISUAL_PASSWORD antes de ejecutar la captura.')
 }
@@ -25,6 +71,7 @@ try {
   })
   const page = context.pages()[0] ?? await context.newPage()
   await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 45_000 })
+  await page.route('**/api/alerts', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(referenceAlerts) }))
 
   await page.locator('input[type="email"]').fill(email)
   await page.locator('input[type="password"]').fill(password)
@@ -36,24 +83,17 @@ try {
   const dashboardPath = path.join(outputDir, 'dashboard-module-1.png')
   await page.screenshot({ path: dashboardPath, fullPage: true })
 
-  await page.evaluate(() => sessionStorage.setItem('riego.localNotices', JSON.stringify([
-    { id: crypto.randomUUID(), message: 'Suelo guardado.', raisedAtUtc: new Date().toISOString() },
-    { id: crypto.randomUUID(), message: 'SignalR alertas: The connection was stopped during negotiation.', raisedAtUtc: new Date().toISOString() },
-  ])))
-  await page.reload({ waitUntil: 'networkidle' })
-  await page.locator('.w2-app').waitFor({ timeout: 30_000 })
-
   const notificationPanel = page.locator('.n-center aside')
   if (!await notificationPanel.isVisible()) await page.getByRole('button', { name: 'Centro de notificaciones' }).click()
   await notificationPanel.waitFor({ timeout: 10_000 })
-  await page.locator('.n-local').first().waitFor({ timeout: 10_000 })
+  await page.locator('.n-mini-list article.crítica').first().waitFor({ timeout: 10_000 })
   const visualChecks = await page.evaluate(() => {
     const panel = document.querySelector('.n-center aside')
-    const card = document.querySelector('.n-local')
-    const badge = card?.querySelector('.n-local-heading em')
+    const card = document.querySelector('.n-mini-list article.crítica')
+    const title = card?.querySelector('.n-group-heading > b')
     const button = card?.querySelector(':scope > button')
-    const renderedMessages = Array.from(document.querySelectorAll('.n-local p')).map(item => item.textContent)
-    if (!panel || !card || !badge || !button) throw new Error('El panel no contiene una tarjeta informativa completa para validar.')
+    const renderedMessages = Array.from(document.querySelectorAll('.n-mini-list article.crítica > span')).map(item => item.textContent)
+    if (!panel || !card || !title || !button) throw new Error('El panel no contiene una tarjeta crítica completa para validar.')
     return {
       panelBackground: getComputedStyle(panel).backgroundColor,
       panelColor: getComputedStyle(panel).color,
@@ -61,12 +101,12 @@ try {
       cardColor: getComputedStyle(card).color,
       actionBackground: getComputedStyle(button).backgroundColor,
       actionColor: getComputedStyle(button).color,
-      severityBadge: badge.textContent,
+      severityBadge: getComputedStyle(title, '::after').content,
       renderedMessages,
       realtimeStatus: document.querySelector('.n-realtime')?.textContent,
     }
   })
-  if (visualChecks.panelBackground !== 'rgb(255, 255, 255)' || visualChecks.actionBackground === 'rgba(0, 0, 0, 0)' || visualChecks.severityBadge !== 'INFORMATIVA' || visualChecks.renderedMessages.some(message => /SignalR|negotiation/i.test(message ?? ''))) {
+  if (visualChecks.panelBackground !== 'rgb(255, 255, 255)' || visualChecks.actionBackground === 'rgba(0, 0, 0, 0)' || !visualChecks.severityBadge.includes('CRÍTICA') || visualChecks.renderedMessages.some(message => /SignalR|negotiation/i.test(message ?? ''))) {
     throw new Error('Validación visual CSS falló: ' + JSON.stringify(visualChecks))
   }
 

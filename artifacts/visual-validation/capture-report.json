@@ -1,5 +1,5 @@
 {
-  "generatedAtUtc": "2026-08-22T05:05:05.278Z",
+  "generatedAtUtc": "2026-08-22T05:22:17.697Z",
   "baseUrl": "http://localhost:5173",
   "dashboardPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\dashboard-module-1.png",
   "notificationsPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\notifications-panel.png",
@@ -10,10 +10,16 @@
     "cardColor": "rgb(25, 63, 54)",
     "actionBackground": "rgb(27, 80, 62)",
     "actionColor": "rgb(255, 255, 255)",
-    "severityBadge": "INFORMATIVA",
+    "severityBadge": "\"CRÍTICA\"",
     "renderedMessages": [
-      "Suelo guardado.",
-      "Se perdió temporalmente la conexión en tiempo real. Reintentando automáticamente."
+      "El dispositivo Válvula solenoide A1 no respondió al comando ABRIR_VALVULA dentro del tiempo esperado.",
+      "El dispositivo Válvula solenoide A1 no respondió al comando CONSULTAR_ESTADO dentro del tiempo esperado.",
+      "La condición crítica 1 requiere atención del operador.",
+      "La condición crítica 2 requiere atención del operador.",
+      "La condición crítica 3 requiere atención del operador.",
+      "La condición crítica 4 requiere atención del operador.",
+      "La condición crítica 5 requiere atención del operador.",
+      "La condición crítica 6 requiere atención del operador."
     ],
     "realtimeStatus": "Tiempo real activo"
   }
