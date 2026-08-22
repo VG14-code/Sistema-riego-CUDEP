@@ -44,6 +44,33 @@ public sealed class Sprint5AlertMaintenanceTests
     }
 
     [Fact]
+    public async Task TelemetryRecovery_ResolvesOfflineAlertsAndEmitsSignalR()
+    {
+        await using var db = Db();
+        var active = new MasterCatalogItem { Kind = CatalogKind.OperationalStatus, Code = "ACTIVE", Name = "Activo" };
+        var offline = new MasterCatalogItem { Kind = CatalogKind.OperationalStatus, Code = "OFFLINE", Name = "Sin conexión" };
+        var unit = new MasterCatalogItem { Kind = CatalogKind.MeasurementUnit, Code = "PERCENT", Name = "Porcentaje", Symbol = "%" };
+        var sensorType = new MasterCatalogItem { Kind = CatalogKind.SensorType, Code = "MOISTURE", Name = "Humedad" };
+        var deviceType = new MasterCatalogItem { Kind = CatalogKind.DeviceType, Code = "NODE", Name = "Nodo" };
+        var node = new IoTNode { Code = "NODE-B", Name = "Nodo B", OperationalStatusId = offline.Id, OperationalStatus = offline };
+        var device = new IoTDevice { Code = "DEVICE-B", Name = "Dispositivo B", SerialNumber = "DEVICE-B-001", DeviceTypeId = deviceType.Id, DeviceType = deviceType, OperationalStatusId = offline.Id, OperationalStatus = offline, NodeId = node.Id, Node = node };
+        var sensor = new IoTSensor { Code = "SENSOR-B", Name = "Sensor B", SerialNumber = "SENSOR-B-001", MinimumValue = 0, MaximumValue = 100, SensorTypeId = sensorType.Id, SensorType = sensorType, MeasurementUnitId = unit.Id, MeasurementUnit = unit, OperationalStatusId = offline.Id, OperationalStatus = offline, DeviceId = device.Id, Device = device };
+        db.AddRange(active, offline, unit, sensorType, deviceType, node, device, sensor);
+        db.SystemAlerts.AddRange(
+            new SystemAlert { Fingerprint = $"IOT:NODE:{node.Id}:OFFLINE", Type = "Conexión", Severity = "Advertencia", Description = "Nodo sin heartbeat." },
+            new SystemAlert { Fingerprint = $"IOT:DEVICE:{device.Id}:OFFLINE", Type = "Conexión", Severity = "Advertencia", Description = "Dispositivo sin heartbeat." },
+            new SystemAlert { Fingerprint = $"IOT:SENSOR:{sensor.Id}:OFFLINE", Type = "Conexión", Severity = "Advertencia", Description = "Sensor sin lecturas." });
+        await db.SaveChangesAsync();
+        var hub = new FakeHubContext();
+
+        var result = await new TelemetryIngestionService(db, hub).IngestAsync(new TelemetryRequest(sensor.Id, null, DateTime.UtcNow, 55, 90, -50, "RECOVERY-B-1", "MQTT_SIMULATED"), "MQTT_SIMULATED", default);
+
+        Assert.Equal(TelemetryIngestionStatus.Accepted, result.Status);
+        Assert.All(db.SystemAlerts, alert => Assert.Equal("Resuelta", alert.Status));
+        Assert.Equal(3, hub.Proxy.Messages.Count(message => message == TelemetryHub.AlertResolved));
+        Assert.Contains(TelemetryHub.ReadingReceived, hub.Proxy.Messages);
+    }
+    [Fact]
     public async Task Acknowledge_RecordsUserAndTimestamp()
     {
         await using var db = Db(); var alert = new SystemAlert { Fingerprint = "A", Type = "Conexión", Description = "Offline" }; db.Add(alert); await db.SaveChangesAsync();

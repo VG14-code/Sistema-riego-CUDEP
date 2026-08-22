@@ -56,6 +56,7 @@ public sealed class TelemetryIngestionService(AppDbContext db, IHubContext<Telem
         db.SensorReadings.Add(reading);
         if (!sensor.LastReadingUtc.HasValue || capturedAt > sensor.LastReadingUtc.Value)
             sensor.LastReadingUtc = capturedAt;
+        var resolvedAlerts = new List<SystemAlert>();
         var onlineId = await db.MasterCatalogItems.Where(x => x.Kind == CatalogKind.OperationalStatus && x.Code == "ACTIVE").Select(x => (Guid?)x.Id).SingleOrDefaultAsync(cancellationToken);
         if (onlineId.HasValue)
         {
@@ -80,9 +81,12 @@ public sealed class TelemetryIngestionService(AppDbContext db, IHubContext<Telem
             {
                 alert.Status = "Resuelta";
                 alert.ResolvedAtUtc = DateTime.UtcNow;
+                resolvedAlerts.Add(alert);
             }
         }
         await db.SaveChangesAsync(cancellationToken);
+        foreach (var alert in resolvedAlerts)
+            await hub.Clients.All.SendAsync(TelemetryHub.AlertResolved, new { alert.Id, alert.Status, alert.ResolvedAtUtc }, cancellationToken);
         var zoneName = reading.IrrigationZoneId.HasValue
             ? await db.IrrigationZones.Where(x => x.Id == reading.IrrigationZoneId).Select(x => x.Name).SingleOrDefaultAsync(cancellationToken)
             : null;

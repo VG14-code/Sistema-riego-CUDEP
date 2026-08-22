@@ -1,0 +1,68 @@
+{
+  "startedAtUtc": "2026-08-22T06:45:00.089Z",
+  "initialActiveCount": 0,
+  "signalREvent": {
+    "id": 50052,
+    "type": "Conexión",
+    "severity": "Advertencia",
+    "status": "Activa",
+    "origin": "Condición detectada",
+    "description": "Dispositivo Nodo sensorial parcela B sin heartbeat.",
+    "relatedEntityType": "Dispositivo IoT",
+    "relatedEntityId": "5a6c2e71-6ad3-498a-a2d2-5baa470ad89b",
+    "raisedAtUtc": "2026-08-22T06:45:36.2397602Z",
+    "escalationLevel": 0
+  },
+  "activeAfterDisconnect": [
+    {
+      "id": 50053,
+      "fingerprint": "IOT:SENSOR:9a769aa3-69a2-4256-b07c-d053e597d934:OFFLINE",
+      "type": "Conexión",
+      "severity": "Advertencia",
+      "status": "Activa",
+      "origin": "Condición detectada",
+      "description": "Sensor Humedad del suelo B1 sin lecturas recientes.",
+      "relatedEntityType": "Sensor",
+      "relatedEntityId": "9a769aa3-69a2-4256-b07c-d053e597d934",
+      "relatedEntityName": null,
+      "raisedAtUtc": "2026-08-22T06:45:36.247088",
+      "acknowledgedByUserId": null,
+      "acknowledgedByEmail": null,
+      "acknowledgedAtUtc": null,
+      "resolvedAtUtc": null,
+      "escalationLevel": 0,
+      "lastNotifiedAtUtc": "2026-08-22T06:45:36.2470891",
+      "deliveries": []
+    },
+    {
+      "id": 50052,
+      "fingerprint": "IOT:DEVICE:5a6c2e71-6ad3-498a-a2d2-5baa470ad89b:OFFLINE",
+      "type": "Conexión",
+      "severity": "Advertencia",
+      "status": "Activa",
+      "origin": "Condición detectada",
+      "description": "Dispositivo Nodo sensorial parcela B sin heartbeat.",
+      "relatedEntityType": "Dispositivo IoT",
+      "relatedEntityId": "5a6c2e71-6ad3-498a-a2d2-5baa470ad89b",
+      "relatedEntityName": "Nodo sensorial parcela B · NODO-CAMPO-B",
+      "raisedAtUtc": "2026-08-22T06:45:36.2397602",
+      "acknowledgedByUserId": null,
+      "acknowledgedByEmail": null,
+      "acknowledgedAtUtc": null,
+      "resolvedAtUtc": null,
+      "escalationLevel": 0,
+      "lastNotifiedAtUtc": "2026-08-22T06:45:36.2397609",
+      "deliveries": []
+    }
+  ],
+  "toastVisible": true,
+  "panelAlertVisible": true,
+  "resolvedInApi": true,
+  "resolvedInUi": true,
+  "captures": {
+    "initial": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\notification-e2e\\01-initial-empty.png",
+    "raised": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\notification-e2e\\02-heartbeat-alert-and-toast.png",
+    "resolved": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\notification-e2e\\03-reconnected-state.png"
+  },
+  "finishedAtUtc": "2026-08-22T06:46:17.010Z"
+}

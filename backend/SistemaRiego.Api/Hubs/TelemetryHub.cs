@@ -9,5 +9,6 @@ public sealed class TelemetryHub : Hub
 {
     public const string ReadingReceived = "telemetryReadingReceived";
     public const string AlertRaised = "alertRaised";
+    public const string AlertResolved = "alertResolved";
 }
 

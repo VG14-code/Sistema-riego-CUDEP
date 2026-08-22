@@ -54,6 +54,7 @@ function useAlerts(session: Session, notify: (message: string) => void, onRaised
     load()
     const connection = new signalR.HubConnectionBuilder().withUrl(`${hubRoot}/hubs/telemetry`, { accessTokenFactory: () => session.accessToken }).withAutomaticReconnect().configureLogging(signalR.LogLevel.None).build()
     connection.on('alertRaised', (alert: AlertItem) => { onRaisedRef.current?.(alert); void load() })
+    connection.on('alertResolved', () => { void load() })
     onConnectionState?.('connecting')
     connection.onreconnecting(() => onConnectionState?.('reconnecting'))
     connection.onreconnected(() => onConnectionState?.('online'))
@@ -64,7 +65,7 @@ function useAlerts(session: Session, notify: (message: string) => void, onRaised
   return { items, load }
 }
 
-export function NotificationCenter({ session, onOpenChange }: { session: Session; onOpenChange?: (open: boolean) => void }) {
+export function NotificationCenter({ session, onOpenChange, onNavigate }: { session: Session; onOpenChange?: (open: boolean) => void; onNavigate?: (view: string) => void }) {
   const [open, setOpen] = useState(false)
   const [toast, setToast] = useState<AlertItem | null>(null)
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting')
@@ -100,7 +101,7 @@ export function NotificationCenter({ session, onOpenChange }: { session: Session
        {groups.slice(0, 8).map(group => {
         const latest = group.items[0]
         return <article key={group.key} className={latest.severity.toLocaleLowerCase('es')}><div className="n-group-heading"><b>{latest.relatedEntityName ?? latest.type}</b>{group.items.length > 1 && <em>{group.items.length} intentos</em>}</div><Message description={latest.description} name={latest.relatedEntityName} type={latest.relatedEntityType} id={latest.relatedEntityId}/><small>Última ocurrencia: {when(latest.raisedAtUtc)}</small>{group.items.length > 1 && <details className="n-occurrences"><summary>Ver los {group.items.length} intentos fallidos</summary>{group.items.map((item, index) => <div key={item.id}><b>Intento {group.items.length - index}</b><time>{when(item.raisedAtUtc)}</time><Message description={item.description} name={item.relatedEntityName} type={item.relatedEntityType} id={item.relatedEntityId}/></div>)}</details>}<button onClick={() => acknowledge(group.items)}>Reconocer {group.items.length > 1 ? 'todas' : ''}</button></article>
-      })}{active.length === 0 && <p>Sin alertas activas.</p>}</div>
+      })}{active.length === 0 && <div className="n-empty"><p>Sin alertas activas.</p><button onClick={() => { changeOpen(false); onNavigate?.('alerts') }}>Ver historial completo →</button></div>}</div>
     </aside>}
   </div>
 }
