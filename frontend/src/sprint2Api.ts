@@ -24,6 +24,8 @@ export interface Crop { id:string; cropTypeId:string; cropType:string; code:stri
 export interface Zone { id:string; name:string }
 export interface Cycle { id:string; name:string; cropId:string; crop:string; irrigationZoneId:string; zone:string; currentStageId?:string; currentStage:string; sowingDate:string; expectedHarvestDate:string; actualHarvestDate?:string; areaHectares:number; plantCount:number; status:string; notes?:string }
 export interface CalendarEvent { id:string; title:string; start:string; end:string; crop:string; zone:string; status:string; currentStage:string; color:string }
+export interface Rotation { id:string; irrigationZoneId:string; zone:string; cropId:string; crop:string; previousCycleId?:string; previousCrop?:string; plannedStartDate:string; plannedEndDate:string; status:string; compatibilityNotes?:string }
+export interface EnvironmentalEvaluation { cycleId:string; cycle:string; zone:string; temperatureCelsius?:number; ambientHumidityPercent?:number; insideAllowedSchedule:boolean; temperatureAllowed:boolean; ambientHumidityAllowed:boolean; irrigationAllowed:boolean; reasons:string[] }
 export interface PlanningAlert { id:string; name:string; crop:string; zone:string; expectedHarvestDate:string; daysRemaining:number; severity:string }
 
 export const sprint2Api = {
@@ -40,7 +42,12 @@ export const sprint2Api = {
   zones: (s:AuthSession) => call<Zone[]>(s,'/manual-irrigation/zones'),
   cycles: (s:AuthSession) => call<Cycle[]>(s,'/crop-planning/cycles'),
   calendar: (s:AuthSession) => call<CalendarEvent[]>(s,'/crop-planning/calendar'),
+  environmentalEvaluations: (s:AuthSession) => call<EnvironmentalEvaluation[]>(s,"/agronomy/environmental-evaluations"),
+  rotations: (s:AuthSession) => call<Rotation[]>(s,"/crop-planning/rotations"),
+  saveRotation: (s:AuthSession,body:Body,id?:string) => call<Rotation|void>(s,"/crop-planning/rotations"+(id?"/"+id:""),id?"PUT":"POST",body),
+  deleteRotation: (s:AuthSession,id:string) => call<void>(s,"/crop-planning/rotations/"+id,"DELETE"),
   alerts: (s:AuthSession) => call<PlanningAlert[]>(s,'/crop-planning/alerts'),
   saveCycle: (s:AuthSession,body:Body,id?:string) => call<Cycle|void>(s,`/crop-planning/cycles${id?`/${id}`:''}`,id?'PUT':'POST',body),
   deleteCycle: (s:AuthSession,id:string) => call<void>(s,`/crop-planning/cycles/${id}`,'DELETE'),
 }
+

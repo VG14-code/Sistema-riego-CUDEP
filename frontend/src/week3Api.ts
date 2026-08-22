@@ -35,6 +35,11 @@ export const week3Api = {
   nodes: (token: string) => request<IoTRecord[]>('/iot/nodes', {}, token),
   devices: (token: string) => request<IoTRecord[]>('/iot/devices', {}, token),
   sensors: (token: string) => request<IoTRecord[]>('/iot/sensors', {}, token),
+  installations: (token: string) => request<IoTRecord[]>("/iot/traceability/installations", {}, token),
+  remoteConfigurations: (token: string) => request<IoTRecord[]>("/iot/traceability/remote-configurations", {}, token),
+  firmwareHistory: (token: string) => request<IoTRecord[]>("/iot/traceability/firmware", {}, token),
+  inventory: (token: string) => request<IoTRecord[]>("/iot/traceability/inventory", {}, token),
+  zones: (token: string) => request<IoTRecord[]>("/manual-irrigation/zones", {}, token),
   calibrations: (token: string) => request<IoTRecord[]>('/iot/calibrations', {}, token),
   catalogs: (token: string, kind: string) => request<IoTRecord[]>(`/catalogs/${kind}`, {}, token),
   createNode: (token: string, body: RequestBody) => request<IoTRecord>('/iot/nodes', { method: 'POST', ...json(body) }, token),
@@ -46,5 +51,10 @@ export const week3Api = {
   createSensor: (token: string, body: RequestBody) => request<IoTRecord>('/iot/sensors', { method: 'POST', ...json(body) }, token),
   updateSensor: (token: string, id: number, body: RequestBody) => request<IoTRecord>(`/iot/sensors/${id}`, { method: 'PUT', ...json(body) }, token),
   deactivateSensor: (token: string, id: number) => request<void>(`/iot/sensors/${id}/deactivate`, { method: 'PATCH' }, token),
+  createInstallation: (token: string, body: RequestBody) => request<IoTRecord>("/iot/traceability/installations", { method: "POST", ...json(body) }, token),
+  queueRemoteConfiguration: (token: string, body: RequestBody) => request<IoTRecord>("/iot/traceability/remote-configurations", { method: "POST", ...json(body) }, token),
+  registerFirmware: (token: string, body: RequestBody) => request<IoTRecord>("/iot/traceability/firmware", { method: "POST", ...json(body) }, token),
+  updateInventory: (token: string, id: string, body: RequestBody) => request<void>("/iot/traceability/inventory/"+id, { method: "PATCH", ...json(body) }, token),
   calibrate: (token: string, body: RequestBody) => request<IoTRecord>('/iot/calibrations', { method: 'POST', ...json(body) }, token),
 }
+

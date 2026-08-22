@@ -26,6 +26,14 @@ public sealed record FirmwareRegistrationRequest(
     DateTime? AppliedAtUtc,
     [MaxLength(500)] string? Notes);
 
+public sealed record InventoryUpdateRequest(
+    [MaxLength(150)] string? Owner,
+    [Required, MaxLength(30)] string InventoryStatus,
+    DateOnly? PurchaseDate,
+    DateOnly? WarrantyUntil,
+    decimal? AcquisitionCost,
+    [Required, MaxLength(3)] string Currency);
+
 public sealed record CropRotationRequest(
     Guid IrrigationZoneId,
     Guid CropId,
@@ -46,4 +54,5 @@ public sealed record EnvironmentalEvaluationResponse(
     bool AmbientHumidityAllowed,
     bool IrrigationAllowed,
     IReadOnlyCollection<string> Reasons);
+
 

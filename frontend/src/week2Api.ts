@@ -2,6 +2,7 @@ const baseUrl = import.meta.env.VITE_API_URL ?? `http://${window.location.hostna
 
 export interface UserSummary { id: string; email: string; fullName: string; status: string; roles: string[]; mustChangePassword: boolean }
 export interface AuthSession { accessToken: string; refreshToken: string; accessTokenExpiresAtUtc: string; user: UserSummary }
+export interface ActiveSession { id:string; userId:string; user:string; email:string; createdAtUtc:string; expiresAtUtc:string; revokedAtUtc?:string; isActive:boolean; ipAddress?:string; userAgent?:string }
 export interface Role { name: string; description: string; permissions: string[] }
 export interface Permission { id: string; code: string; description: string }
 export interface CatalogItem { id: string; kind: string; code: string; name: string; description: string | null; symbol: string | null; isActive: boolean }
@@ -44,6 +45,8 @@ export const week2Api = {
   logout: (session: AuthSession) => request<void>('/auth/logout', { method: 'POST', ...json({ refreshToken: session.refreshToken }) }, session.accessToken),
   createUser: (token: string, body: { email: string; password: string; fullName: string }, totp: string) => request<UserSummary>('/auth/register', { method: 'POST', ...json(body) }, token, totp),
   users: (token: string) => request<UserSummary[]>('/users', {}, token),
+  sessions: (token: string) => request<ActiveSession[]>("/sessions", {}, token),
+  revokeSession: (token: string, id: string) => request<void>("/sessions/"+id, { method: "DELETE" }, token),
   roles: (token: string) => request<Role[]>('/roles', {}, token),
   permissions: (token: string) => request<Permission[]>('/roles/permissions', {}, token),
   setUserStatus: (token: string, id: string, status: string, totp: string) => request<void>(`/users/${id}/status`, { method: 'PATCH', ...json({ status }) }, token, totp),
@@ -72,3 +75,4 @@ export const week2Api = {
   auditFilters: (token: string) => request<AuditFilters>('/audit-trail/filters', {}, token),
   exportAudit: (token: string, query: string, format: 'csv' | 'xlsx') => downloadAudit(token, query, format),
 }
+

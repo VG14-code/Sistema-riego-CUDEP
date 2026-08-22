@@ -84,6 +84,16 @@ public sealed class IoTTraceabilityController(AppDbContext db) : ControllerBase
         .Select(x => new { x.Id, x.Code, x.Name, x.SerialNumber, Type = x.DeviceType.Name, x.Owner, x.InventoryStatus, x.PurchaseDate, x.WarrantyUntil, x.AcquisitionCost, x.Currency, x.IsActive, WarrantyExpired = x.WarrantyUntil.HasValue && x.WarrantyUntil < DateOnly.FromDateTime(DateTime.UtcNow) })
         .ToListAsync(ct));
 
+    [HttpPatch("inventory/{deviceId:guid}"), Authorize(Policy = Policies.Technician)]
+    public async Task<IActionResult> UpdateInventory(Guid deviceId, InventoryUpdateRequest request, CancellationToken ct)
+    {
+        var item = await db.IoTDevices.FindAsync([deviceId], ct); if (item is null) return NotFound();
+        if (request.AcquisitionCost < 0 || request.Currency.Trim().Length != 3 || string.IsNullOrWhiteSpace(request.InventoryStatus)) return BadRequest(new { message = "Datos de inventario inválidos." });
+        if (request.WarrantyUntil.HasValue && request.PurchaseDate.HasValue && request.WarrantyUntil < request.PurchaseDate) return BadRequest(new { message = "La garantía no puede vencer antes de la compra." });
+        item.Owner = request.Owner?.Trim(); item.InventoryStatus = request.InventoryStatus.Trim(); item.PurchaseDate = request.PurchaseDate; item.WarrantyUntil = request.WarrantyUntil; item.AcquisitionCost = request.AcquisitionCost; item.Currency = request.Currency.Trim().ToUpperInvariant(); item.UpdatedAtUtc = DateTime.UtcNow;
+        await Save("IOT_INVENTORY_UPDATED", item.Code, ct); return NoContent();
+    }
+
     private async Task<string?> ValidateInstallation(DeviceInstallationRequest r, Guid? id, CancellationToken ct)
     {
         if (!await db.IoTDevices.AnyAsync(x => x.Id == r.DeviceId, ct)) return "Dispositivo inválido.";
@@ -97,4 +107,5 @@ public sealed class IoTTraceabilityController(AppDbContext db) : ControllerBase
     private Guid? UserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
     private async Task Save(string type, string detail, CancellationToken ct) { db.AccessAudits.Add(new AccessAudit { UserId = UserId(), EventType = type, Detail = detail }); await db.SaveChangesAsync(ct); }
 }
+
 

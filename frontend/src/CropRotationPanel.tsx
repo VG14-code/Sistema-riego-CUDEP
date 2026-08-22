@@ -1,0 +1,19 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+import { useEffect, useState, type FormEvent } from 'react'
+import type { AuthSession } from './week2Api'
+import { sprint2Api, type Crop, type Cycle, type Rotation, type Zone } from './sprint2Api'
+
+type Props={session:AuthSession;crops:Crop[];zones:Zone[];cycles:Cycle[];notify:(message:string)=>void}
+const plusMonths=(months:number)=>{const d=new Date();d.setMonth(d.getMonth()+months);return d.toISOString().slice(0,10)}
+export default function CropRotationPanel({session,crops,zones,cycles,notify}:Props){
+ const [items,setItems]=useState<Rotation[]>([]),[editing,setEditing]=useState<string>()
+ const [form,setForm]=useState({irrigationZoneId:'',cropId:'',previousCycleId:null as string|null,plannedStartDate:plusMonths(1),plannedEndDate:plusMonths(4),status:'Planificada',compatibilityNotes:''})
+ const load=async()=>{const data=await sprint2Api.rotations(session);setItems(data);setForm(x=>({...x,irrigationZoneId:x.irrigationZoneId||zones[0]?.id||'',cropId:x.cropId||crops[0]?.id||''}))}
+ useEffect(()=>{load().catch(e=>notify(String(e)))},[zones.length,crops.length])
+ const save=async(e:FormEvent)=>{e.preventDefault();await sprint2Api.saveRotation(session,form,editing);setEditing(undefined);setForm({...form,compatibilityNotes:''});notify('Rotación planificada y validada.');await load()}
+ const edit=(x:Rotation)=>{setEditing(x.id);setForm({irrigationZoneId:x.irrigationZoneId,cropId:x.cropId,previousCycleId:x.previousCycleId??null,plannedStartDate:x.plannedStartDate,plannedEndDate:x.plannedEndDate,status:x.status,compatibilityNotes:x.compatibilityNotes??''})}
+ return <section className="s2-panel crop-rotation"><h2>Rotación de cultivos</h2><p>Línea de tiempo por zona con control de solapamientos y justificación sanitaria cuando se repite un cultivo.</p><form className="s2-cycle-form" onSubmit={save}><label>Zona<select value={form.irrigationZoneId} onChange={e=>setForm({...form,irrigationZoneId:e.target.value})}>{zones.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label>Próximo cultivo<select value={form.cropId} onChange={e=>setForm({...form,cropId:e.target.value})}>{crops.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label>Ciclo anterior<select value={form.previousCycleId??''} onChange={e=>setForm({...form,previousCycleId:e.target.value||null})}><option value="">Detectar último ciclo</option>{cycles.filter(x=>x.irrigationZoneId===form.irrigationZoneId).map(x=><option key={x.id} value={x.id}>{x.name} · {x.crop}</option>)}</select></label><label>Inicio<input type="date" value={form.plannedStartDate} onChange={e=>setForm({...form,plannedStartDate:e.target.value})}/></label><label>Fin<input type="date" value={form.plannedEndDate} onChange={e=>setForm({...form,plannedEndDate:e.target.value})}/></label><label>Estado<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option>Planificada</option><option>Aprobada</option><option>Cancelada</option></select></label><label className="wide">Compatibilidad y manejo<textarea value={form.compatibilityNotes} onChange={e=>setForm({...form,compatibilityNotes:e.target.value})} placeholder="Justificación agronómica, abono verde, manejo sanitario…"/></label><button>{editing?'Actualizar rotación':'Planificar rotación'}</button></form><div className="rotation-timeline">{items.map(x=><article key={x.id}><span>{x.plannedStartDate} → {x.plannedEndDate}</span><h3>{x.zone} · {x.crop}</h3><p>{x.previousCrop?'Después de '+x.previousCrop:'Sin predecesor asociado'} · {x.status}</p>{x.compatibilityNotes&&<small>{x.compatibilityNotes}</small>}<button onClick={()=>edit(x)}>Editar</button><button className="danger" onClick={()=>sprint2Api.deleteRotation(session,x.id).then(load).catch(e=>notify(String(e)))}>Eliminar</button></article>)}</div></section>
+}
+
+
+
