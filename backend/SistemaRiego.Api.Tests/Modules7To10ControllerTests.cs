@@ -28,6 +28,21 @@ public sealed class Modules7To10ControllerTests
     }
 
     [Fact]
+    public async Task ManualIrrigation_UsesAggregateSafeVolumeAcrossActiveTanks()
+    {
+        var setup=await CreateSetup();
+        setup.Tank.CurrentLevelLiters=105;
+        var second=new WaterTank{Name="Tanque B",CapacityLiters=1000,CurrentLevelLiters=200,MinimumSafePercent=10,MaximumFillPercent=95};
+        setup.Db.WaterTanks.Add(second);await setup.Db.SaveChangesAsync();
+        var started=await setup.Manual.Start(new ManualIrrigationRequest(setup.Zone.Id,1,10,"Prueba multi-tanque",null),default);
+        Assert.IsType<OkObjectResult>(started);
+        var run=await setup.Db.IrrigationRuns.SingleAsync();
+        Assert.IsType<OkObjectResult>(await setup.Manual.Stop(run.Id,new StopIrrigationRequest("Fin"),default));
+        Assert.Equal(105,setup.Tank.CurrentLevelLiters);
+        Assert.Equal(190,second.CurrentLevelLiters);
+    }
+
+    [Fact]
     public async Task Pump_Start_RejectsTankAtMaximumSafeLevel()
     {
         var setup=await CreateSetup();
