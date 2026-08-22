@@ -1,17 +1,18 @@
 {
   "usuario": "AD\nAdministrador del sistema\nAdministrador",
-  "accesoGestionVisible": true,
+  "botonSuperiorDuplicadoAusente": true,
+  "botonContextualVisible": true,
   "resumenGestionVisible": true,
   "formularioVisible": true,
   "listaTanquesVisible": true,
   "tanqueOperativoVisible": true,
-  "tanquePrincipal": "64.6%\nRESERVA CONFIGURADA\nTanque principal CUDEP\n\n7,106 L de 11,000 L\n\nMínimo 25%\nMáximo 93%\nCapacidad total 2 válvulas\nSimular +500 L\nBOMBA MQTT · Esperando ACK\nBomba de abastecimiento 1\n\nPresión 2.4 bar · corriente 0 A\nÚltima parada 22/8/2026, 5:32:24 a. m.\n\nEncender",
+  "tanquePrincipal": "75.1%\nRESERVA CONFIGURADA\nTanque principal CUDEP\n\n7,506 L de 10,000 L\n\nMínimo 15%\nMáximo 93%\nCapacidad total 0 válvulas\nSimular +500 L\nBOMBA MQTT · Falla\nBomba de abastecimiento 1\n\nPresión 0.2 bar · corriente 0 A\n⚠ Nivel bajo: protección contra trabajo en seco\n\nEncender",
   "posicionesEnPagina": {
-    "acceso": {
-      "x": 1621.09375,
-      "y": 150.390625,
-      "width": 152.90625,
-      "height": 49.59375
+    "resumen": {
+      "x": 394,
+      "y": 222.375,
+      "width": 1380,
+      "height": 107.640625
     },
     "formulario": {
       "x": 394,

@@ -3,14 +3,21 @@ import path from 'node:path'
 import { chromium } from 'playwright'
 
 const webRoot=process.env.E2E_BASE_URL??'http://localhost:5173'
+const apiRoot=process.env.E2E_API_URL??'http://localhost:5080/api'
 const email=process.env.E2E_EMAIL??'admin@sistemariego.local'
 const password=process.env.E2E_PASSWORD
 if(!password)throw new Error('Define E2E_PASSWORD.')
 const output=path.resolve(process.cwd(),'..','artifacts','tank-crud-e2e')
 await mkdir(output,{recursive:true})
-
+const call=async(route,token,method='GET',body)=>{
+ const response=await fetch(apiRoot+route,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:body===undefined?undefined:JSON.stringify(body)})
+ const data=response.status===204?null:await response.json().catch(()=>null)
+ if(!response.ok)throw new Error(method+' '+route+': '+response.status+' '+JSON.stringify(data))
+ return data
+}
+const session=await call('/auth/login',undefined,'POST',{email,password})
 const result={}
-let browser
+let browser,secondName,originalMain
 try{
  browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-gpu']})
  const page=await browser.newPage({viewport:{width:1600,height:1000}})
@@ -24,6 +31,8 @@ try{
  const form=page.getByTestId('tank-management-form')
  await form.waitFor({timeout:15000})
  result.formularioGestionVisible=true
+ const originalTanks=await call('/water-supply/tanks',session.accessToken)
+ originalMain=originalTanks.find(t=>t.name==='Tanque principal CUDEP')
  await form.getByLabel('Nombre').fill('Validación visible')
  await form.getByLabel('Mínimo seguro (%)').fill('95')
  await form.getByLabel('Máximo de llenado (%)').fill('20')
@@ -33,7 +42,7 @@ try{
  result.validacionVisible=await validationMessage.textContent()
 
  const suffix=new Date().toISOString().replace(/\D/g,'').slice(0,14)
- const secondName=`Tanque experimental UI ${suffix}`
+ secondName='Tanque experimental UI '+suffix
  await form.getByLabel('Nombre').fill(secondName)
  await form.getByLabel('Capacidad (L)').fill('4500')
  await form.getByLabel('Nivel actual (L)').fill('2800')
@@ -96,6 +105,23 @@ try{
  await page.screenshot({path:inactivePath,fullPage:true})
 
  result.capturas=[twoTanksPath,editedPath,protectionPath,inactivePath]
+}finally{
+ await browser?.close()
+ const tanks=await call('/water-supply/tanks',session.accessToken)
+ for(const tank of tanks.filter(item=>item.name===secondName)){
+  if(tank.status!=='Inactivo')await call('/water-supply/tanks/'+tank.id+'/deactivate',session.accessToken,'PATCH')
+  await call('/water-supply/tanks/'+tank.id,session.accessToken,'DELETE')
+ }
+ if(originalMain)await call('/water-supply/tanks/'+originalMain.id,session.accessToken,'PUT',{
+  name:originalMain.name,
+  capacityLiters:originalMain.capacityLiters,
+  currentLevelLiters:originalMain.currentLevelLiters,
+  minimumSafePercent:originalMain.minimumSafePercent,
+  maximumFillPercent:originalMain.maximumFillPercent,
+  pumpIds:originalMain.pumps.map(pump=>pump.id),
+  isActive:originalMain.status!=='Inactivo',
+ })
+ result.datosTemporalesEliminados=true
  await writeFile(path.join(output,'tank-crud-e2e-report.json'),JSON.stringify(result,null,2))
-}finally{await browser?.close()}
+}
 console.log(JSON.stringify(result,null,2))

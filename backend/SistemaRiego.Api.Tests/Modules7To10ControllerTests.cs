@@ -68,6 +68,30 @@ public sealed class Modules7To10ControllerTests
         Assert.Equal(2,await setup.Db.WaterTanks.CountAsync());
     }
     [Fact]
+    public async Task Tank_Delete_AllowsOnlyInactiveTankWithoutPumps()
+    {
+        var setup=await CreateSetup();
+        var removable=new WaterTank{Name="Temporal E2E",CapacityLiters=1000,CurrentLevelLiters=0,MinimumSafePercent=10,MaximumFillPercent=90,Status="Inactivo"};
+        setup.Db.WaterTanks.Add(removable);await setup.Db.SaveChangesAsync();
+
+        Assert.IsType<NoContentResult>(await setup.Supply.DeleteUnusedTank(removable.Id,default));
+        Assert.Null(await setup.Db.WaterTanks.FindAsync(removable.Id));
+        Assert.IsType<ConflictObjectResult>(await setup.Supply.DeleteUnusedTank(setup.Tank.Id,default));
+    }
+
+    [Fact]
+    public async Task Pump_Start_FaultMessage_ExplainsHowToUnlock()
+    {
+        var setup=await CreateSetup();
+        setup.Pump.HasUnacknowledgedFault=true;await setup.Db.SaveChangesAsync();
+
+        var result=await setup.Supply.Start(setup.Pump.Id,new PumpCommandRequest("Prueba de enclavamiento"),default);
+
+        var conflict=Assert.IsType<ConflictObjectResult>(result);
+        var payload=System.Text.Json.JsonSerializer.Serialize(conflict.Value);
+        Assert.Contains("centro de alertas para poder operarla",payload,StringComparison.Ordinal);
+    }
+    [Fact]
     public async Task Pump_Start_RejectsSecondPendingSupplyCycle()
     {
         var setup=await CreateSetup();

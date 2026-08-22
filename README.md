@@ -73,6 +73,8 @@ El comando espera el dashboard y una lectura real de telemetría, abre el centro
 
 La reproducción literal del error del controlador integrado se conserva en `artifacts/visual-validation/acl-diagnostic.txt` y las comprobaciones CSS en `artifacts/visual-validation/capture-report.json`.
 
+Los escenarios E2E que creen datos de catálogo deben eliminarlos en un bloque `finally` y restaurar cualquier registro permanente que modifiquen. `tank-crud-ui-e2e.mjs` elimina su tanque temporal mediante el endpoint protegido para tanques inactivos sin bombas; `crop-types-crud.mjs` elimina su tipo de cultivo temporal. Esta regla también aplica a futuros cultivos, sectores, usuarios y demás entidades de prueba.
+
 ## Credenciales y 2FA de desarrollo
 
 El administrador sembrado usa `admin@sistemariego.local`. La contraseña y los secretos MQTT no se guardan en Git; consulta los valores configurados en esta máquina con:
