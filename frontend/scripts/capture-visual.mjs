@@ -180,26 +180,111 @@ try {
   const module8Path = path.join(outputDir, 'module-8-notifications-drawer.png')
   await page.screenshot({ path: module8Path })
 
-  const measureModule = async (navigationName, selector) => {
-    await page.getByRole('button', { name: navigationName }).click()
-    await page.locator(selector).waitFor({ state: 'visible', timeout: 15_000 })
-    return page.evaluate(targetSelector => {
-      const panel = document.querySelector('.n-center aside')?.getBoundingClientRect()
-      const target = document.querySelector(targetSelector)?.getBoundingClientRect()
-      if (!panel || !target) throw new Error('No se pudo medir ' + targetSelector + '.')
-      return { selector: targetSelector, panel: panel.toJSON(), target: target.toJSON(), overlapsPanel: target.right > panel.left }
-    }, selector)
+  const moduleChecks = [
+    ['Inicio', 'inicio'],
+    ['Finca', 'territory'],
+    ['Lecturas', 'telemetry'],
+    ['Agronomía', 'agronomy'],
+    ['Cultivos', 'planning'],
+    ['Automatización', 'automation'],
+    ['Bomba y tanque', 'supply'],
+    ['Energía solar', 'energy'],
+    ['Riego manual', 'manual'],
+    ['Consumo', 'operations'],
+    ['Alertas', 'alerts'],
+    ['Mantenimiento', 'maintenance'],
+    ['Administración', 'overview'],
+    ['Usuarios', 'users'],
+    ['Seguridad 2FA', 'security'],
+    ['Catálogos', 'catalogs'],
+    ['Red IoT', 'iot'],
+    ['Parámetros', 'settings'],
+    ['Auditoría', 'audit'],
+  ]
+  const moduleLayouts = {}
+  const verificationPaths = {}
+
+  const measureCurrentModule = async (navigationName, moduleId) => {
+    const navButton = page.locator('.w2-app > aside nav button').filter({ hasText: navigationName }).first()
+    await navButton.click()
+    await page.waitForFunction(
+      ({ label }) => Array.from(document.querySelectorAll('.w2-app > aside nav button')).some(button => button.classList.contains('active') && button.textContent?.trim().includes(label)),
+      { label: navigationName },
+    )
+    await page.waitForTimeout(700)
+
+    const result = await page.evaluate(({ label, id }) => {
+      const panelElement = document.querySelector('.n-center aside')
+      const contentElement = document.querySelector('.w2-content')
+      const panel = panelElement?.getBoundingClientRect()
+      const content = contentElement?.getBoundingClientRect()
+      if (!panel || !content || !contentElement) throw new Error('No se pudo medir el layout global de ' + label + '.')
+
+      const isVisible = element => {
+        const style = getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0
+      }
+      const candidates = Array.from(contentElement.querySelectorAll('button,input,select,textarea,a,article,form,table,[class*="grid"],[class*="layout"],[class*="card"],[class*="item"]')).filter(isVisible)
+      const overlapping = candidates.filter(element => {
+        const rect = element.getBoundingClientRect()
+        return rect.right > panel.left + 1 && rect.left < panel.right && rect.bottom > panel.top && rect.top < panel.bottom
+      }).map(element => ({
+        tag: element.tagName.toLowerCase(),
+        className: typeof element.className === 'string' ? element.className : '',
+        text: element.textContent?.trim().replace(/\s+/g, ' ').slice(0, 90),
+        right: element.getBoundingClientRect().right,
+      })).slice(0, 12)
+      const inaccessible = candidates.filter(element => {
+        if (!element.matches('button,input,select,textarea,a')) return false
+        const rect = element.getBoundingClientRect()
+        if (rect.bottom <= 0 || rect.top >= innerHeight || rect.right <= 0 || rect.left >= innerWidth) return false
+        const x = Math.min(Math.max(rect.left + rect.width / 2, 0), innerWidth - 1)
+        const y = Math.min(Math.max(rect.top + rect.height / 2, 0), innerHeight - 1)
+        const hit = document.elementFromPoint(x, y)
+        return Boolean(hit && hit !== element && !element.contains(hit) && !hit.contains(element))
+      }).map(element => {
+        const rect = element.getBoundingClientRect()
+        const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+        return {
+          tag: element.tagName.toLowerCase(),
+          className: typeof element.className === 'string' ? element.className : '',
+          text: element.textContent?.trim().replace(/\s+/g, ' ').slice(0, 90),
+          hitTag: hit?.tagName.toLowerCase(),
+          hitClass: typeof hit?.className === 'string' ? hit.className : '',
+        }
+      }).slice(0, 12)
+
+      return {
+        id,
+        label,
+        panel: panel.toJSON(),
+        content: content.toJSON(),
+        contentClass: contentElement.className,
+        reservedGap: panel.left - content.right,
+        overlapping,
+        inaccessible,
+        ok: content.right <= panel.left && overlapping.length === 0 && inaccessible.length === 0,
+      }
+    }, { label: navigationName, id: moduleId })
+
+    if (!result.ok) throw new Error('El drawer global falla en ' + navigationName + ': ' + JSON.stringify(result))
+    return result
   }
-  const automationLayout = await measureModule('Automatización', '.o-rule-grid')
-  const manualIrrigationLayout = await measureModule('Riego manual', '.o-manual-layout')
-  if (automationLayout.overlapsPanel || manualIrrigationLayout.overlapsPanel) {
-    throw new Error('Otra pantalla operativa queda cubierta: ' + JSON.stringify({ automationLayout, manualIrrigationLayout }))
+
+  for (const [navigationName, moduleId] of moduleChecks) {
+    moduleLayouts[moduleId] = await measureCurrentModule(navigationName, moduleId)
+    if (moduleId === 'territory' || moduleId === 'telemetry' || moduleId === 'settings') {
+      const screenshotPath = path.join(outputDir, `global-drawer-${moduleId}.png`)
+      await page.screenshot({ path: screenshotPath })
+      verificationPaths[moduleId] = screenshotPath
+    }
   }
 
   const reportPath = path.join(outputDir, 'capture-report.json')
-  await writeFile(reportPath, JSON.stringify({ generatedAtUtc: new Date().toISOString(), baseUrl, dashboardPath, notificationsPath, module8Path, visualChecks, module1Layout, module8Layout, automationLayout, manualIrrigationLayout }, null, 2))
+  await writeFile(reportPath, JSON.stringify({ generatedAtUtc: new Date().toISOString(), baseUrl, dashboardPath, notificationsPath, module8Path, verificationPaths, visualChecks, module1Layout, module8Layout, moduleLayouts }, null, 2))
 
-  console.log(JSON.stringify({ dashboardPath, notificationsPath, module8Path, reportPath, userDataDir, visualChecks, module1Layout, module8Layout, automationLayout, manualIrrigationLayout }, null, 2))
+  console.log(JSON.stringify({ dashboardPath, notificationsPath, module8Path, verificationPaths, reportPath, userDataDir, visualChecks, module1Layout, module8Layout, moduleLayouts }, null, 2))
 } finally {
   await context?.close()
   await new Promise(resolve => setTimeout(resolve, 300))

@@ -64,7 +64,7 @@ function useAlerts(session: Session, notify: (message: string) => void, onRaised
   return { items, load }
 }
 
-export function NotificationCenter({ session }: { session: Session }) {
+export function NotificationCenter({ session, onOpenChange }: { session: Session; onOpenChange?: (open: boolean) => void }) {
   const [open, setOpen] = useState(false)
   const [toast, setToast] = useState<AlertItem | null>(null)
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting')
@@ -89,11 +89,12 @@ export function NotificationCenter({ session }: { session: Session }) {
     await load()
   }
   const realtimeLabel = realtimeStatus === 'online' ? 'Tiempo real activo' : realtimeStatus === 'reconnecting' ? 'Reconectando en tiempo real' : realtimeStatus === 'connecting' ? 'Conectando en tiempo real' : 'Tiempo real no disponible'
+  const changeOpen = (nextOpen: boolean) => { setOpen(nextOpen); onOpenChange?.(nextOpen) }
   return <div className={`n-center${open ? ' open' : ''}`}>
     <span className={`n-realtime ${realtimeStatus}`} role="status" title={realtimeStatus === 'reconnecting' ? 'Se perdió temporalmente la conexión en tiempo real. Reintentando automáticamente.' : realtimeLabel}><i/>{realtimeLabel}</span>
-    <button className="n-bell" onClick={() => setOpen(!open)} aria-label="Centro de notificaciones">♢{active.length > 0 && <b>{active.length}</b>}</button>
-    {toast && <section className={`n-toast ${toast.severity.toLocaleLowerCase('es')}`} role="status" aria-live="assertive"><header><b>Nueva alerta {toast.severity.toLocaleLowerCase('es')}</b><button aria-label="Descartar notificación" onClick={() => setToast(null)}>×</button></header><Message description={toast.description} name={toast.relatedEntityName} type={toast.relatedEntityType} id={toast.relatedEntityId}/><small>{when(toast.raisedAtUtc)}</small><button className="n-toast-detail" onClick={() => { setOpen(true); setToast(null) }}>Ver detalle</button></section>}
-    {open && <aside><header><div><small>CENTRO DE NOTIFICACIONES</small><h2>Alertas activas</h2></div><button onClick={() => setOpen(false)}>×</button></header>
+    <button className="n-bell" onClick={() => changeOpen(!open)} aria-label="Centro de notificaciones">♢{active.length > 0 && <b>{active.length}</b>}</button>
+    {toast && <section className={`n-toast ${toast.severity.toLocaleLowerCase('es')}`} role="status" aria-live="assertive"><header><b>Nueva alerta {toast.severity.toLocaleLowerCase('es')}</b><button aria-label="Descartar notificación" onClick={() => setToast(null)}>×</button></header><Message description={toast.description} name={toast.relatedEntityName} type={toast.relatedEntityType} id={toast.relatedEntityId}/><small>{when(toast.raisedAtUtc)}</small><button className="n-toast-detail" onClick={() => { changeOpen(true); setToast(null) }}>Ver detalle</button></section>}
+    {open && <aside><header><div><small>CENTRO DE NOTIFICACIONES</small><h2>Alertas activas</h2></div><button onClick={() => changeOpen(false)}>×</button></header>
       {active.length > 0 && <section className="n-summary" aria-label="Resumen de alertas activas"><b>{summary}</b><small>{groups.length} {groups.length === 1 ? 'condición activa' : 'condiciones activas'} agrupadas</small></section>}
       <div className="n-mini-list">
        {groups.slice(0, 8).map(group => {

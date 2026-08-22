@@ -1,9 +1,14 @@
 {
-  "generatedAtUtc": "2026-08-22T05:44:28.210Z",
+  "generatedAtUtc": "2026-08-22T06:10:08.703Z",
   "baseUrl": "http://localhost:5173",
   "dashboardPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\dashboard-module-1.png",
   "notificationsPath": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\notifications-panel.png",
   "module8Path": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\module-8-notifications-drawer.png",
+  "verificationPaths": {
+    "territory": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\global-drawer-territory.png",
+    "telemetry": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\global-drawer-telemetry.png",
+    "settings": "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\visual-validation\\global-drawer-settings.png"
+  },
   "visualChecks": {
     "panelBackground": "rgb(255, 255, 255)",
     "panelColor": "rgb(24, 63, 54)",
@@ -40,12 +45,12 @@
         "selector": ".m-kpis",
         "rect": {
           "x": 328,
-          "y": 293.0093078613281,
-          "width": 716,
-          "height": 249.99996948242188,
-          "top": 293.0093078613281,
-          "right": 1044,
-          "bottom": 543.00927734375,
+          "y": 292.9005126953125,
+          "width": 696,
+          "height": 424.125,
+          "top": 292.9005126953125,
+          "right": 1024,
+          "bottom": 717.0255126953125,
           "left": 328
         }
       },
@@ -53,12 +58,12 @@
         "selector": ".s1-dashboard-grid",
         "rect": {
           "x": 328,
-          "y": 558.6875,
-          "width": 716,
-          "height": 728.546875,
-          "top": 558.6875,
-          "right": 1044,
-          "bottom": 1287.234375,
+          "y": 732.8125,
+          "width": 696,
+          "height": 778.28125,
+          "top": 732.8125,
+          "right": 1024,
+          "bottom": 1511.09375,
           "left": 328
         }
       },
@@ -66,18 +71,18 @@
         "selector": ".s1-readings",
         "rect": {
           "x": 328,
-          "y": 1303.55615234375,
-          "width": 716,
-          "height": 532.296875,
-          "top": 1303.55615234375,
-          "right": 1044,
-          "bottom": 1835.85302734375,
+          "y": 1527.3067626953125,
+          "width": 696,
+          "height": 1182.7342529296875,
+          "top": 1527.3067626953125,
+          "right": 1024,
+          "bottom": 2710.041015625,
           "left": 328
         }
       }
     ],
     "centerClass": "n-center open",
-    "contentPaddingRight": "556px",
+    "contentPaddingRight": "80px",
     "viewportWidth": 1600,
     "overlaps": []
   },
@@ -94,73 +99,578 @@
     },
     "pump": {
       "x": 349.796875,
-      "y": 525.90625,
-      "width": 672.40625,
-      "height": 115.53125,
-      "top": 525.90625,
-      "right": 1022.203125,
-      "bottom": 641.4375,
+      "y": 706.96875,
+      "width": 652.40625,
+      "height": 235.5,
+      "top": 706.96875,
+      "right": 1002.203125,
+      "bottom": 942.46875,
       "left": 349.796875
     },
     "stopButton": {
-      "x": 920.140625,
-      "y": 560.484375,
-      "width": 85.0625,
+      "x": 366.796875,
+      "y": 879.09375,
+      "width": 618.40625,
       "height": 46.375,
-      "top": 560.484375,
-      "right": 1005.203125,
-      "bottom": 606.859375,
-      "left": 920.140625
+      "top": 879.09375,
+      "right": 985.203125,
+      "bottom": 925.46875,
+      "left": 366.796875
     },
     "pumpOverlapsPanel": false,
     "stopButtonAccessible": true
   },
-  "automationLayout": {
-    "selector": ".o-rule-grid",
-    "panel": {
-      "x": 1114,
-      "y": 80,
-      "width": 460,
-      "height": 800,
-      "top": 80,
-      "right": 1574,
-      "bottom": 880,
-      "left": 1114
+  "moduleLayouts": {
+    "inicio": {
+      "id": "inicio",
+      "label": "Inicio",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 4175.765625,
+        "top": 0,
+        "right": 1104,
+        "bottom": 4175.765625,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
     },
-    "target": {
-      "x": 328,
-      "y": 414.53125,
-      "width": 716,
-      "height": 376.6875,
-      "top": 414.53125,
-      "right": 1044,
-      "bottom": 791.21875,
-      "left": 328
+    "territory": {
+      "id": "territory",
+      "label": "Finca",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 2202.984375,
+        "top": 0,
+        "right": 1104,
+        "bottom": 2202.984375,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
     },
-    "overlapsPanel": false
-  },
-  "manualIrrigationLayout": {
-    "selector": ".o-manual-layout",
-    "panel": {
-      "x": 1114,
-      "y": 80,
-      "width": 460,
-      "height": 800,
-      "top": 80,
-      "right": 1574,
-      "bottom": 880,
-      "left": 1114
+    "telemetry": {
+      "id": "telemetry",
+      "label": "Lecturas",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 2794.6875,
+        "top": 0,
+        "right": 1104,
+        "bottom": 2794.6875,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
     },
-    "target": {
-      "x": 328,
-      "y": 292.921875,
-      "width": 716,
-      "height": 829.59375,
-      "top": 292.921875,
-      "right": 1044,
-      "bottom": 1122.515625,
-      "left": 328
+    "agronomy": {
+      "id": "agronomy",
+      "label": "Agronomía",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 2472.1875,
+        "top": 0,
+        "right": 1104,
+        "bottom": 2472.1875,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
     },
-    "overlapsPanel": false
+    "planning": {
+      "id": "planning",
+      "label": "Cultivos",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 1910.46875,
+        "top": 0,
+        "right": 1104,
+        "bottom": 1910.46875,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    },
+    "automation": {
+      "id": "automation",
+      "label": "Automatización",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 1180.75,
+        "top": 0,
+        "right": 1104,
+        "bottom": 1180.75,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    },
+    "supply": {
+      "id": "supply",
+      "label": "Bomba y tanque",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 1286.640625,
+        "top": 0,
+        "right": 1104,
+        "bottom": 1286.640625,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    },
+    "energy": {
+      "id": "energy",
+      "label": "Energía solar",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 1335.21875,
+        "top": 0,
+        "right": 1104,
+        "bottom": 1335.21875,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    },
+    "manual": {
+      "id": "manual",
+      "label": "Riego manual",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 2555.234375,
+        "top": 0,
+        "right": 1104,
+        "bottom": 2555.234375,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    },
+    "operations": {
+      "id": "operations",
+      "label": "Consumo",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 3368.09375,
+        "top": 0,
+        "right": 1104,
+        "bottom": 3368.09375,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    },
+    "alerts": {
+      "id": "alerts",
+      "label": "Alertas",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 9011.65625,
+        "top": 0,
+        "right": 1104,
+        "bottom": 9011.65625,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    },
+    "maintenance": {
+      "id": "maintenance",
+      "label": "Mantenimiento",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 8189.046875,
+        "top": 0,
+        "right": 1104,
+        "bottom": 8189.046875,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    },
+    "overview": {
+      "id": "overview",
+      "label": "Administración",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 1372.484375,
+        "top": 0,
+        "right": 1104,
+        "bottom": 1372.484375,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    },
+    "users": {
+      "id": "users",
+      "label": "Usuarios",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 1041.5,
+        "top": 0,
+        "right": 1104,
+        "bottom": 1041.5,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    },
+    "security": {
+      "id": "security",
+      "label": "Seguridad 2FA",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 1000,
+        "top": 0,
+        "right": 1104,
+        "bottom": 1000,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    },
+    "catalogs": {
+      "id": "catalogs",
+      "label": "Catálogos",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 1000,
+        "top": 0,
+        "right": 1104,
+        "bottom": 1000,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    },
+    "iot": {
+      "id": "iot",
+      "label": "Red IoT",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 2925.109375,
+        "top": 0,
+        "right": 1104,
+        "bottom": 2925.109375,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    },
+    "settings": {
+      "id": "settings",
+      "label": "Parámetros",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 4203.390625,
+        "top": 0,
+        "right": 1104,
+        "bottom": 4203.390625,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    },
+    "audit": {
+      "id": "audit",
+      "label": "Auditoría",
+      "panel": {
+        "x": 1114,
+        "y": 80,
+        "width": 460,
+        "height": 800,
+        "top": 80,
+        "right": 1574,
+        "bottom": 880,
+        "left": 1114
+      },
+      "content": {
+        "x": 248,
+        "y": 0,
+        "width": 856,
+        "height": 28946.609375,
+        "top": 0,
+        "right": 1104,
+        "bottom": 28946.609375,
+        "left": 248
+      },
+      "contentClass": "w2-content notification-drawer-open",
+      "reservedGap": 10,
+      "overlapping": [],
+      "inaccessible": [],
+      "ok": true
+    }
   }
 }
