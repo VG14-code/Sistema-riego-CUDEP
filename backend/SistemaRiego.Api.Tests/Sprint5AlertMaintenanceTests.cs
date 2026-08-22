@@ -80,6 +80,28 @@ public sealed class Sprint5AlertMaintenanceTests
     }
 
     [Fact]
+    public async Task AlertList_FiltersActiveAcknowledgedAndResolvedStates()
+    {
+        await using var db=Db();
+        db.SystemAlerts.AddRange(
+            new SystemAlert{Fingerprint="STATE-A",Type="Prueba",Description="Activa",Status="Activa"},
+            new SystemAlert{Fingerprint="STATE-K",Type="Prueba",Description="Reconocida",Status="Reconocida"},
+            new SystemAlert{Fingerprint="STATE-R",Type="Prueba",Description="Resuelta",Status="Resuelta"});
+        await db.SaveChangesAsync();
+        var controller=new AlertsController(db,new FakeAlerts()){ControllerContext=Context("operador@test.local")};
+        foreach(var status in new[]{"Activa","Reconocida","Resuelta"})
+        {
+            var result=Assert.IsType<OkObjectResult>(await controller.List(null,null,status,null,null,200,default));
+            var item=Assert.Single(Assert.IsAssignableFrom<IEnumerable<SystemAlert>>(result.Value));
+            Assert.Equal(status,item.Status);
+        }
+        var active=await db.SystemAlerts.SingleAsync(x=>x.Status=="Activa");
+        await controller.Acknowledge(active.Id,default);
+        Assert.Equal("Reconocida",active.Status);
+        Assert.Null(active.ResolvedAtUtc);
+    }
+
+    [Fact]
     public async Task Escalation_CreatesSingleAutomaticMaintenanceIncident()
     {
         await using var db = Db(); var alert = new SystemAlert { Fingerprint = "CRIT", Type = "Falla de dispositivo", Severity = "Crítica", Description = "ACK agotado", RelatedEntityType = "Válvula", RelatedEntityId = "V1", RaisedAtUtc = DateTime.UtcNow.AddMinutes(-60) }; db.Add(alert); await db.SaveChangesAsync();
