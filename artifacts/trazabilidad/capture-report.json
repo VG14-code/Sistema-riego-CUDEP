@@ -1,0 +1,22 @@
+{
+  "generatedAtUtc": "2026-08-22T21:58:32.375Z",
+  "baseUrl": "http://localhost:5173",
+  "captures": [
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m01-s01-s04-inicio-operativo.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m02-s05-s10-territorio-suelos.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m02-s11-s24-catalogos.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m02-s17-marcas.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m02-s17-modelos.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m03-s25-s32-usuarios-seguridad-sesiones.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m03-s29-s30-autenticacion-2fa.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m03-s32-autorizaciones-bitacora.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m04-s33-s39-red-iot.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m04-s35-s36-comunicacion-heartbeat.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m04-s34-s39-trazabilidad-iot.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m05-s41-s46-telemetria-historial-calidad.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m05-s40-configuracion-sensores.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m05-s45-calibracion.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m06-s47-s51-gestion-agronomica.png",
+    "C:\\Users\\VICTOR\\Desktop\\Sistema de Riego\\artifacts\\trazabilidad\\m07-s52-s56-planificacion-calendario-rotacion.png"
+  ]
+}
