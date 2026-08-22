@@ -60,6 +60,19 @@ public sealed class Sprint5AlertMaintenanceTests
         await processor.EvaluateAsync(DateTime.UtcNow, default); await processor.EvaluateAsync(DateTime.UtcNow, default);
         var incident = Assert.Single(db.MaintenanceIncidents); Assert.Equal("Automática desde alerta", incident.Origin); Assert.Equal(alert.Id, incident.SystemAlertId); Assert.Equal(1, alert.EscalationLevel);
     }
+    [Fact]
+    public async Task Alert_RemainsActiveWhenOnlyTimePasses()
+    {
+        await using var db = Db();
+        var alert = new SystemAlert { Fingerprint = "DEVICE:OFFLINE", Type = "Conexión", Severity = "Crítica", Description = "El dispositivo sigue sin conexión.", RaisedAtUtc = DateTime.UtcNow.AddMinutes(-10) };
+        db.Add(alert); await db.SaveChangesAsync();
+        var processor = new AlertEscalationProcessor(db, new FakeAlerts(), Options.Create(new AlertOptions { EscalationMinutes = 1, IncidentMinutes = 2 }));
+
+        await processor.EvaluateAsync(DateTime.UtcNow.AddHours(1), default);
+
+        Assert.Equal("Activa", alert.Status);
+        Assert.Null(alert.ResolvedAtUtc);
+    }
 
     [Fact]
     public async Task MaintenanceController_CreatesPlanAndResolvesIncident()

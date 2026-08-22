@@ -70,6 +70,17 @@ public sealed class TelemetryIngestionService(AppDbContext db, IHubContext<Telem
                     sensor.Device.Node.OperationalStatusId = onlineId.Value;
                 }
             }
+            var recoveredFingerprints = new List<string> { $"IOT:SENSOR:{sensor.Id}:OFFLINE" };
+            if (sensor.Device is not null)
+            {
+                recoveredFingerprints.Add($"IOT:DEVICE:{sensor.Device.Id}:OFFLINE");
+                if (sensor.Device.Node is not null) recoveredFingerprints.Add($"IOT:NODE:{sensor.Device.Node.Id}:OFFLINE");
+            }
+            foreach (var alert in await db.SystemAlerts.Where(x => recoveredFingerprints.Contains(x.Fingerprint) && (x.Status == "Activa" || x.Status == "Reconocida")).ToListAsync(cancellationToken))
+            {
+                alert.Status = "Resuelta";
+                alert.ResolvedAtUtc = DateTime.UtcNow;
+            }
         }
         await db.SaveChangesAsync(cancellationToken);
         var zoneName = reading.IrrigationZoneId.HasValue

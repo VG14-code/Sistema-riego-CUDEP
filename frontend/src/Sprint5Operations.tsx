@@ -5,6 +5,7 @@ import './sprint5.css'
 interface Session { accessToken: string; user: { fullName: string; roles: string[] } }
 interface Props { session: Session; notify: (message: string) => void }
 interface AlertItem { id: number; type: string; severity: string; status: string; origin: string; description: string; relatedEntityType?: string; relatedEntityId?: string; relatedEntityName?: string; raisedAtUtc: string; escalationLevel: number }
+interface LocalNotice { id: string; message: string; raisedAtUtc: string }
 interface AlertGroup { key: string; items: AlertItem[] }
 interface Plan { id: string; name: string; frequency: string; intervalDays?: number; equipmentType: string; equipmentId: string; scheduledAtUtc: string; status: string; assignedToEmail?: string; notes?: string }
 interface Incident { id: number; title: string; description: string; equipmentType: string; equipmentId: string; equipmentName?: string; severity: string; status: string; origin: string; createdAtUtc: string; assignedToEmail?: string; notes?: string }
@@ -58,7 +59,7 @@ function useAlerts(session: Session, notify: (message: string) => void, onRaised
   return { items, load }
 }
 
-export function NotificationCenter({ session, localNotice }: { session: Session; localNotice: string }) {
+export function NotificationCenter({ session, localNotices, onAcknowledgeLocal }: { session: Session; localNotices: LocalNotice[]; onAcknowledgeLocal: (id: string) => void }) {
   const [open, setOpen] = useState(false)
   const [toast, setToast] = useState<AlertItem | null>(null)
   const quiet = useCallback(() => undefined, [])
@@ -76,21 +77,21 @@ export function NotificationCenter({ session, localNotice }: { session: Session;
     const timer = window.setTimeout(() => setToast(null), 7000)
     return () => window.clearTimeout(timer)
   }, [toast])
-  useEffect(() => { if (localNotice) setOpen(true) }, [localNotice])
+  useEffect(() => { if (localNotices.length > 0) setOpen(true) }, [localNotices.length])
   const acknowledge = async (alerts: AlertItem[]) => {
     await Promise.all(alerts.map(item => api(`/alerts/${item.id}/acknowledge`, session.accessToken, 'POST')))
     await load()
   }
   return <div className="n-center">
-    <button className="n-bell" onClick={() => setOpen(!open)} aria-label="Centro de notificaciones">♢{active.length > 0 && <b>{active.length}</b>}</button>
+    <button className="n-bell" onClick={() => setOpen(!open)} aria-label="Centro de notificaciones">♢{active.length + localNotices.length > 0 && <b>{active.length + localNotices.length}</b>}</button>
     {toast && <section className={`n-toast ${toast.severity.toLocaleLowerCase('es')}`} role="status" aria-live="assertive"><header><b>Nueva alerta {toast.severity.toLocaleLowerCase('es')}</b><button aria-label="Descartar notificación" onClick={() => setToast(null)}>×</button></header><Message description={toast.description} name={toast.relatedEntityName} type={toast.relatedEntityType} id={toast.relatedEntityId}/><small>{when(toast.raisedAtUtc)}</small><button className="n-toast-detail" onClick={() => { setOpen(true); setToast(null) }}>Ver detalle</button></section>}
     {open && <aside><header><div><small>CENTRO DE NOTIFICACIONES</small><h2>Alertas activas</h2></div><button onClick={() => setOpen(false)}>×</button></header>
-      {localNotice && <div className="n-local"><b>Actividad de interfaz</b><span>{localNotice}</span><small>Origen: interacción local</small></div>}
+      {localNotices.map(notice => <div className="n-local" key={notice.id}><b>Actividad de interfaz</b><span>{notice.message}</span><small>Origen: interacción local · {when(notice.raisedAtUtc)}</small><button onClick={() => onAcknowledgeLocal(notice.id)}>Reconocer</button></div>)}
       {active.length > 0 && <section className="n-summary" aria-label="Resumen de alertas activas"><b>{summary}</b><small>{groups.length} {groups.length === 1 ? 'condición activa' : 'condiciones activas'} agrupadas</small></section>}
       <div className="n-mini-list">{groups.slice(0, 8).map(group => {
         const latest = group.items[0]
         return <article key={group.key} className={latest.severity.toLocaleLowerCase('es')}><div className="n-group-heading"><b>{latest.relatedEntityName ?? latest.type}</b>{group.items.length > 1 && <em>{group.items.length} intentos</em>}</div><Message description={latest.description} name={latest.relatedEntityName} type={latest.relatedEntityType} id={latest.relatedEntityId}/><small>Última ocurrencia: {when(latest.raisedAtUtc)}</small>{group.items.length > 1 && <details className="n-occurrences"><summary>Ver los {group.items.length} intentos fallidos</summary>{group.items.map((item, index) => <div key={item.id}><b>Intento {group.items.length - index}</b><time>{when(item.raisedAtUtc)}</time><Message description={item.description} name={item.relatedEntityName} type={item.relatedEntityType} id={item.relatedEntityId}/></div>)}</details>}<button onClick={() => acknowledge(group.items)}>Reconocer {group.items.length > 1 ? 'todas' : ''}</button></article>
-      })}{active.length === 0 && <p>Sin alertas activas.</p>}</div>
+      })}{active.length === 0 && localNotices.length === 0 && <p>Sin alertas activas.</p>}</div>
     </aside>}
   </div>
 }
