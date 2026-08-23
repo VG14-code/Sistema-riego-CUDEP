@@ -64,6 +64,7 @@ builder.Services.AddIdentityCore<User>(options =>
 }).AddRoles<Role>().AddEntityFrameworkStores<AppDbContext>().AddDefaultTokenProviders();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPermissionResolver, PermissionResolver>();
+builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddScoped<IEmailSender>(services =>
 {
     var settings = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<EmailOptions>>().Value;
@@ -112,6 +113,9 @@ builder.Services.AddAuthorization(o =>
     o.AddPolicy(Policies.Administrator, p => p.RequireRole(RoleNames.Administrator));
     o.AddPolicy(Policies.Technician, p => p.RequireRole(RoleNames.Administrator, RoleNames.Technician));
     o.AddPolicy(Policies.Operator, p => p.RequireRole(RoleNames.Administrator, RoleNames.Technician, RoleNames.Operator));
+    o.AddPolicy(PermissionPolicies.DeviceCatalogsRead, p => p.Requirements.Add(new PermissionRequirement(PermissionCodes.DeviceCatalogsRead)));
+    o.AddPolicy(PermissionPolicies.DeviceCatalogsManage, p => p.Requirements.Add(new PermissionRequirement(PermissionCodes.DeviceCatalogsManage)));
+    o.AddPolicy(PermissionPolicies.DeviceCatalogsDelete, p => p.Requirements.Add(new PermissionRequirement(PermissionCodes.DeviceCatalogsDelete)));
 });
 builder.Services.AddCors(o => o.AddPolicy("Frontend", p => p.WithOrigins(builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? ["http://localhost:5173"]).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
