@@ -63,6 +63,7 @@ builder.Services.AddIdentityCore<User>(options =>
     options.User.RequireUniqueEmail = true;
 }).AddRoles<Role>().AddEntityFrameworkStores<AppDbContext>().AddDefaultTokenProviders();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IPermissionResolver, PermissionResolver>();
 builder.Services.AddScoped<IEmailSender>(services =>
 {
     var settings = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<EmailOptions>>().Value;
