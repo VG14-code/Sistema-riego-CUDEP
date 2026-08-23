@@ -31,15 +31,64 @@ public static class DbSeeder
             (PermissionCodes.ReportsRead, "Consultar reportes"),
             (PermissionCodes.DeviceCatalogsRead, "Consultar marcas y modelos de dispositivos"),
             (PermissionCodes.DeviceCatalogsManage, "Crear y editar marcas y modelos de dispositivos"),
-            (PermissionCodes.DeviceCatalogsDelete, "Eliminar marcas y modelos de dispositivos")
+            (PermissionCodes.DeviceCatalogsDelete, "Eliminar marcas y modelos de dispositivos"),
+            (PermissionCodes.AgronomyRead, "Consultar cultivos, etapas y requerimientos"),
+            (PermissionCodes.AgronomyManage, "Gestionar cultivos, etapas y requerimientos"),
+            (PermissionCodes.AgronomyDelete, "Eliminar tipos de cultivo"),
+            (PermissionCodes.AlertsRead, "Consultar alertas"),
+            (PermissionCodes.AlertsManage, "Crear y resolver alertas manuales"),
+            (PermissionCodes.AutomationRead, "Consultar reglas de automatización"),
+            (PermissionCodes.AutomationManage, "Gestionar reglas de automatización"),
+            (PermissionCodes.CropPlanningRead, "Consultar planificación y rotación de cultivos"),
+            (PermissionCodes.CropPlanningManage, "Gestionar ciclos y rotaciones de cultivo"),
+            (PermissionCodes.CropPlanningDelete, "Eliminar ciclos y rotaciones de cultivo"),
+            (PermissionCodes.SettingsRead, "Consultar parámetros globales"),
+            (PermissionCodes.SettingsManage, "Editar parámetros globales"),
+            (PermissionCodes.IoTRead, "Consultar red IoT y trazabilidad"),
+            (PermissionCodes.MaintenanceManage, "Gestionar planes y actividades de mantenimiento"),
+            (PermissionCodes.TerritoryRead, "Consultar territorio agrícola"),
+            (PermissionCodes.TerritoryManage, "Gestionar territorio y suspensiones"),
+            (PermissionCodes.CatalogsRead, "Consultar catálogos maestros"),
+            (PermissionCodes.CatalogsManage, "Crear y editar catálogos maestros"),
+            (PermissionCodes.CatalogsDelete, "Eliminar catálogos maestros"),
+            (PermissionCodes.OperationsRead, "Consultar operaciones del sistema"),
+            (PermissionCodes.RolesManage, "Gestionar roles y su matriz de permisos"),
+            (PermissionCodes.SessionsRead, "Consultar y revocar sesiones activas"),
+            (PermissionCodes.DashboardRead, "Consultar el panel general del sistema"),
+            (PermissionCodes.TelemetryRead, "Consultar telemetría"),
+            (PermissionCodes.TelemetryManage, "Registrar lecturas y comandos de telemetría"),
+            (PermissionCodes.WaterSupplyRead, "Consultar tanques y bombas"),
+            (PermissionCodes.WaterSupplyManage, "Gestionar tanques y bombas"),
+            (PermissionCodes.WaterSupplyDelete, "Eliminar tanques"),
+            (PermissionCodes.AnalyticsRead, "Consultar analítica e indicadores"),
+            (PermissionCodes.AnalyticsPowerBi, "Exportar el modelo PowerBI"),
+            (PermissionCodes.AuditRead, "Consultar auditoría del sistema")
         };
         foreach (var p in definitions) if (!await db.Permissions.AnyAsync(x => x.Code == p.Item1)) db.Permissions.Add(new Permission { Code = p.Item1, Description = p.Item2 });
         await db.SaveChangesAsync();
+        // "Lectura" es todo lo que hoy exige Policies.Operator: administrador, tecnico
+        // y operador lo satisfacen. "Gestion" es todo lo que hoy exige Policies.Technician:
+        // administrador y tecnico lo satisfacen, operador no.
+        var readTier = new[]
+        {
+            PermissionCodes.IrrigationOperate, PermissionCodes.ReportsRead, PermissionCodes.DeviceCatalogsRead,
+            PermissionCodes.AgronomyRead, PermissionCodes.AlertsRead, PermissionCodes.AutomationRead, PermissionCodes.CropPlanningRead,
+            PermissionCodes.SettingsRead, PermissionCodes.IoTRead, PermissionCodes.TerritoryRead, PermissionCodes.CatalogsRead,
+            PermissionCodes.OperationsRead, PermissionCodes.SessionsRead, PermissionCodes.DashboardRead, PermissionCodes.TelemetryRead,
+            PermissionCodes.WaterSupplyRead, PermissionCodes.AnalyticsRead
+        };
+        var manageTier = new[]
+        {
+            PermissionCodes.DeviceCatalogsManage, PermissionCodes.DevicesManage,
+            PermissionCodes.AgronomyManage, PermissionCodes.AlertsManage, PermissionCodes.AutomationManage, PermissionCodes.CropPlanningManage,
+            PermissionCodes.TerritoryManage, PermissionCodes.CatalogsManage, PermissionCodes.TelemetryManage, PermissionCodes.WaterSupplyManage,
+            PermissionCodes.MaintenanceManage
+        };
         var roleDefinitions = new[]
         {
             (RoleNames.Administrator, "Control total del sistema", definitions.Select(x => x.Item1).ToArray()),
-            (RoleNames.Technician, "Configuración técnica y consulta", new[] { PermissionCodes.UsersRead, PermissionCodes.DevicesManage, PermissionCodes.ReportsRead, PermissionCodes.DeviceCatalogsRead, PermissionCodes.DeviceCatalogsManage }),
-            (RoleNames.Operator, "Operación cotidiana del riego", new[] { PermissionCodes.IrrigationOperate, PermissionCodes.ReportsRead, PermissionCodes.DeviceCatalogsRead })
+            (RoleNames.Technician, "Configuración técnica y consulta", readTier.Concat(manageTier).Append(PermissionCodes.UsersRead).Distinct().ToArray()),
+            (RoleNames.Operator, "Operación cotidiana del riego", readTier.Distinct().ToArray())
         };
         foreach (var d in roleDefinitions)
         {

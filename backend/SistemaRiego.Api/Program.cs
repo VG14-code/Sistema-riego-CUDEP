@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -113,9 +114,16 @@ builder.Services.AddAuthorization(o =>
     o.AddPolicy(Policies.Administrator, p => p.RequireRole(RoleNames.Administrator));
     o.AddPolicy(Policies.Technician, p => p.RequireRole(RoleNames.Administrator, RoleNames.Technician));
     o.AddPolicy(Policies.Operator, p => p.RequireRole(RoleNames.Administrator, RoleNames.Technician, RoleNames.Operator));
-    o.AddPolicy(PermissionPolicies.DeviceCatalogsRead, p => p.Requirements.Add(new PermissionRequirement(PermissionCodes.DeviceCatalogsRead)));
-    o.AddPolicy(PermissionPolicies.DeviceCatalogsManage, p => p.Requirements.Add(new PermissionRequirement(PermissionCodes.DeviceCatalogsManage)));
-    o.AddPolicy(PermissionPolicies.DeviceCatalogsDelete, p => p.Requirements.Add(new PermissionRequirement(PermissionCodes.DeviceCatalogsDelete)));
+    // Cada campo de PermissionPolicies registra una politica que exige el codigo de
+    // PermissionCodes del mismo nombre; mantiene ambas clases sincronizadas por
+    // construccion en vez de listar cada AddPolicy a mano.
+    foreach (var field in typeof(PermissionPolicies).GetFields(BindingFlags.Public | BindingFlags.Static))
+    {
+        var policyName = (string)field.GetValue(null)!;
+        var codeField = typeof(PermissionCodes).GetField(field.Name) ?? throw new InvalidOperationException($"Falta PermissionCodes.{field.Name} para la politica {field.Name}.");
+        var code = (string)codeField.GetValue(null)!;
+        o.AddPolicy(policyName, p => p.Requirements.Add(new PermissionRequirement(code)));
+    }
 });
 builder.Services.AddCors(o => o.AddPolicy("Frontend", p => p.WithOrigins(builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? ["http://localhost:5173"]).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
