@@ -6,7 +6,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/energy"), Authorize(Policy = Policies.Operator)]
+[ApiController, Route("api/energy"), Authorize(Policy = PermissionPolicies.EnergyRead)]
 public sealed class EnergyController(AppDbContext db) : ControllerBase
 {
     [HttpGet("status")]

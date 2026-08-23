@@ -15,6 +15,8 @@ public static class PermissionCodes
     public const string AgronomyManage = "agronomia.gestionar";
     public const string AgronomyDelete = "agronomia.eliminar";
 
+    public const string EnergyRead = "energia.leer";
+
     public const string AlertsRead = "alertas.leer";
     public const string AlertsManage = "alertas.gestionar";
 

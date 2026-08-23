@@ -8,7 +8,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/week14"), Authorize(Policy = Policies.Operator)]
+[ApiController, Route("api/week14"), Authorize(Policy = PermissionPolicies.AnalyticsRead)]
 public sealed class Week14AnalyticsController(AppDbContext db) : ControllerBase
 {
     [HttpGet("dashboard")]
@@ -66,7 +66,7 @@ public sealed class Week14AnalyticsController(AppDbContext db) : ControllerBase
     public async Task<ActionResult> Json(DateTime? from, DateTime? to, string? type, Guid? zoneId, string? user, string? search, CancellationToken ct)
         => Ok(await Project(Filter(from, to, type, zoneId, user, search)).Take(5000).ToListAsync(ct));
 
-    [HttpGet("powerbi/model"), Authorize(Policy = Policies.Administrator)]
+    [HttpGet("powerbi/model"), Authorize(Policy = PermissionPolicies.AnalyticsPowerBi)]
     public ActionResult PowerBiModel() => Ok(new
     {
         database = "SistemaRiego", server = @"(localdb)\MSSQLLocalDB",

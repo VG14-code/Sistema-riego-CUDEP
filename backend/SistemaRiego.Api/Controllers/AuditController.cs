@@ -7,7 +7,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/audit"), Authorize(Policy = Policies.Administrator)]
+[ApiController, Route("api/audit"), Authorize(Policy = PermissionPolicies.AuditRead)]
 public sealed class AuditController(AppDbContext db) : ControllerBase
 {
     [HttpGet]

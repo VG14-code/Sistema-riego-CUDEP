@@ -11,7 +11,7 @@ namespace SistemaRiego.Api.Controllers;
 [ApiController, Route("api/auth")]
 public sealed class AuthController(IAuthService auth, ITotpService? totp = null) : ControllerBase
 {
-    [HttpPost("register"), Authorize(Policy = Policies.Administrator)]
+    [HttpPost("register"), Authorize(Policy = PermissionPolicies.UsersManage)]
     public async Task<ActionResult<UserSummary>> Register(RegisterRequest request, CancellationToken ct)
     {
         if (totp is not null)

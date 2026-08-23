@@ -10,7 +10,7 @@ using SistemaRiego.Api.Services;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/users"), Authorize(Policy = Policies.Administrator)]
+[ApiController, Route("api/users"), Authorize(Policy = PermissionPolicies.UsersManage)]
 public sealed class UsersController(AppDbContext db, IAuthService auth, ITotpService? totp, UserManager<User> userManager) : ControllerBase
 {
     [HttpGet]

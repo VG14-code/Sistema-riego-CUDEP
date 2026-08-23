@@ -15,6 +15,8 @@ public static class PermissionPolicies
     public const string AgronomyManage = "Permiso:AgronomiaGestionar";
     public const string AgronomyDelete = "Permiso:AgronomiaEliminar";
 
+    public const string EnergyRead = "Permiso:EnergiaLeer";
+
     public const string AlertsRead = "Permiso:AlertasLeer";
     public const string AlertsManage = "Permiso:AlertasGestionar";
 

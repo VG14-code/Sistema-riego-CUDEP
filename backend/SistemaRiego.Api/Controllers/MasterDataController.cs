@@ -7,7 +7,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/catalogs"), Authorize(Policy = Policies.Operator)]
+[ApiController, Route("api/catalogs"), Authorize(Policy = PermissionPolicies.CatalogsRead)]
 public sealed class MasterDataController(AppDbContext db) : ControllerBase
 {
     [HttpGet("{kind}")]
@@ -18,7 +18,7 @@ public sealed class MasterDataController(AppDbContext db) : ControllerBase
         return Ok(items.Select(ToResponse));
     }
 
-    [HttpPost("{kind}"), Authorize(Policy = Policies.Technician)]
+    [HttpPost("{kind}"), Authorize(Policy = PermissionPolicies.CatalogsManage)]
     public async Task<ActionResult<CatalogItemResponse>> Create(string kind, CatalogItemRequest request, CancellationToken ct)
     {
         if (!TryKind(kind, out var parsed)) return BadRequest(new { message = "Tipo de catálogo inválido." });
@@ -31,7 +31,7 @@ public sealed class MasterDataController(AppDbContext db) : ControllerBase
         return CreatedAtAction(nameof(Get), new { kind }, ToResponse(item));
     }
 
-    [HttpPut("{kind}/{id:guid}"), Authorize(Policy = Policies.Technician)]
+    [HttpPut("{kind}/{id:guid}"), Authorize(Policy = PermissionPolicies.CatalogsManage)]
     public async Task<ActionResult<CatalogItemResponse>> Update(string kind, Guid id, CatalogItemRequest request, CancellationToken ct)
     {
         if (!TryKind(kind, out var parsed)) return BadRequest(new { message = "Tipo de catálogo inválido." });
@@ -45,7 +45,7 @@ public sealed class MasterDataController(AppDbContext db) : ControllerBase
         return Ok(ToResponse(item));
     }
 
-    [HttpDelete("{kind}/{id:guid}"), Authorize(Policy = Policies.Administrator)]
+    [HttpDelete("{kind}/{id:guid}"), Authorize(Policy = PermissionPolicies.CatalogsDelete)]
     public async Task<IActionResult> Delete(string kind, Guid id, CancellationToken ct)
     {
         if (!TryKind(kind, out var parsed)) return BadRequest(new { message = "Tipo de catálogo inválido." });

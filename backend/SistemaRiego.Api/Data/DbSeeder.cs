@@ -35,6 +35,7 @@ public static class DbSeeder
             (PermissionCodes.AgronomyRead, "Consultar cultivos, etapas y requerimientos"),
             (PermissionCodes.AgronomyManage, "Gestionar cultivos, etapas y requerimientos"),
             (PermissionCodes.AgronomyDelete, "Eliminar tipos de cultivo"),
+            (PermissionCodes.EnergyRead, "Consultar energía solar"),
             (PermissionCodes.AlertsRead, "Consultar alertas"),
             (PermissionCodes.AlertsManage, "Crear y resolver alertas manuales"),
             (PermissionCodes.AutomationRead, "Consultar reglas de automatización"),
@@ -72,6 +73,7 @@ public static class DbSeeder
         var readTier = new[]
         {
             PermissionCodes.IrrigationOperate, PermissionCodes.ReportsRead, PermissionCodes.DeviceCatalogsRead,
+            PermissionCodes.EnergyRead,
             PermissionCodes.AgronomyRead, PermissionCodes.AlertsRead, PermissionCodes.AutomationRead, PermissionCodes.CropPlanningRead,
             PermissionCodes.SettingsRead, PermissionCodes.IoTRead, PermissionCodes.TerritoryRead, PermissionCodes.CatalogsRead,
             PermissionCodes.OperationsRead, PermissionCodes.SessionsRead, PermissionCodes.DashboardRead, PermissionCodes.TelemetryRead,

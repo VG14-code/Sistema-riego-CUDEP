@@ -7,7 +7,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/sessions"), Authorize(Policy = Policies.Operator)]
+[ApiController, Route("api/sessions"), Authorize(Policy = PermissionPolicies.SessionsRead)]
 public sealed class SessionsController(AppDbContext db) : ControllerBase
 {
     [HttpGet]

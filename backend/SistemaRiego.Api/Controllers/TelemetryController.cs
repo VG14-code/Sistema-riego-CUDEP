@@ -8,10 +8,10 @@ using SistemaRiego.Api.Services;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/telemetry"), Authorize(Policy = Policies.Operator)]
+[ApiController, Route("api/telemetry"), Authorize(Policy = PermissionPolicies.TelemetryRead)]
 public sealed class TelemetryController(AppDbContext db, ITelemetryIngestionService ingestion, IMqttCommandPublisher mqtt) : ControllerBase
 {
-    [HttpPost("readings"), Authorize(Policy = Policies.Technician)]
+    [HttpPost("readings"), Authorize(Policy = PermissionPolicies.TelemetryManage)]
     public async Task<ActionResult<ReadingResponse>> Receive(TelemetryRequest request, CancellationToken cancellationToken)
     {
         var transport = string.IsNullOrWhiteSpace(request.Transport) ? "HTTP" : request.Transport;
@@ -89,7 +89,7 @@ public sealed class TelemetryController(AppDbContext db, ITelemetryIngestionServ
         .Select(x => new { x.Id, x.DeviceId, Device = x.Device.Name, x.CommandType, x.Payload, x.Status, x.RequestedAtUtc, x.ConfirmedAtUtc })
         .ToListAsync(cancellationToken));
 
-    [HttpPost("commands"), Authorize(Policy = Policies.Technician)]
+    [HttpPost("commands"), Authorize(Policy = PermissionPolicies.TelemetryManage)]
     public async Task<IActionResult> Command(CommandRequest request, CancellationToken cancellationToken)
     {
         var device = await db.IoTDevices.AsNoTracking().Where(x => x.Id == request.DeviceId && x.IsActive)
@@ -112,7 +112,7 @@ public sealed class TelemetryController(AppDbContext db, ITelemetryIngestionServ
         return Ok(command);
     }
 
-    [HttpPatch("commands/{id:guid}/confirm"), Authorize(Policy = Policies.Technician)]
+    [HttpPatch("commands/{id:guid}/confirm"), Authorize(Policy = PermissionPolicies.TelemetryManage)]
     public async Task<IActionResult> Confirm(Guid id, CancellationToken cancellationToken)
     {
         var command = await db.IoTCommands.FindAsync([id], cancellationToken);

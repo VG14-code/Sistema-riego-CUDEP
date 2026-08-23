@@ -6,7 +6,7 @@ using SistemaRiego.Api.Services;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/iot/communication"), Authorize(Policy = Policies.Operator)]
+[ApiController, Route("api/iot/communication"), Authorize(Policy = PermissionPolicies.IoTRead)]
 public sealed class IoTCommunicationController(IOptions<MqttOptions> mqttOptions) : ControllerBase
 {
     [HttpGet]

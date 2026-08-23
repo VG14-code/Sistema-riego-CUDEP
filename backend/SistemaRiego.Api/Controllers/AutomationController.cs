@@ -9,7 +9,7 @@ using SistemaRiego.Api.Services;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/automation"), Authorize(Policy=Policies.Operator)]
+[ApiController, Route("api/automation"), Authorize(Policy=PermissionPolicies.AutomationRead)]
 public sealed class AutomationController(AppDbContext db, ITotpService? totp = null, IAutomationEngine? engine = null) : ControllerBase
 {
     [HttpGet("rules")]
@@ -17,7 +17,7 @@ public sealed class AutomationController(AppDbContext db, ITotpService? totp = n
         x.Id,x.Name,x.IrrigationZoneId,Zone=x.IrrigationZone.Name,x.MinimumMoisturePercent,x.TargetMoisturePercent,x.HysteresisPercent,x.Priority,x.MaximumDurationMinutes,x.AllowedFrom,x.AllowedUntil,x.AllowedDays,x.IsEnabled,x.SuspendedUntilUtc,x.LastEvaluatedAtUtc,x.LastDecision,x.LastReason
     }).ToListAsync(ct));
 
-    [HttpPost("rules"), Authorize(Policy=Policies.Technician)]
+    [HttpPost("rules"), Authorize(Policy=PermissionPolicies.AutomationManage)]
     public async Task<ActionResult> Create(IrrigationRuleRequest request,CancellationToken ct)
     {
         if (totp is not null) { var verification = await totp.VerifyCriticalOperationAsync(HttpContext, ct); if (!verification.Allowed) return StatusCode(StatusCodes.Status403Forbidden, new { message = verification.Error }); }
@@ -27,7 +27,7 @@ public sealed class AutomationController(AppDbContext db, ITotpService? totp = n
         db.IrrigationRules.Add(item); await db.SaveChangesAsync(ct); return CreatedAtAction(nameof(Rules),new{id=item.Id},new{item.Id});
     }
 
-    [HttpPut("rules/{id:guid}"), Authorize(Policy=Policies.Technician)]
+    [HttpPut("rules/{id:guid}"), Authorize(Policy=PermissionPolicies.AutomationManage)]
     public async Task<ActionResult> Update(Guid id, IrrigationRuleRequest request, CancellationToken ct)
     {
         if (totp is not null) { var verification = await totp.VerifyCriticalOperationAsync(HttpContext, ct); if (!verification.Allowed) return StatusCode(StatusCodes.Status403Forbidden, new { message = verification.Error }); }
@@ -37,7 +37,7 @@ public sealed class AutomationController(AppDbContext db, ITotpService? totp = n
         await Log("AUTOMATION_RULE_UPDATED", $"Regla {item.Name}", ct); await db.SaveChangesAsync(ct); return NoContent();
     }
 
-    [HttpPatch("rules/{id:guid}/toggle"), Authorize(Policy=Policies.Technician)]
+    [HttpPatch("rules/{id:guid}/toggle"), Authorize(Policy=PermissionPolicies.AutomationManage)]
     public async Task<ActionResult> Toggle(Guid id,RuleToggleRequest request,CancellationToken ct)
     { var item=await db.IrrigationRules.FindAsync([id],ct); if(item is null)return NotFound(); item.IsEnabled=request.IsEnabled; if(request.IsEnabled)item.SuspendedUntilUtc=null; item.LastDecision=request.IsEnabled?"Lista":"Desactivada"; item.LastReason=request.IsEnabled?"Reactivación manual autorizada.":item.LastReason; await Log("AUTOMATION_RULE_TOGGLED",$"Regla {item.Name}: {(request.IsEnabled?"activa":"inactiva")}",ct); await db.SaveChangesAsync(ct); return NoContent(); }
 

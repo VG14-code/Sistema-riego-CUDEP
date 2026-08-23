@@ -8,7 +8,7 @@ using SistemaRiego.Api.Services;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/roles"), Authorize(Policy = Policies.Administrator)]
+[ApiController, Route("api/roles"), Authorize(Policy = PermissionPolicies.RolesManage)]
 public sealed class RolesController(AppDbContext db, ITotpService? totp = null) : ControllerBase
 {
     [HttpGet]

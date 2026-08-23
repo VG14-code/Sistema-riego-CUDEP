@@ -7,19 +7,19 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/crop-planning"), Authorize(Policy = Policies.Operator)]
+[ApiController, Route("api/crop-planning"), Authorize(Policy = PermissionPolicies.CropPlanningRead)]
 public sealed class CropPlanningController(AppDbContext db) : ControllerBase
 {
     [HttpGet("cycles")] public async Task<IActionResult> Cycles(CancellationToken ct) => Ok((await View().ToListAsync(ct)).OrderBy(x => x.SowingDate));
 
-    [HttpPost("cycles"), Authorize(Policy = Policies.Technician)]
+    [HttpPost("cycles"), Authorize(Policy = PermissionPolicies.CropPlanningManage)]
     public async Task<IActionResult> Create(CycleRequest request, CancellationToken ct)
     {
         var error = await Validate(request, null, ct); if (error is not null) return BadRequest(new { message = error });
         var cycle = Map(request, new CropCycle { Name = request.Name.Trim() }); db.Add(cycle); await Save("CROP_CYCLE_CREATED", cycle.Name, ct); return Ok(cycle);
     }
 
-    [HttpPut("cycles/{id:guid}"), Authorize(Policy = Policies.Technician)]
+    [HttpPut("cycles/{id:guid}"), Authorize(Policy = PermissionPolicies.CropPlanningManage)]
     public async Task<IActionResult> Update(Guid id, CycleRequest request, CancellationToken ct)
     {
         var cycle = await db.CropCycles.FindAsync([id], ct); if (cycle is null) return NotFound();
@@ -27,7 +27,7 @@ public sealed class CropPlanningController(AppDbContext db) : ControllerBase
         Map(request, cycle); await Save("CROP_CYCLE_UPDATED", cycle.Name, ct); return NoContent();
     }
 
-    [HttpDelete("cycles/{id:guid}"), Authorize(Policy = Policies.Administrator)]
+    [HttpDelete("cycles/{id:guid}"), Authorize(Policy = PermissionPolicies.CropPlanningDelete)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var cycle = await db.CropCycles.FindAsync([id], ct); if (cycle is null) return NotFound();
@@ -35,7 +35,7 @@ public sealed class CropPlanningController(AppDbContext db) : ControllerBase
         db.Remove(cycle); await Save("CROP_CYCLE_DELETED", cycle.Name, ct); return NoContent();
     }
 
-    [HttpPatch("cycles/{id:guid}/stage/{stageId:guid}"), Authorize(Policy = Policies.Technician)]
+    [HttpPatch("cycles/{id:guid}/stage/{stageId:guid}"), Authorize(Policy = PermissionPolicies.CropPlanningManage)]
     public async Task<IActionResult> ChangeStage(Guid id, Guid stageId, CancellationToken ct)
     {
         var cycle = await db.CropCycles.FindAsync([id], ct); if (cycle is null) return NotFound();

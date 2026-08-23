@@ -4,7 +4,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Hubs;
 
-[Authorize(Policy = Policies.Operator)]
+[Authorize(Policy = PermissionPolicies.TelemetryRead)]
 public sealed class TelemetryHub : Hub
 {
     public const string ReadingReceived = "telemetryReadingReceived";

@@ -8,7 +8,7 @@ using SistemaRiego.Api.Services;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/territory"), Authorize(Policy = Policies.Technician)]
+[ApiController, Route("api/territory"), Authorize(Policy = PermissionPolicies.TerritoryManage)]
 public sealed class TerritoryMaintenanceController(AppDbContext db, TerritoryIntegrityService? integrity = null) : ControllerBase
 {
     private readonly TerritoryIntegrityService integrity = integrity ?? new TerritoryIntegrityService(db);

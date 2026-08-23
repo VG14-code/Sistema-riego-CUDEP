@@ -8,7 +8,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/settings"), Authorize(Policy = Policies.Operator)]
+[ApiController, Route("api/settings"), Authorize(Policy = PermissionPolicies.SettingsRead)]
 public sealed class GlobalParametersController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
@@ -18,7 +18,7 @@ public sealed class GlobalParametersController(AppDbContext db) : ControllerBase
         return Ok(parameters.Select(ToResponse));
     }
 
-    [HttpPut("{key}"), Authorize(Policy = Policies.Administrator)]
+    [HttpPut("{key}"), Authorize(Policy = PermissionPolicies.SettingsManage)]
     public async Task<ActionResult<ParameterResponse>> Upsert(string key, ParameterRequest request, CancellationToken ct)
     {
         var normalized = key.Trim().ToUpperInvariant();

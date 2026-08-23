@@ -7,7 +7,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/iot"), Authorize(Policy = Policies.Operator)]
+[ApiController, Route("api/iot"), Authorize(Policy = PermissionPolicies.IoTRead)]
 public sealed class IoTController(AppDbContext db) : ControllerBase
 {
     [HttpGet("summary")]
@@ -26,7 +26,7 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
     [HttpGet("nodes")]
     public async Task<ActionResult<IReadOnlyCollection<IoTNodeResponse>>> Nodes(CancellationToken ct) => Ok((await db.IoTNodes.AsNoTracking().Include(x => x.OperationalStatus).Include(x => x.Devices).OrderBy(x => x.Name).ToListAsync(ct)).Select(NodeResponse));
 
-    [HttpPost("nodes"), Authorize(Policy = Policies.Technician)]
+    [HttpPost("nodes"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<ActionResult<IoTNodeResponse>> CreateNode(IoTNodeRequest request, CancellationToken ct)
     {
         var validation = await ValidateCatalog(request.OperationalStatusId, CatalogKind.OperationalStatus, ct); if (validation is not null) return BadRequest(new { message = validation });
@@ -36,7 +36,7 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
         return CreatedAtAction(nameof(Nodes), NodeResponse(node));
     }
 
-    [HttpPut("nodes/{id:guid}"), Authorize(Policy = Policies.Technician)]
+    [HttpPut("nodes/{id:guid}"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<ActionResult<IoTNodeResponse>> UpdateNode(Guid id, IoTNodeRequest request, CancellationToken ct)
     {
         var node = await db.IoTNodes.Include(x => x.OperationalStatus).Include(x => x.Devices).SingleOrDefaultAsync(x => x.Id == id, ct); if (node is null) return NotFound();
@@ -46,13 +46,13 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
         Audit("IOT_NODE_UPDATED", node.Code); await db.SaveChangesAsync(ct); await db.Entry(node).Reference(x => x.OperationalStatus).LoadAsync(ct); return Ok(NodeResponse(node));
     }
 
-    [HttpPatch("nodes/{id:guid}/deactivate"), Authorize(Policy = Policies.Technician)]
+    [HttpPatch("nodes/{id:guid}/deactivate"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<IActionResult> DeactivateNode(Guid id, CancellationToken ct) => await Deactivate(db.IoTNodes, id, "IOT_NODE_DEACTIVATED", ct);
 
     [HttpGet("devices")]
     public async Task<ActionResult<IReadOnlyCollection<IoTDeviceResponse>>> Devices(CancellationToken ct) => Ok((await db.IoTDevices.AsNoTracking().Include(x => x.DeviceType).Include(x => x.OperationalStatus).Include(x => x.Node).Include(x => x.DeviceModel).Include(x => x.Sensors).OrderBy(x => x.Name).ToListAsync(ct)).Select(DeviceResponse));
 
-    [HttpPost("devices"), Authorize(Policy = Policies.Technician)]
+    [HttpPost("devices"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<ActionResult<IoTDeviceResponse>> CreateDevice(IoTDeviceRequest request, CancellationToken ct)
     {
         var validation = await ValidateDeviceRequest(request, null, ct); if (validation is not null) return BadRequest(new { message = validation });
@@ -61,7 +61,7 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
         db.IoTDevices.Add(item); Audit("IOT_DEVICE_CREATED", item.Code); await db.SaveChangesAsync(ct); return CreatedAtAction(nameof(Devices), await LoadDeviceResponse(item.Id, ct));
     }
 
-    [HttpPut("devices/{id:guid}"), Authorize(Policy = Policies.Technician)]
+    [HttpPut("devices/{id:guid}"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<ActionResult<IoTDeviceResponse>> UpdateDevice(Guid id, IoTDeviceRequest request, CancellationToken ct)
     {
         var item = await db.IoTDevices.SingleOrDefaultAsync(x => x.Id == id, ct); if (item is null) return NotFound();
@@ -71,13 +71,13 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
         Audit("IOT_DEVICE_UPDATED", item.Code); await db.SaveChangesAsync(ct); return Ok(await LoadDeviceResponse(id, ct));
     }
 
-    [HttpPatch("devices/{id:guid}/deactivate"), Authorize(Policy = Policies.Technician)]
+    [HttpPatch("devices/{id:guid}/deactivate"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<IActionResult> DeactivateDevice(Guid id, CancellationToken ct) => await Deactivate(db.IoTDevices, id, "IOT_DEVICE_DEACTIVATED", ct);
 
     [HttpGet("sensors")]
     public async Task<ActionResult<IReadOnlyCollection<IoTSensorResponse>>> Sensors(CancellationToken ct) => Ok((await SensorQuery().OrderBy(x => x.Name).ToListAsync(ct)).Select(SensorResponse));
 
-    [HttpPost("sensors"), Authorize(Policy = Policies.Technician)]
+    [HttpPost("sensors"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<ActionResult<IoTSensorResponse>> CreateSensor(IoTSensorRequest request, CancellationToken ct)
     {
         var validation = await ValidateSensorRequest(request, null, ct); if (validation is not null) return BadRequest(new { message = validation });
@@ -86,7 +86,7 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
         db.IoTSensors.Add(item); Audit("IOT_SENSOR_CREATED", item.Code); await db.SaveChangesAsync(ct); return CreatedAtAction(nameof(Sensors), await LoadSensorResponse(item.Id, ct));
     }
 
-    [HttpPut("sensors/{id:guid}"), Authorize(Policy = Policies.Technician)]
+    [HttpPut("sensors/{id:guid}"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<ActionResult<IoTSensorResponse>> UpdateSensor(Guid id, IoTSensorRequest request, CancellationToken ct)
     {
         var item = await db.IoTSensors.SingleOrDefaultAsync(x => x.Id == id, ct); if (item is null) return NotFound();
@@ -96,13 +96,13 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
         Audit("IOT_SENSOR_UPDATED", item.Code); await db.SaveChangesAsync(ct); return Ok(await LoadSensorResponse(id, ct));
     }
 
-    [HttpPatch("sensors/{id:guid}/deactivate"), Authorize(Policy = Policies.Technician)]
+    [HttpPatch("sensors/{id:guid}/deactivate"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<IActionResult> DeactivateSensor(Guid id, CancellationToken ct) => await Deactivate(db.IoTSensors, id, "IOT_SENSOR_DEACTIVATED", ct);
 
     [HttpGet("calibrations")]
     public async Task<ActionResult<IReadOnlyCollection<SensorCalibrationResponse>>> Calibrations(CancellationToken ct) => Ok(await db.SensorCalibrations.AsNoTracking().Include(x => x.Sensor).OrderByDescending(x => x.CalibratedAtUtc).Select(x => new SensorCalibrationResponse(x.Id, x.SensorId, x.Sensor.Name, x.CalibratedAtUtc, x.ReferenceValue, x.MeasuredValue, x.AppliedOffset, x.Notes, x.CalibrationPattern, x.TechnicianName, x.NextCalibrationDate)).ToListAsync(ct));
 
-    [HttpPost("calibrations"), Authorize(Policy = Policies.Technician)]
+    [HttpPost("calibrations"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<ActionResult<SensorCalibrationResponse>> Calibrate(SensorCalibrationRequest request, CancellationToken ct)
     {
         var sensor = await db.IoTSensors.SingleOrDefaultAsync(x => x.Id == request.SensorId && x.IsActive, ct); if (sensor is null) return BadRequest(new { message = "El sensor seleccionado no existe o está inactivo." });

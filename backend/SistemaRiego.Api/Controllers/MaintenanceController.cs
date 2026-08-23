@@ -7,7 +7,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/maintenance"), Authorize(Policy = Policies.Technician)]
+[ApiController, Route("api/maintenance"), Authorize(Policy = PermissionPolicies.MaintenanceManage)]
 public sealed class MaintenanceController(AppDbContext db) : ControllerBase
 {
     [HttpGet("plans")] public async Task<ActionResult> Plans(CancellationToken ct) => Ok(await db.MaintenancePlans.AsNoTracking().OrderBy(x => x.ScheduledAtUtc).ToListAsync(ct));

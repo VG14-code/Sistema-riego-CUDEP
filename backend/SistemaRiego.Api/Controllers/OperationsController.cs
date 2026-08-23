@@ -8,7 +8,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController,Route("api/operations"),Authorize(Policy=Policies.Operator)]
+[ApiController,Route("api/operations"),Authorize(Policy=PermissionPolicies.OperationsRead)]
 public sealed class OperationsController(AppDbContext db):ControllerBase
 {
     [HttpGet("summary")]

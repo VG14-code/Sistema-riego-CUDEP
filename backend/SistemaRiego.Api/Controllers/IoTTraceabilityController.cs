@@ -8,7 +8,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/iot/traceability"), Authorize(Policy = Policies.Operator)]
+[ApiController, Route("api/iot/traceability"), Authorize(Policy = PermissionPolicies.IoTRead)]
 public sealed class IoTTraceabilityController(AppDbContext db) : ControllerBase
 {
     [HttpGet("installations")]
@@ -17,7 +17,7 @@ public sealed class IoTTraceabilityController(AppDbContext db) : ControllerBase
         .Select(x => new { x.Id, x.DeviceId, Device = x.Device.Name, x.IrrigationZoneId, Zone = x.IrrigationZone != null ? x.IrrigationZone.Name : null, x.Location, x.InstalledAtUtc, x.InstalledByUserId, x.InstallerName, x.RemovedAtUtc, x.Notes, IsCurrent = x.RemovedAtUtc == null })
         .ToListAsync(ct));
 
-    [HttpPost("installations"), Authorize(Policy = Policies.Technician)]
+    [HttpPost("installations"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<IActionResult> CreateInstallation(DeviceInstallationRequest request, CancellationToken ct)
     {
         var error = await ValidateInstallation(request, null, ct); if (error is not null) return BadRequest(new { message = error });
@@ -26,7 +26,7 @@ public sealed class IoTTraceabilityController(AppDbContext db) : ControllerBase
         return Ok(item);
     }
 
-    [HttpPut("installations/{id:guid}"), Authorize(Policy = Policies.Technician)]
+    [HttpPut("installations/{id:guid}"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<IActionResult> UpdateInstallation(Guid id, DeviceInstallationRequest request, CancellationToken ct)
     {
         var item = await db.DeviceInstallations.FindAsync([id], ct); if (item is null) return NotFound();
@@ -40,7 +40,7 @@ public sealed class IoTTraceabilityController(AppDbContext db) : ControllerBase
         .Select(x => new { x.Id, x.NodeId, Node = x.Node.Name, x.CommandType, x.Payload, x.Status, x.Attempts, x.MaximumAttempts, x.RequestedAtUtc, x.LastAttemptAtUtc, x.ConfirmedAtUtc, x.LastError })
         .ToListAsync(ct));
 
-    [HttpPost("remote-configurations"), Authorize(Policy = Policies.Technician)]
+    [HttpPost("remote-configurations"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<IActionResult> QueueRemoteConfiguration(RemoteConfigurationRequest request, CancellationToken ct)
     {
         if (!await db.IoTNodes.AnyAsync(x => x.Id == request.NodeId && x.IsActive, ct)) return BadRequest(new { message = "Nodo inválido o inactivo." });
@@ -52,7 +52,7 @@ public sealed class IoTTraceabilityController(AppDbContext db) : ControllerBase
         db.RemoteConfigurationCommands.Add(item); await Save("IOT_REMOTE_CONFIGURATION_QUEUED", type, ct); return Ok(item);
     }
 
-    [HttpPost("remote-configurations/{id:guid}/ack"), Authorize(Policy = Policies.Technician)]
+    [HttpPost("remote-configurations/{id:guid}/ack"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<IActionResult> ConfirmRemoteConfiguration(Guid id, RemoteConfigurationAckRequest request, CancellationToken ct)
     {
         var item = await db.RemoteConfigurationCommands.FindAsync([id], ct); if (item is null) return NotFound();
@@ -68,7 +68,7 @@ public sealed class IoTTraceabilityController(AppDbContext db) : ControllerBase
         .Select(x => new { x.Id, x.NodeId, Node = x.Node.Name, x.Version, x.PreviousVersion, x.Status, x.RegisteredAtUtc, x.AppliedAtUtc, x.Notes })
         .ToListAsync(ct));
 
-    [HttpPost("firmware"), Authorize(Policy = Policies.Technician)]
+    [HttpPost("firmware"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<IActionResult> RegisterFirmware(FirmwareRegistrationRequest request, CancellationToken ct)
     {
         var node = await db.IoTNodes.FindAsync([request.NodeId], ct); if (node is null) return BadRequest(new { message = "Nodo inválido." });
@@ -84,7 +84,7 @@ public sealed class IoTTraceabilityController(AppDbContext db) : ControllerBase
         .Select(x => new { x.Id, x.Code, x.Name, x.SerialNumber, Type = x.DeviceType.Name, x.Owner, x.InventoryStatus, x.PurchaseDate, x.WarrantyUntil, x.AcquisitionCost, x.Currency, x.IsActive, WarrantyExpired = x.WarrantyUntil.HasValue && x.WarrantyUntil < DateOnly.FromDateTime(DateTime.UtcNow) })
         .ToListAsync(ct));
 
-    [HttpPatch("inventory/{deviceId:guid}"), Authorize(Policy = Policies.Technician)]
+    [HttpPatch("inventory/{deviceId:guid}"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<IActionResult> UpdateInventory(Guid deviceId, InventoryUpdateRequest request, CancellationToken ct)
     {
         var item = await db.IoTDevices.FindAsync([deviceId], ct); if (item is null) return NotFound();

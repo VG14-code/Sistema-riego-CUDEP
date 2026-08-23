@@ -7,7 +7,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/crop-planning/rotations"), Authorize(Policy = Policies.Operator)]
+[ApiController, Route("api/crop-planning/rotations"), Authorize(Policy = PermissionPolicies.CropPlanningRead)]
 public sealed class CropRotationsController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
@@ -20,7 +20,7 @@ public sealed class CropRotationsController(AppDbContext db) : ControllerBase
             .ToListAsync(ct));
     }
 
-    [HttpPost, Authorize(Policy = Policies.Technician)]
+    [HttpPost, Authorize(Policy = PermissionPolicies.CropPlanningManage)]
     public async Task<IActionResult> Create(CropRotationRequest request, CancellationToken ct)
     {
         var error = await Validate(request, null, ct); if (error is not null) return BadRequest(new { message = error });
@@ -28,7 +28,7 @@ public sealed class CropRotationsController(AppDbContext db) : ControllerBase
         db.CropRotationPlans.Add(item); await Save("CROP_ROTATION_CREATED", item.Id.ToString(), ct); return Ok(item);
     }
 
-    [HttpPut("{id:guid}"), Authorize(Policy = Policies.Technician)]
+    [HttpPut("{id:guid}"), Authorize(Policy = PermissionPolicies.CropPlanningManage)]
     public async Task<IActionResult> Update(Guid id, CropRotationRequest request, CancellationToken ct)
     {
         var item = await db.CropRotationPlans.FindAsync([id], ct); if (item is null) return NotFound();
@@ -36,7 +36,7 @@ public sealed class CropRotationsController(AppDbContext db) : ControllerBase
         Map(request, item); await Save("CROP_ROTATION_UPDATED", id.ToString(), ct); return NoContent();
     }
 
-    [HttpDelete("{id:guid}"), Authorize(Policy = Policies.Administrator)]
+    [HttpDelete("{id:guid}"), Authorize(Policy = PermissionPolicies.CropPlanningDelete)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var item = await db.CropRotationPlans.FindAsync([id], ct); if (item is null) return NotFound();

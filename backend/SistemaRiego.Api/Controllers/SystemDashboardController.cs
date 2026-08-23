@@ -7,7 +7,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/system/dashboard"), Authorize(Policy = Policies.Operator)]
+[ApiController, Route("api/system/dashboard"), Authorize(Policy = PermissionPolicies.DashboardRead)]
 public sealed class SystemDashboardController(AppDbContext db) : ControllerBase
 {
     [HttpGet]

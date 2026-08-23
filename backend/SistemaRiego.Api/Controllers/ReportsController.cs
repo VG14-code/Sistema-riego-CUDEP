@@ -5,7 +5,7 @@ using SistemaRiego.Api.Services;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/reports"), Authorize(Policy = Policies.Operator)]
+[ApiController, Route("api/reports"), Authorize(Policy = PermissionPolicies.ReportsRead)]
 public sealed class ReportsController(Sprint6ReportService reports) : ControllerBase
 {
     [HttpGet("consumption.pdf")]

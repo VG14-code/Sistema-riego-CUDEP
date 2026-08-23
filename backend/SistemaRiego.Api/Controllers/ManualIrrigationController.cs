@@ -9,7 +9,7 @@ using SistemaRiego.Api.Services;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController,Route("api/manual-irrigation"),Authorize(Policy=Policies.Operator)]
+[ApiController,Route("api/manual-irrigation"),Authorize(Policy=PermissionPolicies.IrrigationOperate)]
 public sealed class ManualIrrigationController(AppDbContext db, ITotpService? totp = null, IIrrigationCommandService? commands = null, IAlertService? alerts = null):ControllerBase
 {
     [HttpGet("zones")]

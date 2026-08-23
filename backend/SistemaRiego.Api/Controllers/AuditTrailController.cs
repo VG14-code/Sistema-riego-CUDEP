@@ -9,7 +9,7 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/audit-trail"), Authorize(Policy = Policies.Administrator)]
+[ApiController, Route("api/audit-trail"), Authorize(Policy = PermissionPolicies.AuditRead)]
 public sealed class AuditTrailController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
