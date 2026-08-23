@@ -14,6 +14,7 @@ public sealed class User : IdentityUser<Guid>
     public bool MustChangePassword { get; set; }
     public PasswordCredential? Credential { get; set; }
     public ICollection<UserRole> UserRoles { get; set; } = [];
+    public ICollection<UserPermission> UserPermissions { get; set; } = [];
     public ICollection<Session> Sessions { get; set; } = [];
 }
 
@@ -41,6 +42,7 @@ public sealed class Permission
     public required string Code { get; set; }
     public required string Description { get; set; }
     public ICollection<RolePermission> RolePermissions { get; set; } = [];
+    public ICollection<UserPermission> UserPermissions { get; set; } = [];
 }
 
 public sealed class UserRole : IdentityUserRole<Guid>
@@ -55,6 +57,17 @@ public sealed class RolePermission
     public Guid RoleId { get; set; }
     public Guid PermissionId { get; set; }
     public Role Role { get; set; } = null!;
+    public Permission Permission { get; set; } = null!;
+}
+
+public sealed class UserPermission
+{
+    public Guid UserId { get; set; }
+    public Guid PermissionId { get; set; }
+    public bool IsGranted { get; set; }
+    public Guid GrantedByUserId { get; set; }
+    public DateTime AssignedAtUtc { get; set; } = DateTime.UtcNow;
+    public User User { get; set; } = null!;
     public Permission Permission { get; set; } = null!;
 }
 

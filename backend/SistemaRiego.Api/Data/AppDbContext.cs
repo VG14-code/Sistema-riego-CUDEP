@@ -6,7 +6,7 @@ namespace SistemaRiego.Api.Data;
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<User, Role, Guid, IdentityUserClaim<Guid>, UserRole, IdentityUserLogin<Guid>, IdentityRoleClaim<Guid>, IdentityUserToken<Guid>>(options)
 {
     public DbSet<PasswordCredential> PasswordCredentials => Set<PasswordCredential>();
-    public DbSet<Permission> Permissions => Set<Permission>(); public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<Permission> Permissions => Set<Permission>(); public DbSet<RolePermission> RolePermissions => Set<RolePermission>(); public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
     public DbSet<Session> Sessions => Set<Session>(); public DbSet<PasswordRecoveryToken> PasswordRecoveryTokens => Set<PasswordRecoveryToken>(); public DbSet<AccessAudit> AccessAudits => Set<AccessAudit>();
     public DbSet<MasterCatalogItem> MasterCatalogItems => Set<MasterCatalogItem>(); public DbSet<GlobalParameter> GlobalParameters => Set<GlobalParameter>(); public DbSet<DeviceBrand> DeviceBrands => Set<DeviceBrand>(); public DbSet<DeviceModel> DeviceModels => Set<DeviceModel>();
     public DbSet<IoTNode> IoTNodes => Set<IoTNode>(); public DbSet<IoTDevice> IoTDevices => Set<IoTDevice>();
@@ -32,6 +32,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         b.Entity<User>(e => { e.HasIndex(x => x.NormalizedEmail).IsUnique(); e.Property(x => x.Email).HasMaxLength(254); e.Property(x => x.NormalizedEmail).HasMaxLength(254); e.Property(x => x.FullName).HasMaxLength(150); });
         b.Entity<PasswordCredential>().HasKey(x => x.UserId); b.Entity<PasswordCredential>().HasOne(x => x.User).WithOne(x => x.Credential).HasForeignKey<PasswordCredential>(x => x.UserId);
         b.Entity<Role>().HasIndex(x => x.Name).IsUnique(); b.Entity<Permission>().HasIndex(x => x.Code).IsUnique(); b.Entity<UserRole>().HasKey(x => new { x.UserId, x.RoleId }); b.Entity<UserRole>().HasOne(x => x.User).WithMany(x => x.UserRoles).HasForeignKey(x => x.UserId); b.Entity<UserRole>().HasOne(x => x.Role).WithMany(x => x.UserRoles).HasForeignKey(x => x.RoleId); b.Entity<RolePermission>().HasKey(x => new { x.RoleId, x.PermissionId });
+        b.Entity<UserPermission>(e => { e.HasKey(x => new { x.UserId, x.PermissionId }); e.HasOne(x => x.User).WithMany(x => x.UserPermissions).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Permission).WithMany(x => x.UserPermissions).HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade); });
         b.Entity<Session>().HasIndex(x => x.RefreshTokenHash).IsUnique(); b.Entity<PasswordRecoveryToken>().HasIndex(x => x.TokenHash).IsUnique(); b.Entity<AccessAudit>().HasIndex(x => x.OccurredAtUtc);
         b.Entity<MasterCatalogItem>(e => { e.HasIndex(x => new { x.Kind, x.Code }).IsUnique(); e.Property(x => x.Code).HasMaxLength(50); e.Property(x => x.Name).HasMaxLength(120); e.Property(x => x.Description).HasMaxLength(300); e.Property(x => x.Symbol).HasMaxLength(20); });
         b.Entity<DeviceBrand>(e => { e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Code).HasMaxLength(50); e.Property(x => x.Name).HasMaxLength(120); });
