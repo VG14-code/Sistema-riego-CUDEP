@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SistemaRiego.Api.Contracts;
@@ -10,7 +11,7 @@ using SistemaRiego.Api.Services;
 namespace SistemaRiego.Api.Controllers;
 
 [ApiController, Route("api/users"), Authorize(Policy = Policies.Administrator)]
-public sealed class UsersController(AppDbContext db, IAuthService auth, ITotpService? totp = null) : ControllerBase
+public sealed class UsersController(AppDbContext db, IAuthService auth, ITotpService? totp, UserManager<User> userManager) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyCollection<UserSummary>>> GetAll(CancellationToken ct)
@@ -46,6 +47,50 @@ public sealed class UsersController(AppDbContext db, IAuthService auth, ITotpSer
         db.UserRoles.RemoveRange(user.UserRoles);
         user.UserRoles = roles.Select(role => new UserRole { UserId = id, RoleId = role.Id }).ToList();
         db.AccessAudits.Add(new AccessAudit { UserId = id, EventType = "USER_ROLES_CHANGED", Detail = $"Roles: {string.Join(", ", roles.Select(x => x.Name))}" });
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    [HttpGet("{id:guid}/permissions")]
+    public async Task<ActionResult<IReadOnlyCollection<EffectivePermissionResponse>>> Permissions(Guid id, CancellationToken ct)
+    {
+        var user = await db.Users.Include(x => x.UserRoles).ThenInclude(x => x.Role).ThenInclude(x => x.RolePermissions).SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (user is null) return NotFound();
+        var fromRoles = user.UserRoles.SelectMany(x => x.Role.RolePermissions.Select(y => y.Permission.Code)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var overrides = await db.UserPermissions.Include(x => x.Permission).Where(x => x.UserId == id)
+            .ToDictionaryAsync(x => x.Permission.Code, x => x.IsGranted, StringComparer.OrdinalIgnoreCase, ct);
+        var all = await db.Permissions.AsNoTracking().OrderBy(x => x.Code).ToListAsync(ct);
+        return Ok(all.Select(p =>
+        {
+            var byRole = fromRoles.Contains(p.Code);
+            var hasOverride = overrides.TryGetValue(p.Code, out var overrideValue);
+            return new EffectivePermissionResponse(p.Code, p.Description, byRole, hasOverride ? overrideValue : null, hasOverride ? overrideValue : byRole);
+        }).ToArray());
+    }
+
+    [HttpPut("{id:guid}/permissions")]
+    public async Task<IActionResult> UpdatePermissions(Guid id, UpdateUserPermissionsRequest request, CancellationToken ct)
+    {
+        if (!await VerifyTotp(ct)) return StatusCode(StatusCodes.Status403Forbidden, new { message = TotpError });
+        var user = await db.Users.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (user is null) return NotFound();
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var actorId)) return Unauthorized();
+
+        var codes = request.Overrides.Select(x => x.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var permissions = await db.Permissions.Where(x => codes.Contains(x.Code)).ToListAsync(ct);
+        if (permissions.Count != codes.Length) return BadRequest(new { message = "La lista contiene permisos desconocidos." });
+
+        db.UserPermissions.RemoveRange(await db.UserPermissions.Where(x => x.UserId == id).ToListAsync(ct));
+        foreach (var o in request.Overrides)
+        {
+            var permission = permissions.Single(x => string.Equals(x.Code, o.Code, StringComparison.OrdinalIgnoreCase));
+            db.UserPermissions.Add(new UserPermission { UserId = id, PermissionId = permission.Id, IsGranted = o.IsGranted, GrantedByUserId = actorId });
+        }
+
+        foreach (var session in await db.Sessions.Where(x => x.UserId == id && x.RevokedAtUtc == null).ToListAsync(ct)) session.RevokedAtUtc = DateTime.UtcNow;
+        await userManager.UpdateSecurityStampAsync(user);
+
+        db.AccessAudits.Add(new AccessAudit { UserId = id, EventType = "USER_PERMISSIONS_CHANGED", Detail = $"Overrides: {string.Join(", ", request.Overrides.Select(x => $"{x.Code}={x.IsGranted}"))}" });
         await db.SaveChangesAsync(ct);
         return NoContent();
     }
