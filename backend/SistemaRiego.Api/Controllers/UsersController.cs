@@ -54,7 +54,7 @@ public sealed class UsersController(AppDbContext db, IAuthService auth, ITotpSer
     [HttpGet("{id:guid}/permissions")]
     public async Task<ActionResult<IReadOnlyCollection<EffectivePermissionResponse>>> Permissions(Guid id, CancellationToken ct)
     {
-        var user = await db.Users.Include(x => x.UserRoles).ThenInclude(x => x.Role).ThenInclude(x => x.RolePermissions).SingleOrDefaultAsync(x => x.Id == id, ct);
+        var user = await db.Users.Include(x => x.UserRoles).ThenInclude(x => x.Role).ThenInclude(x => x.RolePermissions).ThenInclude(x => x.Permission).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (user is null) return NotFound();
         var fromRoles = user.UserRoles.SelectMany(x => x.Role.RolePermissions.Select(y => y.Permission.Code)).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var overrides = await db.UserPermissions.Include(x => x.Permission).Where(x => x.UserId == id)
