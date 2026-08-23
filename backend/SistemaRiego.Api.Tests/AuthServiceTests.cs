@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -36,6 +37,24 @@ public sealed class AuthServiceTests
         Assert.NotNull(response);
         Assert.Contains('.', response!.AccessToken);
         Assert.False(string.IsNullOrWhiteSpace(response.RefreshToken));
+    }
+
+    [Fact]
+    public async Task Login_EmbedsEffectivePermissions_AsJwtClaims()
+    {
+        var setup = Create();
+        var permission = new Permission { Code = "riego.operar", Description = "Operar riego" };
+        setup.Db.Permissions.Add(permission);
+        await setup.Db.SaveChangesAsync();
+        var operatorRole = await setup.Db.Roles.SingleAsync(x => x.Name == RoleNames.Operator);
+        setup.Db.RolePermissions.Add(new RolePermission { RoleId = operatorRole.Id, PermissionId = permission.Id });
+        await setup.Db.SaveChangesAsync();
+
+        await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona de prueba"), default);
+        var response = await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default);
+
+        var token = new JwtSecurityTokenHandler().ReadJwtToken(response!.AccessToken);
+        Assert.Contains(token.Claims, c => c.Type == "perm" && c.Value == "riego.operar");
     }
 
     [Fact]
@@ -190,6 +209,7 @@ public sealed class AuthServiceTests
             options.Lockout.MaxFailedAccessAttempts = 5;
         }).AddRoles<Role>().AddEntityFrameworkStores<AppDbContext>().AddDefaultTokenProviders();
         services.AddScoped<AuthService>();
+        services.AddScoped<IPermissionResolver, PermissionResolver>();
         var provider = services.BuildServiceProvider();
         return new(provider.GetRequiredService<AuthService>(), db, mail);
     }

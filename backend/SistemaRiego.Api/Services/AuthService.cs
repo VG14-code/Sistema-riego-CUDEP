@@ -18,7 +18,8 @@ public sealed class AuthService(
     IOptions<EmailOptions> emailOptions,
     ILogger<AuthService> logger,
     UserManager<User> userManager,
-    IEmailSender emailSender) : IAuthService
+    IEmailSender emailSender,
+    IPermissionResolver permissionResolver) : IAuthService
 {
     private readonly JwtOptions jwt = options.Value;
     private readonly EmailOptions email = emailOptions.Value;
@@ -171,6 +172,7 @@ public sealed class AuthService(
         if (save) await db.SaveChangesAsync(ct);
 
         var roles = user.UserRoles.Select(x => x.Role.Name ?? string.Empty).Where(x => x.Length > 0).ToArray();
+        var permissions = await permissionResolver.GetEffectivePermissionsAsync(user.Id, ct);
         var address = user.Email ?? throw new InvalidOperationException("La cuenta no tiene correo.");
         var claims = new List<Claim>
         {
@@ -182,6 +184,7 @@ public sealed class AuthService(
             new("pwd_change_required", user.MustChangePassword ? "true" : "false")
         };
         claims.AddRange(roles.Select(x => new Claim(ClaimTypes.Role, x)));
+        claims.AddRange(permissions.Select(x => new Claim("perm", x)));
         var token = new JwtSecurityToken(jwt.Issuer, jwt.Audience, claims, now, accessExpiry, new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)), SecurityAlgorithms.HmacSha256));
         return new AuthResponse(new JwtSecurityTokenHandler().WriteToken(token), refresh, accessExpiry, Summary(user));
     }
