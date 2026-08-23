@@ -5,6 +5,7 @@ export interface AuthSession { accessToken: string; refreshToken: string; access
 export interface ActiveSession { id:string; userId:string; user:string; email:string; createdAtUtc:string; expiresAtUtc:string; revokedAtUtc?:string; isActive:boolean; ipAddress?:string; userAgent?:string }
 export interface Role { name: string; description: string; permissions: string[] }
 export interface Permission { id: string; code: string; description: string }
+export interface EffectivePermission { code: string; description: string; grantedByRole: boolean; overrideIsGranted: boolean | null; effectiveGranted: boolean }
 export interface CatalogItem { id: string; kind: string; code: string; name: string; description: string | null; symbol: string | null; isActive: boolean }
 export interface CatalogForm { code: string; name: string; description?: string | null; symbol?: string | null; isActive: boolean }
 export interface DeviceBrand { id: string; code: string; name: string; description: string | null; isActive: boolean; modelCount: number }
@@ -53,6 +54,8 @@ export const week2Api = {
   setUserRoles: (token: string, id: string, roles: string[], totp: string) => request<void>(`/users/${id}/roles`, { method: 'PUT', ...json({ roles }) }, token, totp),
   resetUserPassword: (token: string, id: string, totp: string) => request<{ temporaryPassword: string }>(`/users/${id}/reset-password`, { method: 'POST' }, token, totp),
   setRolePermissions: (token: string, role: string, permissions: string[], totp: string) => request<void>(`/roles/${encodeURIComponent(role)}/permissions`, { method: 'PUT', ...json({ permissions }) }, token, totp),
+  userPermissions: (token: string, id: string) => request<EffectivePermission[]>(`/users/${id}/permissions`, {}, token),
+  setUserPermissions: (token: string, id: string, overrides: { code: string; isGranted: boolean }[], totp: string) => request<void>(`/users/${id}/permissions`, { method: 'PUT', ...json({ overrides }) }, token, totp),
   totpStatus: (token: string) => request<TotpStatus>('/security/2fa/status', {}, token),
   totpSetup: (token: string) => request<TotpSetup>('/security/2fa/setup', { method: 'POST' }, token),
   totpEnable: (token: string, code: string) => request<{ enabled: boolean; recoveryCodes: string[] }>('/security/2fa/enable', { method: 'POST', ...json({ code }) }, token),
