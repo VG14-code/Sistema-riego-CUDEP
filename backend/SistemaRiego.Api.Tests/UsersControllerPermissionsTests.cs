@@ -50,6 +50,26 @@ public sealed class UsersControllerPermissionsTests
     }
 
     [Fact]
+    public async Task UpdatePermissions_SequentialSinglePermissionCalls_DoNotEraseEarlierOverrides()
+    {
+        // Reproduce el patrón real de la UI: cada clic en "Conceder"/"Revocar" envía
+        // un PUT con un solo permiso, no la lista completa de overrides del usuario.
+        var (controller, _, user, _, databaseName) = await Seed();
+
+        var first = await controller.UpdatePermissions(user.Id, new UpdateUserPermissionsRequest([new(PermissionCodes.DeviceCatalogsDelete, true)]), default);
+        Assert.IsType<NoContentResult>(first);
+
+        var second = await controller.UpdatePermissions(user.Id, new UpdateUserPermissionsRequest([new(PermissionCodes.IrrigationOperate, false)]), default);
+        Assert.IsType<NoContentResult>(second);
+
+        await using var verifyDb = OpenDb(databaseName);
+        var overrides = await verifyDb.UserPermissions.Include(x => x.Permission).Where(x => x.UserId == user.Id)
+            .ToDictionaryAsync(x => x.Permission.Code, x => x.IsGranted);
+        Assert.True(overrides[PermissionCodes.DeviceCatalogsDelete]);
+        Assert.False(overrides[PermissionCodes.IrrigationOperate]);
+    }
+
+    [Fact]
     public async Task UpdatePermissions_UnknownCode_ReturnsBadRequest()
     {
         var (controller, _, user, _, _) = await Seed();

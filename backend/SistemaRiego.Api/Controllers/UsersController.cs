@@ -80,11 +80,17 @@ public sealed class UsersController(AppDbContext db, IAuthService auth, ITotpSer
         var permissions = await db.Permissions.Where(x => codes.Contains(x.Code)).ToListAsync(ct);
         if (permissions.Count != codes.Length) return BadRequest(new { message = "La lista contiene permisos desconocidos." });
 
-        db.UserPermissions.RemoveRange(await db.UserPermissions.Where(x => x.UserId == id).ToListAsync(ct));
+        var existingByPermissionId = await db.UserPermissions.Where(x => x.UserId == id).ToDictionaryAsync(x => x.PermissionId, ct);
         foreach (var o in request.Overrides)
         {
             var permission = permissions.Single(x => string.Equals(x.Code, o.Code, StringComparison.OrdinalIgnoreCase));
-            db.UserPermissions.Add(new UserPermission { UserId = id, PermissionId = permission.Id, IsGranted = o.IsGranted, GrantedByUserId = actorId });
+            if (existingByPermissionId.TryGetValue(permission.Id, out var row))
+            {
+                row.IsGranted = o.IsGranted;
+                row.GrantedByUserId = actorId;
+                row.AssignedAtUtc = DateTime.UtcNow;
+            }
+            else db.UserPermissions.Add(new UserPermission { UserId = id, PermissionId = permission.Id, IsGranted = o.IsGranted, GrantedByUserId = actorId });
         }
 
         foreach (var session in await db.Sessions.Where(x => x.UserId == id && x.RevokedAtUtc == null).ToListAsync(ct)) session.RevokedAtUtc = DateTime.UtcNow;
