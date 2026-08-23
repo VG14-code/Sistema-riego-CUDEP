@@ -22,14 +22,24 @@ public static class DbSeeder
             if (!await db.MasterCatalogItems.AnyAsync(x => x.Kind == item.Kind && x.Code == item.Code))
                 db.MasterCatalogItems.Add(new MasterCatalogItem { Kind = item.Kind, Code = item.Code, Name = item.Name, Symbol = item.Symbol });
         await db.SaveChangesAsync();
-        var definitions = new[] { ("usuarios.leer", "Consultar usuarios"), ("usuarios.gestionar", "Gestionar usuarios, roles y estados"), ("riego.operar", "Operar el sistema de riego"), ("dispositivos.gestionar", "Configurar sensores y dispositivos"), ("reportes.leer", "Consultar reportes") };
+        var definitions = new[]
+        {
+            (PermissionCodes.UsersRead, "Consultar usuarios"),
+            (PermissionCodes.UsersManage, "Gestionar usuarios, roles y estados"),
+            (PermissionCodes.IrrigationOperate, "Operar el sistema de riego"),
+            (PermissionCodes.DevicesManage, "Configurar sensores y dispositivos"),
+            (PermissionCodes.ReportsRead, "Consultar reportes"),
+            (PermissionCodes.DeviceCatalogsRead, "Consultar marcas y modelos de dispositivos"),
+            (PermissionCodes.DeviceCatalogsManage, "Crear y editar marcas y modelos de dispositivos"),
+            (PermissionCodes.DeviceCatalogsDelete, "Eliminar marcas y modelos de dispositivos")
+        };
         foreach (var p in definitions) if (!await db.Permissions.AnyAsync(x => x.Code == p.Item1)) db.Permissions.Add(new Permission { Code = p.Item1, Description = p.Item2 });
         await db.SaveChangesAsync();
         var roleDefinitions = new[]
         {
             (RoleNames.Administrator, "Control total del sistema", definitions.Select(x => x.Item1).ToArray()),
-            (RoleNames.Technician, "Configuración técnica y consulta", new[] { "usuarios.leer", "dispositivos.gestionar", "reportes.leer" }),
-            (RoleNames.Operator, "Operación cotidiana del riego", new[] { "riego.operar", "reportes.leer" })
+            (RoleNames.Technician, "Configuración técnica y consulta", new[] { PermissionCodes.UsersRead, PermissionCodes.DevicesManage, PermissionCodes.ReportsRead, PermissionCodes.DeviceCatalogsRead, PermissionCodes.DeviceCatalogsManage }),
+            (RoleNames.Operator, "Operación cotidiana del riego", new[] { PermissionCodes.IrrigationOperate, PermissionCodes.ReportsRead, PermissionCodes.DeviceCatalogsRead })
         };
         foreach (var d in roleDefinitions)
         {
