@@ -7,14 +7,14 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Controllers;
 
-[ApiController, Route("api/device-catalogs"), Authorize(Policy = Policies.Operator)]
+[ApiController, Route("api/device-catalogs"), Authorize(Policy = PermissionPolicies.DeviceCatalogsRead)]
 public sealed class DeviceCatalogsController(AppDbContext db) : ControllerBase
 {
-    [HttpGet("brands")]
+    [HttpGet("brands"), Authorize(Policy = PermissionPolicies.DeviceCatalogsRead)]
     public async Task<IActionResult> Brands(CancellationToken ct) => Ok(await db.DeviceBrands.AsNoTracking().OrderBy(x => x.Name)
         .Select(x => new DeviceBrandResponse(x.Id, x.Code, x.Name, x.Description, x.IsActive, x.Models.Count)).ToListAsync(ct));
 
-    [HttpPost("brands"), Authorize(Policy = Policies.Technician)]
+    [HttpPost("brands"), Authorize(Policy = PermissionPolicies.DeviceCatalogsManage)]
     public async Task<IActionResult> CreateBrand(DeviceBrandRequest request, CancellationToken ct)
     {
         var code = Code(request.Code);
@@ -23,7 +23,7 @@ public sealed class DeviceCatalogsController(AppDbContext db) : ControllerBase
         db.Add(item); await Save("DEVICE_BRAND_CREATED", code, ct); return Ok(item);
     }
 
-    [HttpPut("brands/{id:guid}"), Authorize(Policy = Policies.Technician)]
+    [HttpPut("brands/{id:guid}"), Authorize(Policy = PermissionPolicies.DeviceCatalogsManage)]
     public async Task<IActionResult> UpdateBrand(Guid id, DeviceBrandRequest request, CancellationToken ct)
     {
         var item = await db.DeviceBrands.FindAsync([id], ct); if (item is null) return NotFound();
@@ -33,7 +33,7 @@ public sealed class DeviceCatalogsController(AppDbContext db) : ControllerBase
         await Save("DEVICE_BRAND_UPDATED", code, ct); return NoContent();
     }
 
-    [HttpDelete("brands/{id:guid}"), Authorize(Policy = Policies.Administrator)]
+    [HttpDelete("brands/{id:guid}"), Authorize(Policy = PermissionPolicies.DeviceCatalogsDelete)]
     public async Task<IActionResult> DeleteBrand(Guid id, CancellationToken ct)
     {
         var item = await db.DeviceBrands.Include(x => x.Models).SingleOrDefaultAsync(x => x.Id == id, ct); if (item is null) return NotFound();
@@ -41,11 +41,11 @@ public sealed class DeviceCatalogsController(AppDbContext db) : ControllerBase
         db.Remove(item); await Save("DEVICE_BRAND_DELETED", item.Code, ct); return NoContent();
     }
 
-    [HttpGet("models")]
+    [HttpGet("models"), Authorize(Policy = PermissionPolicies.DeviceCatalogsRead)]
     public async Task<IActionResult> Models(CancellationToken ct) => Ok(await db.DeviceModels.AsNoTracking().OrderBy(x => x.DeviceBrand.Name).ThenBy(x => x.Name)
         .Select(x => new DeviceModelResponse(x.Id, x.DeviceBrandId, x.DeviceBrand.Name, x.DeviceTypeId, x.DeviceType.Name, x.Code, x.Name, x.Description, x.IsActive, x.Devices.Count)).ToListAsync(ct));
 
-    [HttpPost("models"), Authorize(Policy = Policies.Technician)]
+    [HttpPost("models"), Authorize(Policy = PermissionPolicies.DeviceCatalogsManage)]
     public async Task<IActionResult> CreateModel(DeviceModelRequest request, CancellationToken ct)
     {
         var error = await ValidateModel(request, null, ct); if (error is not null) return BadRequest(Message(error));
@@ -53,7 +53,7 @@ public sealed class DeviceCatalogsController(AppDbContext db) : ControllerBase
         db.Add(item); await Save("DEVICE_MODEL_CREATED", item.Code, ct); return Ok(item);
     }
 
-    [HttpPut("models/{id:guid}"), Authorize(Policy = Policies.Technician)]
+    [HttpPut("models/{id:guid}"), Authorize(Policy = PermissionPolicies.DeviceCatalogsManage)]
     public async Task<IActionResult> UpdateModel(Guid id, DeviceModelRequest request, CancellationToken ct)
     {
         var item = await db.DeviceModels.FindAsync([id], ct); if (item is null) return NotFound();
@@ -62,7 +62,7 @@ public sealed class DeviceCatalogsController(AppDbContext db) : ControllerBase
         await Save("DEVICE_MODEL_UPDATED", item.Code, ct); return NoContent();
     }
 
-    [HttpDelete("models/{id:guid}"), Authorize(Policy = Policies.Administrator)]
+    [HttpDelete("models/{id:guid}"), Authorize(Policy = PermissionPolicies.DeviceCatalogsDelete)]
     public async Task<IActionResult> DeleteModel(Guid id, CancellationToken ct)
     {
         var item = await db.DeviceModels.Include(x => x.Devices).SingleOrDefaultAsync(x => x.Id == id, ct); if (item is null) return NotFound();
