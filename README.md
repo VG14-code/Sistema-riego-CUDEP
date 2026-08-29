@@ -45,6 +45,27 @@ No se requiere Docker. Abre terminales separadas y conserva este orden.
 
 La telemetría sigue el flujo simulador → MQTT → servicio de ingestión → base de datos → SignalR (`telemetryReadingReceived`). Los comandos se publican en `granja/{zona}/valvula/{dispositivo}/comando`; el simulador responde en el tópico `/ack` y el backend marca el comando como confirmado.
 
+## Datos de demostración
+
+El seeder distingue dos capas y solo la segunda es sintética.
+
+- **Estructura permanente (siempre se siembra):** catálogos maestros, permisos, roles, usuario administrador, tipos y cultivos de referencia, inventario IoT, territorio CUDEP con sus tres sectores y zonas, parámetros globales, tanque, bomba y plan de mantenimiento. Describe la instalación real y es editable desde la interfaz.
+- **Muestra de demostración (condicional):** 84 días de lecturas, riegos, consumos y eventos generados por fórmula en `EmpiricalDashboardSeeder.SeedDemoHistoryAsync`, los 6 riegos históricos de `Modules7To10Seeder` y las 24 lecturas iniciales de `DbSeeder`. **No provienen de hardware.** Alimentan las tendencias y exportaciones para poder probarlas sin esperar meses de telemetría real.
+
+La muestra se siembra únicamente cuando el entorno es `Development`. Para forzar el comportamiento en cualquier entorno, usa la clave `Seed:IncludeDemoData`:
+
+~~~json
+{
+  "Seed": {
+    "IncludeDemoData": false
+  }
+}
+~~~
+
+Con `false` en `Development` obtienes una base limpia, útil para demostrar el sistema con telemetría exclusivamente real. En `Staging` y `Production` el valor predeterminado ya es `false`, de modo que un despliegue nunca mezcla datos fabricados con lecturas de dispositivos.
+
+Toda lectura sembrada declara su origen en `Transport` (`SIMULACIÓN` o `MUESTRA_CAMPO_PRUEBA`), y la muestra de 84 días queda marcada con el evento `DEMO_EMPIRICAL_DATA_V1`. Las pruebas `DbSeederDemoDataTests` verifican que sin la bandera no queda ningún historial fabricado y que la estructura operativa sí se crea.
+
 ## Validación visual oficial con Playwright
 
 El método oficial evita el controlador integrado afectado por ACL de Windows. Usa el Chromium administrado por Playwright y un perfil temporal aislado con `--no-sandbox` y `--disable-gpu`. Mantén backend, frontend y simulador ejecutándose antes de iniciar la captura.

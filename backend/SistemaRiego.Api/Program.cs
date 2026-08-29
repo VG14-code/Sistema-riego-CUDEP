@@ -142,6 +142,9 @@ app.UseMiddleware<RequiredPasswordChangeMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<TelemetryHub>("/hubs/telemetry");
-await DbSeeder.SeedAsync(app.Services, app.Configuration);
+// La muestra sintetica de demostracion solo se siembra en Development, salvo que
+// Seed:IncludeDemoData lo indique explicitamente para otro entorno.
+var includeDemoData = app.Configuration.GetValue<bool?>("Seed:IncludeDemoData") ?? app.Environment.IsDevelopment();
+await DbSeeder.SeedAsync(app.Services, app.Configuration, includeDemoData);
 app.Run();
 public partial class Program;

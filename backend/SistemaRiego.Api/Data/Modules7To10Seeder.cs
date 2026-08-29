@@ -5,7 +5,7 @@ namespace SistemaRiego.Api.Data;
 
 public static class Modules7To10Seeder
 {
-    public static async Task SeedAsync(AppDbContext db)
+    public static async Task SeedAsync(AppDbContext db, bool includeDemoData)
     {
         var zone=await db.IrrigationZones.OrderBy(x=>x.Name).FirstOrDefaultAsync();
         if(zone is null)return;
@@ -20,7 +20,8 @@ public static class Modules7To10Seeder
             var pump=new WaterPump{WaterTank=tank,Name="Bomba de abastecimiento 1",Status="Detenida",MaximumRunMinutes=45,MinimumRestMinutes=10,LastStoppedAtUtc=DateTime.UtcNow.AddHours(-2)};
             db.AddRange(tank,pump);
         }
-        if(!await db.IrrigationRuns.AnyAsync())
+        // Riegos historicos de muestra: solo en entornos de demostracion.
+        if(includeDemoData && !await db.IrrigationRuns.AnyAsync())
         {
             var user=await db.Users.OrderBy(x=>x.CreatedAtUtc).FirstOrDefaultAsync();
             for(var i=6;i>=1;i--)

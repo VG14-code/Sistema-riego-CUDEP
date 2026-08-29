@@ -7,25 +7,24 @@ public static class EmpiricalDashboardSeeder
 {
     private const string Marker = "DEMO_EMPIRICAL_DATA_V1";
 
-    public static async Task SeedAsync(AppDbContext db)
+    // Estructura territorial permanente: sectores B y C con sus zonas. Describe la
+    // instalación, no una muestra, así que se siembra en todos los entornos.
+    // Sprint3Seeder les asigna después los polígonos y coordenadas definitivas.
+    public static async Task SeedStructureAsync(AppDbContext db)
     {
-        if (await db.OperationalEvents.AnyAsync(x => x.EventType == Marker)) return;
-
         var block = await db.FarmBlocks.OrderBy(x => x.Name).FirstOrDefaultAsync();
         var active = await db.MasterCatalogItems.SingleOrDefaultAsync(x => x.Kind == CatalogKind.OperationalStatus && x.Code == "ACTIVE");
         var sensorA = await db.IoTSensors.SingleOrDefaultAsync(x => x.Code == "HUM-SUELO-A1");
         var sensorB = await db.IoTSensors.SingleOrDefaultAsync(x => x.Code == "HUM-SUELO-B1");
         if (block is null || active is null || sensorA is null || sensorB is null) return;
 
-        var sectorNorth = await db.IrrigationSectors.Include(x => x.Zones).OrderBy(x => x.Name).FirstAsync();
-        var zoneNorth = sectorNorth.Zones.OrderBy(x => x.Name).First();
-        var sectorSouth = await db.IrrigationSectors.Include(x => x.Zones).SingleOrDefaultAsync(x => x.Code == "SECTOR-B");
+        var sectorSouth = await db.IrrigationSectors.SingleOrDefaultAsync(x => x.Code == "SECTOR-B");
         if (sectorSouth is null)
         {
             sectorSouth = new IrrigationSector { FarmBlockId = block.Id, Code = "SECTOR-B", Name = "Sector de riego sur", AreaHectares = .38m, SlopePercent = 1.8m };
             db.IrrigationSectors.Add(sectorSouth);
         }
-        var sectorGreenhouse = await db.IrrigationSectors.Include(x => x.Zones).SingleOrDefaultAsync(x => x.Code == "SECTOR-C");
+        var sectorGreenhouse = await db.IrrigationSectors.SingleOrDefaultAsync(x => x.Code == "SECTOR-C");
         if (sectorGreenhouse is null)
         {
             sectorGreenhouse = new IrrigationSector { FarmBlockId = block.Id, Code = "SECTOR-C", Name = "Sector de invernadero", AreaHectares = .22m, SlopePercent = .7m };
@@ -33,19 +32,25 @@ public static class EmpiricalDashboardSeeder
         }
         await db.SaveChangesAsync();
 
-        var zoneSouth = await db.IrrigationZones.SingleOrDefaultAsync(x => x.Code == "ZONA-B1");
-        if (zoneSouth is null)
-        {
-            zoneSouth = new IrrigationZone { IrrigationSectorId = sectorSouth.Id, Code = "ZONA-B1", Name = "Zona chile B1", AreaHectares = .24m, OperationalStatusId = active.Id, PrimarySensorId = sensorB.Id, Latitude = 16.91908m, Longitude = -89.88565m };
-            db.IrrigationZones.Add(zoneSouth);
-        }
-        var zoneGreenhouse = await db.IrrigationZones.SingleOrDefaultAsync(x => x.Code == "ZONA-C1");
-        if (zoneGreenhouse is null)
-        {
-            zoneGreenhouse = new IrrigationZone { IrrigationSectorId = sectorGreenhouse.Id, Code = "ZONA-C1", Name = "Zona semillero C1", AreaHectares = .16m, OperationalStatusId = active.Id, PrimarySensorId = sensorA.Id, Latitude = 16.91898m, Longitude = -89.88550m };
-            db.IrrigationZones.Add(zoneGreenhouse);
-        }
+        if (!await db.IrrigationZones.AnyAsync(x => x.Code == "ZONA-B1"))
+            db.IrrigationZones.Add(new IrrigationZone { IrrigationSectorId = sectorSouth.Id, Code = "ZONA-B1", Name = "Zona chile B1", AreaHectares = .24m, OperationalStatusId = active.Id, PrimarySensorId = sensorB.Id, Latitude = 16.91908m, Longitude = -89.88565m });
+        if (!await db.IrrigationZones.AnyAsync(x => x.Code == "ZONA-C1"))
+            db.IrrigationZones.Add(new IrrigationZone { IrrigationSectorId = sectorGreenhouse.Id, Code = "ZONA-C1", Name = "Zona semillero C1", AreaHectares = .16m, OperationalStatusId = active.Id, PrimarySensorId = sensorA.Id, Latitude = 16.91898m, Longitude = -89.88550m });
         await db.SaveChangesAsync();
+    }
+
+    // Muestra sintética de 84 días para probar tendencias, filtros y exportaciones.
+    // NO proviene de hardware conectado: solo debe sembrarse en entornos de demostración.
+    public static async Task SeedDemoHistoryAsync(AppDbContext db)
+    {
+        if (await db.OperationalEvents.AnyAsync(x => x.EventType == Marker)) return;
+
+        var sensorA = await db.IoTSensors.SingleOrDefaultAsync(x => x.Code == "HUM-SUELO-A1");
+        var sensorB = await db.IoTSensors.SingleOrDefaultAsync(x => x.Code == "HUM-SUELO-B1");
+        var zoneNorth = await db.IrrigationZones.SingleOrDefaultAsync(x => x.Code == "ZONA-A1");
+        var zoneSouth = await db.IrrigationZones.SingleOrDefaultAsync(x => x.Code == "ZONA-B1");
+        var zoneGreenhouse = await db.IrrigationZones.SingleOrDefaultAsync(x => x.Code == "ZONA-C1");
+        if (sensorA is null || sensorB is null || zoneNorth is null || zoneSouth is null || zoneGreenhouse is null) return;
 
         var user = await db.Users.OrderBy(x => x.CreatedAtUtc).FirstOrDefaultAsync();
         var zones = new[]
@@ -68,7 +73,7 @@ public static class EmpiricalDashboardSeeder
                 {
                     SensorId = sample.Sensor.Id, IrrigationZoneId = sample.Zone.Id, CapturedAtUtc = day.AddHours(5).AddMinutes(20), ReceivedAtUtc = day.AddHours(5).AddMinutes(21),
                     Value = Math.Round(moisture, 1), BatteryPercent = 91 - offset % 9, SignalStrength = -56 - offset % 8,
-                    MessageId = messageId, Transport = "MUESTRA_CAMPO_PRUEBA", IsValid = true, ValidationStatus = "V\u00e1lida"
+                    MessageId = messageId, Transport = "MUESTRA_CAMPO_PRUEBA", IsValid = true, ValidationStatus = "Válida"
                 });
 
                 if (offset % sample.Frequency != 0) continue;
@@ -76,14 +81,14 @@ public static class EmpiricalDashboardSeeder
                 var flow = sample.FlowRate + (offset % 3 - 1) * .2m;
                 var volume = Math.Round(duration * flow * efficiency[offset % efficiency.Length], 1);
                 var ended = day.AddHours(6).AddMinutes(35 + sample.Frequency * 3);
-                var mode = offset % 10 == 0 ? "Manual" : "Autom\u00e1tico";
+                var mode = offset % 10 == 0 ? "Manual" : "Automático";
                 var run = new IrrigationRun
                 {
                     IrrigationZoneId = sample.Zone.Id, Mode = mode, Status = "Completado", PlannedDurationMinutes = duration,
                     FlowRateLitersMinute = flow, RequestedAtUtc = ended.AddMinutes(-duration - 2), StartedAtUtc = ended.AddMinutes(-duration), EndedAtUtc = ended,
                     RequestedByUserId = user?.Id, RequestedByEmail = user?.Email,
-                    Reason = moisture < sample.BaseMoisture ? "Humedad por debajo del rango de referencia" : "Programa agron\u00f3mico de prueba",
-                    Observations = "Dato de demostraci\u00f3n calibrado con variaci\u00f3n diaria; no proviene de hardware conectado."
+                    Reason = moisture < sample.BaseMoisture ? "Humedad por debajo del rango de referencia" : "Programa agronómico de prueba",
+                    Observations = "Dato de demostración calibrado con variación diaria; no proviene de hardware conectado."
                 };
                 db.IrrigationRuns.Add(run);
                 await db.SaveChangesAsync();
@@ -101,7 +106,7 @@ public static class EmpiricalDashboardSeeder
             }
 
             if (offset % 14 == 0)
-                db.OperationalEvents.Add(new OperationalEvent { Category = "Mantenimiento", EventType = "VALVE_INSPECTION", Severity = "Informativo", IrrigationZoneId = zoneSouth.Id, UserId = user?.Id, UserEmail = user?.Email, Detail = "Inspecci\u00f3n preventiva de v\u00e1lvula y verificaci\u00f3n de caudal para la muestra de prueba.", OccurredAtUtc = day.AddHours(10) });
+                db.OperationalEvents.Add(new OperationalEvent { Category = "Mantenimiento", EventType = "VALVE_INSPECTION", Severity = "Informativo", IrrigationZoneId = zoneSouth.Id, UserId = user?.Id, UserEmail = user?.Email, Detail = "Inspección preventiva de válvula y verificación de caudal para la muestra de prueba.", OccurredAtUtc = day.AddHours(10) });
             if (offset % 21 == 0)
                 db.OperationalEvents.Add(new OperationalEvent { Category = "Alerta", EventType = "LOW_SOIL_MOISTURE", Severity = "Advertencia", IrrigationZoneId = zoneNorth.Id, Detail = "Humedad temporalmente por debajo del rango de referencia; evento incluido para validar alertas.", OccurredAtUtc = day.AddHours(5) });
         }
@@ -109,7 +114,7 @@ public static class EmpiricalDashboardSeeder
         db.OperationalEvents.Add(new OperationalEvent
         {
             Category = "Sistema", EventType = Marker, Severity = "Informativo",
-            Detail = "Muestra reproducible de 84 d\u00edas creada para probar tendencias, sectores, filtros y exportaciones. No corresponde a hardware conectado.", OccurredAtUtc = DateTime.UtcNow
+            Detail = "Muestra reproducible de 84 días creada para probar tendencias, sectores, filtros y exportaciones. No corresponde a hardware conectado.", OccurredAtUtc = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
     }

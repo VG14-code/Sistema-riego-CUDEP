@@ -4,7 +4,9 @@ using SistemaRiego.Api.Models;
 namespace SistemaRiego.Api.Data;
 public static class DbSeeder
 {
-    public static async Task SeedAsync(IServiceProvider services, IConfiguration configuration)
+    // includeDemoData habilita la muestra sintetica de demostracion. Por defecto es
+    // false para que ningun entorno reciba historial fabricado por accidente.
+    public static async Task SeedAsync(IServiceProvider services, IConfiguration configuration, bool includeDemoData = false)
     {
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -180,21 +182,28 @@ public static class DbSeeder
                 new CropWaterRequirement { CropId = crop.Id, SoilTypeId = soil.Id, MinimumMoisturePercent = 42, TargetMoisturePercent = 58, MaximumMoisturePercent = 74, BaseVolumeLiters = 950, FrequencyHours = 24, BaseDurationMinutes = 18, AllowedFrom = new TimeOnly(5, 0), AllowedUntil = new TimeOnly(9, 0) },
                 new CropWaterRequirement { CropId = crop.Id, PhenologicalStageId = flowering.Id, SoilTypeId = soil.Id, MinimumMoisturePercent = 48, TargetMoisturePercent = 64, MaximumMoisturePercent = 78, BaseVolumeLiters = 1250, FrequencyHours = 18, BaseDurationMinutes = 24, AllowedFrom = new TimeOnly(5, 0), AllowedUntil = new TimeOnly(8, 30) });
             db.CropCycles.Add(new CropCycle { CropId = crop.Id, IrrigationZoneId = zone.Id, CurrentStageId = growth.Id, Name = "Tomate parcela A · ciclo 2026", SowingDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-24)), ExpectedHarvestDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(92)), AreaHectares = .32m, PlantCount = 1800, Status = "Activo", Notes = "Ciclo demostrativo del avance de tesis." });
-            var start = DateTime.UtcNow.AddHours(-22);
-            for (var i = 0; i < 12; i++) db.SensorReadings.Add(new SensorReading { SensorId = sensor.Id, IrrigationZoneId = zone.Id, CapturedAtUtc = start.AddHours(i * 2), Value = 56m - i * 1.25m + (i % 3), BatteryPercent = 94 - i * .3m, SignalStrength = -58 - i % 4, MessageId = $"SEED-HUM-A1-{i:00}", Transport = "SIMULACIÓN", IsValid = true, ValidationStatus = "Válida" });
-            var temp = await db.IoTSensors.SingleAsync(x => x.Code == "TEMP-SUELO-A1");
-            for (var i = 0; i < 12; i++) db.SensorReadings.Add(new SensorReading { SensorId = temp.Id, IrrigationZoneId = zone.Id, CapturedAtUtc = start.AddHours(i * 2), Value = 23m + (i % 5) * .6m, BatteryPercent = 91 - i * .2m, SignalStrength = -61, MessageId = $"SEED-TEMP-A1-{i:00}", Transport = "SIMULACIÓN", IsValid = true, ValidationStatus = "Válida" });
+            // Telemetria de muestra para el tablero: solo en entornos de demostracion.
+            if (includeDemoData)
+            {
+                var start = DateTime.UtcNow.AddHours(-22);
+                for (var i = 0; i < 12; i++) db.SensorReadings.Add(new SensorReading { SensorId = sensor.Id, IrrigationZoneId = zone.Id, CapturedAtUtc = start.AddHours(i * 2), Value = 56m - i * 1.25m + (i % 3), BatteryPercent = 94 - i * .3m, SignalStrength = -58 - i % 4, MessageId = $"SEED-HUM-A1-{i:00}", Transport = "SIMULACIÓN", IsValid = true, ValidationStatus = "Válida" });
+                var temp = await db.IoTSensors.SingleAsync(x => x.Code == "TEMP-SUELO-A1");
+                for (var i = 0; i < 12; i++) db.SensorReadings.Add(new SensorReading { SensorId = temp.Id, IrrigationZoneId = zone.Id, CapturedAtUtc = start.AddHours(i * 2), Value = 23m + (i % 5) * .6m, BatteryPercent = 91 - i * .2m, SignalStrength = -61, MessageId = $"SEED-TEMP-A1-{i:00}", Transport = "SIMULACIÓN", IsValid = true, ValidationStatus = "Válida" });
+            }
             db.AccessAudits.Add(new AccessAudit { EventType = "PLAN_MODULES_SEEDED", Detail = "Módulos 1 al 7 preparados con estructura territorial, agronomía, ciclo y telemetría." });
             await db.SaveChangesAsync();
         }
         await SeedReferenceCropsAsync(db);
         await Sprint3Seeder.SeedAsync(db);
-        await Modules7To10Seeder.SeedAsync(db);
+        await Modules7To10Seeder.SeedAsync(db, includeDemoData);
         await Sprint4Seeder.SeedAsync(db);
         await Sprint5Seeder.SeedAsync(db);
         await Sprint6Seeder.SeedAsync(db);
-        await EmpiricalDashboardSeeder.SeedAsync(db);
+        await EmpiricalDashboardSeeder.SeedStructureAsync(db);
+        // Segunda pasada: asigna poligonos y coordenadas a los sectores B y C que
+        // SeedStructureAsync acaba de crear.
         await Sprint3Seeder.SeedAsync(db);
+        if (includeDemoData) await EmpiricalDashboardSeeder.SeedDemoHistoryAsync(db);
     }
 
     private static async Task SeedReferenceCropsAsync(AppDbContext db)
