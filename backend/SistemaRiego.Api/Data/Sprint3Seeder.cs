@@ -22,28 +22,43 @@ public static class Sprint3Seeder
         await UpdateTerritory(db, "SECTOR-B", SectorBBoundary, "ZONA-B1", ZoneBBoundary, 16.88320m, -89.90100m);
         await UpdateTerritory(db, "SECTOR-C", SectorCBoundary, "ZONA-C1", ZoneCBoundary, 16.88380m, -89.89780m);
         var zone = await db.IrrigationZones.SingleOrDefaultAsync(x => x.Code == "ZONA-A1");
-        IoTDevice? valve = await db.IoTDevices.SingleOrDefaultAsync(x => x.Code == "VALVULA-A1");
-        if (valve is null)
-        {
-            var valveType = await db.MasterCatalogItems.SingleAsync(x => x.Kind == CatalogKind.DeviceType && x.Code == "SOLENOID_VALVE");
-            var active = await db.MasterCatalogItems.SingleAsync(x => x.Kind == CatalogKind.OperationalStatus && x.Code == "ACTIVE");
-            valve = new IoTDevice { Code = "VALVULA-A1", Name = "Válvula solenoide A1", SerialNumber = "VLV-CUDEP-A1", Manufacturer = "Simulada", Model = "MQTT-24V", InstallationLocation = "Zona tomate A1", DeviceTypeId = valveType.Id, OperationalStatusId = active.Id, NodeId = await db.IoTNodes.OrderBy(x => x.Code).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(), LastCommunicationUtc = DateTime.UtcNow };
-            db.IoTDevices.Add(valve);
-        }
-
         await UpsertParameter(db, "MAX_SIMULTANEOUS_VALVES", "2", "integer", "Automatización", "Límite global de válvulas abiertas simultáneamente.");
         await UpsertParameter(db, "MQTT_COMMAND_TIMEOUT_SECONDS", "15", "integer", "Automatización", "Tiempo máximo para recibir ACK de una orden MQTT.");
         await UpsertParameter(db, "AUTOMATION_MAX_COMMAND_ATTEMPTS", "3", "integer", "Automatización", "Intentos automáticos máximos desde el último ACK antes de suspender una regla.");
         await UpsertParameter(db, "AUTOMATION_INTERVAL_SECONDS", "10", "integer", "Automatización", "Intervalo del evaluador automático de reglas.");
         await db.SaveChangesAsync();
 
+        // Cada zona necesita su propia valvula: sin dispositivo actuador el motor de
+        // automatizacion no tiene que accionar y la zona queda inoperable. B1 y C1
+        // existian sin ninguna, asi que solo A1 podia regar.
+        await EnsureZoneValveAsync(db, "ZONA-A1", "VALVULA-A1", "Válvula solenoide A1", "VLV-CUDEP-A1");
+        await EnsureZoneValveAsync(db, "ZONA-B1", "VALVULA-B1", "Válvula solenoide B1", "VLV-CUDEP-B1");
+        await EnsureZoneValveAsync(db, "ZONA-C1", "VALVULA-C1", "Válvula solenoide C1", "VLV-CUDEP-C1");
+
         if (zone is not null)
         {
-            zone.ValveDeviceId ??= valve.Id;
-            if (!await db.IrrigationZoneValves.AnyAsync(x => x.IrrigationZoneId == zone.Id && x.DeviceId == valve.Id)) db.IrrigationZoneValves.Add(new IrrigationZoneValve { IrrigationZoneId = zone.Id, DeviceId = valve.Id });
             foreach (var sensorId in await db.IoTSensors.Where(x => x.Code == "HUM-SUELO-A1" || x.Code == "TEMP-SUELO-A1").Select(x => x.Id).ToListAsync())
                 if (!await db.IrrigationZoneSensors.AnyAsync(x => x.IrrigationZoneId == zone.Id && x.SensorId == sensorId)) db.IrrigationZoneSensors.Add(new IrrigationZoneSensor { IrrigationZoneId = zone.Id, SensorId = sensorId, IsPrimary = sensorId == zone.PrimarySensorId });
         }
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task EnsureZoneValveAsync(AppDbContext db, string zoneCode, string valveCode, string valveName, string serialNumber)
+    {
+        var zone = await db.IrrigationZones.SingleOrDefaultAsync(x => x.Code == zoneCode);
+        if (zone is null) return;
+        var valve = await db.IoTDevices.SingleOrDefaultAsync(x => x.Code == valveCode);
+        if (valve is null)
+        {
+            var valveType = await db.MasterCatalogItems.SingleAsync(x => x.Kind == CatalogKind.DeviceType && x.Code == "SOLENOID_VALVE");
+            var active = await db.MasterCatalogItems.SingleAsync(x => x.Kind == CatalogKind.OperationalStatus && x.Code == "ACTIVE");
+            valve = new IoTDevice { Code = valveCode, Name = valveName, SerialNumber = serialNumber, Manufacturer = "Simulada", Model = "MQTT-24V", InstallationLocation = zone.Name, DeviceTypeId = valveType.Id, OperationalStatusId = active.Id, NodeId = await db.IoTNodes.OrderBy(x => x.Code).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(), LastCommunicationUtc = DateTime.UtcNow };
+            db.IoTDevices.Add(valve);
+            await db.SaveChangesAsync();
+        }
+        zone.ValveDeviceId ??= valve.Id;
+        if (!await db.IrrigationZoneValves.AnyAsync(x => x.IrrigationZoneId == zone.Id && x.DeviceId == valve.Id))
+            db.IrrigationZoneValves.Add(new IrrigationZoneValve { IrrigationZoneId = zone.Id, DeviceId = valve.Id });
         await db.SaveChangesAsync();
     }
 

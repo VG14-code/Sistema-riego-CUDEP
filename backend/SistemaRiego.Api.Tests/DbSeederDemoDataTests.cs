@@ -59,6 +59,14 @@ public sealed class DbSeederDemoDataTests
         Assert.True(await db.GlobalParameters.AnyAsync(x => x.Key == "AUDIT_RETENTION_DAYS"));
         Assert.True(await db.WaterTanks.AnyAsync());
         Assert.True(await db.IoTSensors.AnyAsync(x => x.Code == "HUM-SUELO-A1"));
+        // Toda zona necesita valvula propia: sin actuador no puede regar, ni manual
+        // ni automaticamente. B1 y C1 quedaron sin ninguna hasta el 29/08.
+        foreach (var zoneCode in new[] { "ZONA-A1", "ZONA-B1", "ZONA-C1" })
+        {
+            var zone = await db.IrrigationZones.SingleAsync(x => x.Code == zoneCode);
+            Assert.True(zone.ValveDeviceId is not null, $"{zoneCode} no tiene valvula asignada");
+            Assert.True(await db.IrrigationZoneValves.AnyAsync(x => x.IrrigationZoneId == zone.Id), $"{zoneCode} no tiene la valvula enlazada");
+        }
     }
 
     [Fact]
