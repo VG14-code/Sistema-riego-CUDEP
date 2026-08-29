@@ -14,6 +14,19 @@ En staging y producción deben suministrarse mediante el almacén de secretos de
 
 El endpoint de alta de usuarios no es público: requiere la política `Administrator` y un código TOTP válido. Login y recuperación de contraseña tienen un límite fijo de cinco solicitudes por minuto y dirección IP.
 
+## Parámetros globales conectados
+
+Cuatro parámetros de `GlobalParameters` existían y eran editables, pero ningún código los leía. Ahora influyen de verdad:
+
+| Parámetro | Qué gobierna |
+|---|---|
+| `MAX_LOGIN_ATTEMPTS` | Bloqueo de la cuenta tras N intentos fallidos. Identity mantiene su propio límite como respaldo; el parámetro solo puede endurecerlo, nunca relajarlo por encima de ese respaldo. |
+| `SENSOR_OFFLINE_MINUTES` | Umbral de inactividad con que `IoTHealthWorker` marca nodos y sensores como `OFFLINE`. |
+| `TELEMETRY_INTERVAL_SECONDS` | Cadencia esperada de lecturas; `GET /api/telemetry/quality` la usa para calcular `expectedLastDay` y `completenessPercent`. |
+| `DEFAULT_IRRIGATION_MINUTES` | Duración que aplica `AutomationEngine` cuando la regla que dispara el riego no define una propia. |
+
+`SENSOR_OFFLINE_MINUTES` sigue una precedencia explícita: si `IoTHealth:OfflineAfterSeconds` está definido en la configuración del entorno, esa anulación gana; si no, manda el parámetro global; y sin ninguno de los dos, el valor de referencia del código. `appsettings.Development.json` fija segundos precisamente para que la detección sea observable en las pruebas de navegador, que no pueden esperar minutos.
+
 ## TOTP
 
 Cada administrador configura su autenticador en **Administración → Seguridad 2FA**. Las operaciones de riego manual, cambios de umbrales/reglas de automatización y gestión de usuarios/roles exigen el encabezado `X-TOTP-Code`.

@@ -333,6 +333,24 @@ public sealed class AuthServiceTests
         return user;
     }
 
+    [Fact]
+    public async Task MaxLoginAttempts_LocksAccountAtTheConfiguredThreshold()
+    {
+        var setup = Create();
+        await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
+        setup.Db.GlobalParameters.Add(new GlobalParameter { Key = "MAX_LOGIN_ATTEMPTS", Value = "2", DataType = "integer", Category = "Seguridad", Description = "Prueba" });
+        await setup.Db.SaveChangesAsync();
+
+        // Identity bloquearia a los cinco intentos; el parametro endurece el limite a dos.
+        Assert.Null(await setup.Service.LoginAsync(new("persona@correo.gt", "incorrecta"), TestContext, default));
+        Assert.Null(await setup.Service.LoginAsync(new("persona@correo.gt", "incorrecta"), TestContext, default));
+
+        var user = await setup.Users.FindByEmailAsync("persona@correo.gt");
+        Assert.True(await setup.Users.IsLockedOutAsync(user!));
+        // Ni con la contrasena correcta se entra mientras dure el bloqueo.
+        Assert.Null(await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default));
+    }
+
     private static Setup Create(IEmailSender? sender = null, ILogger<AuthService>? logger = null)
     {
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

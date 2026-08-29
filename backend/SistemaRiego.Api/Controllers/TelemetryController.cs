@@ -69,7 +69,16 @@ public sealed class TelemetryController(AppDbContext db, ITelemetryIngestionServ
         var total = await db.SensorReadings.CountAsync(cancellationToken);
         var valid = await db.SensorReadings.CountAsync(x => x.IsValid, cancellationToken);
         var sensors = await db.IoTSensors.Where(x => x.IsActive).CountAsync(cancellationToken);
-        var reporting = await db.SensorReadings.Where(x => x.ReceivedAtUtc > DateTime.UtcNow.AddHours(-24)).Select(x => x.SensorId).Distinct().CountAsync(cancellationToken);
+        var since = DateTime.UtcNow.AddHours(-24);
+        var reporting = await db.SensorReadings.Where(x => x.ReceivedAtUtc > since).Select(x => x.SensorId).Distinct().CountAsync(cancellationToken);
+        // La completitud compara lo recibido en 24 h contra lo que TELEMETRY_INTERVAL_SECONDS
+        // dice que deberia llegar. Sin ese denominador, "disponibilidad" solo media cuantos
+        // sensores reportaron al menos una vez, y un sensor con una sola lectura en el dia
+        // contaba igual que uno puntual.
+        var intervalRaw = await db.GlobalParameters.AsNoTracking().Where(x => x.Key == "TELEMETRY_INTERVAL_SECONDS").Select(x => x.Value).SingleOrDefaultAsync(cancellationToken);
+        var intervalSeconds = int.TryParse(intervalRaw, out var parsed) && parsed > 0 ? parsed : 60;
+        var receivedLastDay = await db.SensorReadings.CountAsync(x => x.ReceivedAtUtc > since, cancellationToken);
+        var expectedLastDay = sensors * (86400 / intervalSeconds);
         return Ok(new
         {
             total,
@@ -78,7 +87,11 @@ public sealed class TelemetryController(AppDbContext db, ITelemetryIngestionServ
             validPercent = total == 0 ? 0 : Math.Round(valid * 100m / total, 1),
             activeSensors = sensors,
             reportingSensors = reporting,
-            availabilityPercent = sensors == 0 ? 0 : Math.Round(reporting * 100m / sensors, 1)
+            availabilityPercent = sensors == 0 ? 0 : Math.Round(reporting * 100m / sensors, 1),
+            telemetryIntervalSeconds = intervalSeconds,
+            expectedLastDay,
+            receivedLastDay,
+            completenessPercent = expectedLastDay == 0 ? 0 : Math.Round(Math.Min(receivedLastDay, expectedLastDay) * 100m / expectedLastDay, 1)
         });
     }
 

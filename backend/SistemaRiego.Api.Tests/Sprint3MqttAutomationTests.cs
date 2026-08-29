@@ -28,6 +28,21 @@ public sealed class Sprint3MqttAutomationTests
     }
 
     [Fact]
+    public async Task Automation_UsesDefaultIrrigationMinutes_WhenTheRuleHasNoDuration()
+    {
+        var setup = await SetupAsync();
+        setup.Db.GlobalParameters.Add(new GlobalParameter { Key = "DEFAULT_IRRIGATION_MINUTES", Value = "7", DataType = "integer", Category = "Riego", Description = "Prueba" });
+        setup.Db.IrrigationRules.Add(new IrrigationRule { IrrigationZoneId = setup.Zone1.Id, Name = "Sin duración", Priority = 1, MinimumMoisturePercent = 40, TargetMoisturePercent = 60, MaximumDurationMinutes = 0, AllowedFrom = TimeOnly.MinValue, AllowedUntil = TimeOnly.MaxValue });
+        setup.Db.SensorReadings.Add(Reading(setup.Zone1.Id, setup.Sensor.Id, "A"));
+        await setup.Db.SaveChangesAsync();
+        var service = new IrrigationCommandService(setup.Db, new FakePublisher(), NullLogger<IrrigationCommandService>.Instance);
+
+        await new AutomationEngine(setup.Db, service, NullLogger<AutomationEngine>.Instance).EvaluateAsync(default);
+
+        Assert.Equal(7, setup.Db.IrrigationRuns.Single().PlannedDurationMinutes);
+    }
+
+    [Fact]
     public async Task Automation_ArbitratesPriorityAndHonorsGlobalValveLimit()
     {
         var setup = await SetupAsync(); setup.Db.GlobalParameters.Add(new GlobalParameter { Key = "MAX_SIMULTANEOUS_VALVES", Value = "1", DataType = "integer", Category = "Automatización", Description = "Prueba" });

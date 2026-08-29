@@ -40,7 +40,7 @@ public sealed class AutomationEngine(AppDbContext db, IIrrigationCommandService 
                 winner.LastReason = !valveHealth.AllOnline && valveCount > 0 ? $"Válvulas sin conexión: {string.Join(", ", valveHealth.OfflineNames)}." : reading is null ? "No hay una lectura válida." : $"Humedad {reading.Value:0.0}% frente al mínimo {winner.MinimumMoisturePercent:0.0}%.";
             if (irrigate)
             {
-                var run = new IrrigationRun { IrrigationZoneId = winner.IrrigationZoneId, IrrigationRuleId = winner.Id, Mode = "Automático", Status = "Esperando ACK", PlannedDurationMinutes = winner.MaximumDurationMinutes, FlowRateLitersMinute = 12, RequestedAtUtc = now, Reason = winner.LastReason ?? "Solicitud automática." };
+                var run = new IrrigationRun { IrrigationZoneId = winner.IrrigationZoneId, IrrigationRuleId = winner.Id, Mode = "Automático", Status = "Esperando ACK", PlannedDurationMinutes = winner.MaximumDurationMinutes > 0 ? winner.MaximumDurationMinutes : await ParameterInt("DEFAULT_IRRIGATION_MINUTES", 15, ct), FlowRateLitersMinute = 12, RequestedAtUtc = now, Reason = winner.LastReason ?? "Solicitud automática." };
                 db.IrrigationRuns.Add(run); await db.SaveChangesAsync(ct);
                 try
                 {

@@ -53,6 +53,7 @@ public sealed class AuthService(
         if (!await userManager.CheckPasswordAsync(user, request.Password))
         {
             await userManager.AccessFailedAsync(user);
+            await ApplyConfiguredLockoutAsync(user, ct);
             await Failed(user.Id, context, ct);
             return null;
         }
@@ -263,6 +264,19 @@ public sealed class AuthService(
 
     private Task<User?> LoadUser(string normalized, CancellationToken ct) => db.Users.Include(x => x.Credential).Include(x => x.UserRoles).ThenInclude(x => x.Role).SingleOrDefaultAsync(x => x.NormalizedEmail == normalized, ct);
     private Task<User?> LoadUser(Guid id, CancellationToken ct) => db.Users.Include(x => x.Credential).Include(x => x.UserRoles).ThenInclude(x => x.Role).SingleOrDefaultAsync(x => x.Id == id, ct);
+
+    // Identity bloquea con su propio MaxFailedAccessAttempts, fijo en el arranque.
+    // MAX_LOGIN_ATTEMPTS permite endurecer ese limite sin reiniciar: si el parametro
+    // es menor, el bloqueo se aplica antes; si es mayor o no existe, manda Identity.
+    private async Task ApplyConfiguredLockoutAsync(User user, CancellationToken ct)
+    {
+        var raw = await db.GlobalParameters.AsNoTracking().Where(x => x.Key == "MAX_LOGIN_ATTEMPTS").Select(x => x.Value).SingleOrDefaultAsync(ct);
+        if (!int.TryParse(raw, out var maximum) || maximum < 1) return;
+        if (await userManager.IsLockedOutAsync(user)) return;
+        if (await userManager.GetAccessFailedCountAsync(user) < maximum) return;
+        await userManager.SetLockoutEndDateAsync(user, DateTimeOffset.UtcNow.Add(userManager.Options.Lockout.DefaultLockoutTimeSpan));
+        db.AccessAudits.Add(new AccessAudit { UserId = user.Id, EventType = "LOGIN_LOCKED_OUT", Detail = $"Cuenta bloqueada tras {maximum} intentos fallidos (MAX_LOGIN_ATTEMPTS)." });
+    }
 
     private async Task Failed(Guid? id, AuthContext context, CancellationToken ct)
     {

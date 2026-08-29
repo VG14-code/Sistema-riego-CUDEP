@@ -8,8 +8,20 @@ namespace SistemaRiego.Api.Services;
 public sealed class IoTHealthOptions
 {
     public const string SectionName = "IoTHealth";
-    public int OfflineAfterSeconds { get; init; } = 20;
+    // Sin valor configurado manda SENSOR_OFFLINE_MINUTES. Definirlo en appsettings
+    // es una anulacion explicita por entorno: Development lo baja a segundos para
+    // que la deteccion sea observable en las pruebas de navegador.
+    public int? OfflineAfterSeconds { get; init; }
     public int CheckIntervalSeconds { get; init; } = 5;
+    public const int DefaultOfflineSeconds = 20;
+
+    // Precedencia: anulacion explicita del entorno, luego el parametro global
+    // SENSOR_OFFLINE_MINUTES, y por ultimo el valor de referencia del codigo.
+    public static int ResolveOfflineSeconds(int? configuredSeconds, string? parameterMinutes)
+    {
+        if (configuredSeconds is int configured) return Math.Max(5, configured);
+        return int.TryParse(parameterMinutes, out var minutes) && minutes > 0 ? Math.Max(5, minutes * 60) : DefaultOfflineSeconds;
+    }
 }
 
 public sealed class IoTHealthWorker(
@@ -37,7 +49,7 @@ public sealed class IoTHealthWorker(
         if (!statuses.TryGetValue("OFFLINE", out var offlineId))
             return;
 
-        var cutoff = DateTime.UtcNow.AddSeconds(-Math.Max(5, options.OfflineAfterSeconds));
+        var cutoff = DateTime.UtcNow.AddSeconds(-await OfflineSecondsAsync(db, cancellationToken));
         var changed = 0;
         foreach (var node in await db.IoTNodes.Where(x => x.IsActive && (!x.LastCommunicationUtc.HasValue || x.LastCommunicationUtc < cutoff) && x.OperationalStatusId != offlineId).ToListAsync(cancellationToken))
         {
@@ -70,5 +82,12 @@ public sealed class IoTHealthWorker(
             await db.SaveChangesAsync(cancellationToken);
             logger.LogInformation("Heartbeat IoT marcó {Count} elementos como OFFLINE (límite {Cutoff:o})", changed, cutoff);
         }
+    }
+
+    private async Task<int> OfflineSecondsAsync(AppDbContext db, CancellationToken ct)
+    {
+        if (options.OfflineAfterSeconds is int configured) return Math.Max(5, configured);
+        var raw = await db.GlobalParameters.AsNoTracking().Where(x => x.Key == "SENSOR_OFFLINE_MINUTES").Select(x => x.Value).SingleOrDefaultAsync(ct);
+        return IoTHealthOptions.ResolveOfflineSeconds(null, raw);
     }
 }
