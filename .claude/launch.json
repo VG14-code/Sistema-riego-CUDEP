@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "backend/SistemaRiego.Api/SistemaRiego.Api.csproj", "--urls", "http://localhost:5080"],
+      "port": 5080
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "frontend", "--", "--host", "localhost", "--port", "5173", "--strictPort"],
+      "port": 5173
+    }
+  ]
+}
