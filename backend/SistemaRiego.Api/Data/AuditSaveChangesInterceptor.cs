@@ -18,12 +18,23 @@ public sealed class AuditSaveChangesInterceptor(IHttpContextAccessor httpContext
         // o un cultivo no dejaba rastro y solo podia reconstruirse desde los logs.
         typeof(UniversityCenter), typeof(Farm), typeof(FarmBlock), typeof(IrrigationSector), typeof(IrrigationZone),
         typeof(SoilType), typeof(CropType), typeof(Crop), typeof(PhenologicalStage), typeof(CropWaterRequirement),
-        typeof(CropCycle), typeof(CropRotationPlan)
+        typeof(CropCycle), typeof(CropRotationPlan),
+        // Infraestructura IoT: inventario, instalacion, calibracion, firmware y
+        // configuracion remota. Las lecturas (SensorReading) nunca se auditan: son
+        // telemetria, no configuracion, y tienen su propia tabla y retencion.
+        typeof(IoTNode), typeof(IoTDevice), typeof(IoTSensor), typeof(SensorCalibration),
+        typeof(DeviceBrand), typeof(DeviceModel), typeof(DeviceInstallation),
+        typeof(FirmwareHistory), typeof(RemoteConfigurationCommand)
         // IrrigationZoneSensor y IrrigationZoneValve quedan fuera a proposito:
         // SyncAssignmentsAsync borra y reinserta todas las asignaciones en cada
         // actualizacion de zona, asi que auditarlas generaria ruido sin cambio real.
         // La zona ya registra quien la modifico.
     ];
+
+    // Marcas de latido que la ingestion de telemetria reescribe en cada mensaje MQTT.
+    // Una modificacion que solo las toca no es un cambio de configuracion y no se
+    // audita; si viene acompanada de cualquier otro campo, la entrada si se registra.
+    private static readonly string[] HeartbeatProperties = ["LastReadingUtc", "LastCommunicationUtc"];
 
     private static readonly string[] SecretFragments = ["Password", "Token", "Authenticator", "RecoveryCode", "SecurityStamp", "ConcurrencyStamp"];
 
@@ -52,6 +63,7 @@ public sealed class AuditSaveChangesInterceptor(IHttpContextAccessor httpContext
 
         var audits = context.ChangeTracker.Entries()
             .Where(x => AuditedTypes.Contains(x.Entity.GetType()) && x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Where(x => x.State != EntityState.Modified || x.Properties.Any(p => p.IsModified && !HeartbeatProperties.Contains(p.Metadata.Name)))
             .Select(x => CreateEntry(x, actorId, actorEmail, ip, correlationId, origin))
             .ToList();
         if (audits.Count > 0) context.AddRange(audits);

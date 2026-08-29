@@ -113,5 +113,41 @@ public sealed class Sprint6ReportingAuditTests
         Assert.Single(data.Consumption); Assert.Single(data.Irrigation); Assert.Equal("Zona", data.Consumption[0].Zone);
     }
 
+
+    [Fact]
+    public async Task AuditInterceptor_RecordsIoTConfigurationButIgnoresHeartbeats()
+    {
+        var http = new DefaultHttpContext { TraceIdentifier = "corr-iot" };
+        http.Connection.RemoteIpAddress = System.Net.IPAddress.Loopback;
+        http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()), new Claim(ClaimTypes.Email, "tecnico@test.local")], "test"));
+        var accessor = new HttpContextAccessor { HttpContext = http };
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).AddInterceptors(new AuditSaveChangesInterceptor(accessor)).Options;
+        await using var db = new AppDbContext(options);
+
+        var sensor = new IoTSensor { Code = "SEN-AUD", Name = "Sensor auditado", SerialNumber = "SN-AUD", SensorTypeId = Guid.NewGuid(), MeasurementUnitId = Guid.NewGuid(), OperationalStatusId = Guid.NewGuid(), MinimumValue = 0, MaximumValue = 100 };
+        db.Add(sensor); await db.SaveChangesAsync();
+        Assert.Single(await db.AuditEntries.Where(x => x.EntityType == "IoTSensor").ToListAsync());
+
+        // La ingestion de telemetria reescribe LastReadingUtc en cada mensaje MQTT:
+        // con ~2000 lecturas diarias, auditarlo inundaria la bitacora sin aportar nada.
+        sensor.LastReadingUtc = DateTime.UtcNow; await db.SaveChangesAsync();
+        sensor.LastReadingUtc = DateTime.UtcNow.AddMinutes(1); await db.SaveChangesAsync();
+        Assert.Single(await db.AuditEntries.Where(x => x.EntityType == "IoTSensor").ToListAsync());
+
+        // Un cambio real de configuracion si se registra, aunque venga acompanado
+        // de la marca de latido.
+        sensor.MaximumValue = 80; sensor.LastReadingUtc = DateTime.UtcNow.AddMinutes(2);
+        await db.SaveChangesAsync();
+        var audits = await db.AuditEntries.Where(x => x.EntityType == "IoTSensor").OrderBy(x => x.Id).ToListAsync();
+        Assert.Equal(2, audits.Count);
+        Assert.Equal("Actualización", audits[1].ActionType);
+        Assert.Contains("\"MaximumValue\":80", audits[1].AfterJson);
+        Assert.Equal("tecnico@test.local", audits[1].UserEmail);
+
+        var calibration = new SensorCalibration { SensorId = sensor.Id, CalibratedAtUtc = DateTime.UtcNow, ReferenceValue = 50, MeasuredValue = 48, AppliedOffset = 2 };
+        db.Add(calibration); await db.SaveChangesAsync();
+        Assert.Single(await db.AuditEntries.Where(x => x.EntityType == "SensorCalibration").ToListAsync());
+    }
+
     private static AppDbContext Db() => new(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 }
