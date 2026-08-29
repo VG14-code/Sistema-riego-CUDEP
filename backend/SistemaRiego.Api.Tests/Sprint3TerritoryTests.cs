@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SistemaRiego.Api.Contracts;
@@ -54,6 +55,25 @@ public sealed class Sprint3TerritoryTests
         const string reduced = "{\"type\":\"Polygon\",\"coordinates\":[[[-89.5,16.5],[-89.1,16.5],[-89.1,16.9],[-89.5,16.9],[-89.5,16.5]]]}";
         var result = await new TerritoryMaintenanceController(fixture.Db).UpdateSector(fixture.Sector.Id, new(fixture.Block.Id, fixture.Sector.Code, fixture.Sector.Name, 5, 1, true, reduced), default);
         Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CreateZone_ResponseSerializesWithoutObjectCycle()
+    {
+        var fixture = await CreateFixtureAsync();
+        var request = new ZoneRequest(fixture.Sector.Id, "Z-JSON", "Zona serializable", 1, fixture.Status.Id, fixture.Sensors[0].Id, fixture.Valves[0].Id, 16.2m, -89.8m, true, ZoneOne, fixture.Sensors.Select(x => x.Id).ToArray(), fixture.Valves.Select(x => x.Id).ToArray());
+
+        var result = await new TerritoryController(fixture.Db).CreateZone(request, default);
+
+        // Devolver la entidad con sus navegaciones producia el ciclo
+        // Sensors -> IrrigationZone -> Sensors: la zona quedaba guardada pero el
+        // endpoint respondia 500 al serializar, y quien probaba reintentaba creando
+        // duplicados. Assert.IsType<OkObjectResult> solo no basta: hay que serializar.
+        var value = Assert.IsType<OkObjectResult>(result).Value;
+        var json = JsonSerializer.Serialize(value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Contains("Z-JSON", json);
+        Assert.DoesNotContain("irrigationZone", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, await fixture.Db.IrrigationZoneSensors.CountAsync());
     }
 
     private static ZoneRequest Request(Fixture f, string code, string polygon) => new(f.Sector.Id, code, code, 1, f.Status.Id, null, null, null, null, true, polygon);
