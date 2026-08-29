@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/
 import os from 'node:os'
 import path from 'node:path'
 import { chromium } from 'playwright'
+import { signIn } from './login.mjs'
 
 const webRoot=process.env.E2E_BASE_URL??'http://localhost:5173'
 const email=process.env.E2E_EMAIL??'admin@sistemariego.local'
@@ -79,10 +80,7 @@ try{
  await page.getByLabel('Confirmar nueva contraseña').fill(recoveredPassword)
  await page.getByRole('button',{name:'Guardar nueva contraseña'}).click()
  await page.getByText('Contraseña actualizada. Ya puedes iniciar sesión.').waitFor()
- await page.getByLabel('Correo electrónico').fill(email)
- await page.getByLabel('Contraseña').fill(recoveredPassword)
- await page.getByRole('button',{name:'Iniciar sesión'}).click()
- await page.locator('.w2-app').waitFor({timeout:30000})
+ await signIn(page, { email, password: recoveredPassword, totpSecret })
  report.steps.push('4. Enlace usado, contraseña cambiada e inicio de sesión correcto: OK')
 
  await page.evaluate(()=>sessionStorage.clear())

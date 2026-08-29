@@ -3,11 +3,13 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { chromium } from 'playwright'
 import signalR from '@microsoft/signalr'
+import { signIn } from './login.mjs'
 
 const baseUrl = process.env.E2E_BASE_URL ?? 'http://localhost:5173'
 const apiRoot = process.env.E2E_API_URL ?? 'http://localhost:5080/api'
 const email = process.env.E2E_EMAIL ?? 'admin@sistemariego.local'
 const password = process.env.E2E_PASSWORD
+const totpSecret = process.env.E2E_TOTP_SECRET
 const outputDir = path.resolve(process.env.E2E_OUTPUT_DIR ?? path.join(process.cwd(), '..', 'artifacts', 'notification-e2e'))
 if (!password) throw new Error('Define E2E_PASSWORD.')
 
@@ -61,10 +63,7 @@ try {
   })
   const page = context.pages()[0] ?? await context.newPage()
   await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 45_000 })
-  await page.locator('input[type="email"]').fill(email)
-  await page.locator('input[type="password"]').fill(password)
-  await page.getByRole('button', { name: /iniciar sesión/i }).click()
-  await page.locator('.w2-app').waitFor({ timeout: 30_000 })
+  await signIn(page, { email, password, totpSecret })
   await page.getByRole('button', { name: 'Centro de notificaciones' }).click()
   await page.locator('.n-center aside').waitFor({ timeout: 10_000 })
   await page.locator('.n-empty').waitFor({ timeout: 10_000 })

@@ -1,10 +1,12 @@
 import { mkdir } from 'node:fs/promises'
 import { chromium } from 'playwright'
+import { signIn } from './login.mjs'
 
 const baseUrl = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:5173'
 const apiRoot = process.env.E2E_API_URL ?? 'http://127.0.0.1:5080/api'
 const email = process.env.E2E_EMAIL ?? 'admin@sistemariego.local'
 const password = process.env.E2E_PASSWORD
+const totpSecret = process.env.E2E_TOTP_SECRET
 const temporaryCode = 'TEMP_E2E_CULTIVO'
 if (!password) throw new Error('Define E2E_PASSWORD.')
 
@@ -26,10 +28,7 @@ try {
   browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-gpu'] })
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } })
   await page.goto(baseUrl, { waitUntil: 'networkidle' })
-  await page.locator('input[type="email"]').fill(email)
-  await page.locator('input[type="password"]').fill(password)
-  await page.getByRole('button', { name: /iniciar sesión/i }).click()
-  await page.locator('.w2-app').waitFor()
+  await signIn(page, { email, password, totpSecret })
 
   const navigate = async name => {
     await page.locator('.w2-app > aside nav button').filter({ hasText: name }).click()

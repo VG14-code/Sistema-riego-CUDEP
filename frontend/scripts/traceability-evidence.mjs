@@ -2,10 +2,12 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { chromium } from 'playwright'
+import { signIn } from './login.mjs'
 
 const baseUrl = process.env.VISUAL_BASE_URL ?? 'http://localhost:5173'
 const email = process.env.VISUAL_EMAIL
 const password = process.env.VISUAL_PASSWORD
+const totpSecret = process.env.VISUAL_TOTP_SECRET
 const outputDir = path.resolve(process.env.VISUAL_OUTPUT_DIR ?? path.join(process.cwd(), '..', 'artifacts', 'trazabilidad'))
 if (!email || !password) throw new Error('Define VISUAL_EMAIL y VISUAL_PASSWORD.')
 await mkdir(outputDir, { recursive: true })
@@ -17,11 +19,7 @@ try {
   context = await chromium.launchPersistentContext(userDataDir, { headless: true, viewport: { width: 1680, height: 1050 }, args: ['--no-sandbox', '--disable-gpu'] })
   const page = context.pages()[0] ?? await context.newPage()
   await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 45_000 })
-  await page.locator('input[type="email"]').fill(email)
-  await page.locator('input[type="password"]').fill(password)
-  await page.getByRole('button', { name: /iniciar sesión/i }).click()
-  await page.locator('.w2-app').waitFor({ timeout: 30_000 })
-
+  await signIn(page, { email, password, totpSecret })
   const capture = async (file) => {
     await page.waitForTimeout(900)
     const target = path.join(outputDir, file)

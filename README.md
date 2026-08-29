@@ -84,8 +84,13 @@ Captura reproducible:
 cd "C:\Users\VICTOR\Desktop\Sistema de Riego\frontend"
 $env:VISUAL_EMAIL = "admin@sistemariego.local"
 $env:VISUAL_PASSWORD = Read-Host "Contraseña administrativa de Development"
+$env:VISUAL_TOTP_SECRET = Read-Host "Clave del autenticador (solo si la cuenta tiene 2FA)"
 npm run visual:capture
 ~~~
+
+Cuando la cuenta exige segundo factor, los guiones resuelven el paso de verificación por su cuenta: `scripts/login.mjs` calcula el código de seis dígitos a partir de la clave compartida en base32 que entrega **Seguridad 2FA** al generarla. Los escenarios E2E usan `E2E_TOTP_SECRET` en lugar de `VISUAL_TOTP_SECRET`. Si la cuenta no tiene 2FA, la variable se omite y el inicio de sesión funciona como antes.
+
+Esa clave solo se muestra al generarla. Si ya no la conservas y necesitas automatizar, hay dos caminos: volver a ejecutar **Seguridad 2FA → generar clave** —lo que invalida la anterior y obliga a reconfigurar el autenticador— o desactivar el 2FA de esa cuenta mientras dure la captura.
 
 El comando espera el dashboard y una lectura real de telemetría, abre el centro de notificaciones y genera:
 

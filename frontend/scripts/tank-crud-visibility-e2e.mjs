@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium } from 'playwright'
+import { signIn } from './login.mjs'
 
 const webRoot=process.env.E2E_BASE_URL??'http://localhost:5173'
 const email=process.env.E2E_EMAIL??'admin@sistemariego.local'
@@ -14,10 +15,7 @@ try{
  browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-gpu']})
  const page=await browser.newPage({viewport:{width:1920,height:1080},deviceScaleFactor:1})
  await page.goto(webRoot,{waitUntil:'networkidle',timeout:45000})
- await page.locator('input[type="email"]').fill(email)
- await page.locator('input[type="password"]').fill(password)
- await page.getByRole('button',{name:/iniciar sesión/i}).click()
- await page.locator('.w2-app').waitFor({timeout:30000})
+ await signIn(page, { email, password, totpSecret })
  await page.locator('.w2-app > aside nav button').filter({hasText:'Bomba y tanque'}).click()
  const duplicateAccess=page.getByRole('button',{name:'Gestionar tanques',exact:true})
  const summary=page.getByRole('region',{name:'Acceso a gestión de tanques'})
