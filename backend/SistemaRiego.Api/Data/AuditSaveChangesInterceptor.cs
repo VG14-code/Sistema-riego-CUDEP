@@ -13,7 +13,16 @@ public sealed class AuditSaveChangesInterceptor(IHttpContextAccessor httpContext
     [
         typeof(User), typeof(UserRole), typeof(RolePermission), typeof(MasterCatalogItem), typeof(GlobalParameter),
         typeof(IrrigationRule), typeof(IrrigationRun), typeof(IoTCommand), typeof(SystemAlert),
-        typeof(MaintenancePlan), typeof(MaintenanceActivity), typeof(MaintenanceIncident)
+        typeof(MaintenancePlan), typeof(MaintenanceActivity), typeof(MaintenanceIncident),
+        // Territorio y agronomia: sin estos tipos, crear o borrar una zona, un sector
+        // o un cultivo no dejaba rastro y solo podia reconstruirse desde los logs.
+        typeof(UniversityCenter), typeof(Farm), typeof(FarmBlock), typeof(IrrigationSector), typeof(IrrigationZone),
+        typeof(SoilType), typeof(CropType), typeof(Crop), typeof(PhenologicalStage), typeof(CropWaterRequirement),
+        typeof(CropCycle), typeof(CropRotationPlan)
+        // IrrigationZoneSensor y IrrigationZoneValve quedan fuera a proposito:
+        // SyncAssignmentsAsync borra y reinserta todas las asignaciones en cada
+        // actualizacion de zona, asi que auditarlas generaria ruido sin cambio real.
+        // La zona ya registra quien la modifico.
     ];
 
     private static readonly string[] SecretFragments = ["Password", "Token", "Authenticator", "RecoveryCode", "SecurityStamp", "ConcurrencyStamp"];

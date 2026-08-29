@@ -15,7 +15,7 @@ QuestPDF usa la licencia Community. ClosedXML genera los libros sin depender de 
 
 CorrelationIdMiddleware conserva X-Correlation-ID cuando llega en la petición o genera uno nuevo, lo devuelve en la respuesta y lo agrega al contexto de Serilog.
 
-El interceptor de EF registra creación, actualización y eliminación de usuarios, roles/permisos, catálogos, parámetros, reglas/riegos, comandos/ACK, alertas y mantenimiento. En actualizaciones almacena JSON antes/después; contraseñas, tokens, autenticadores, códigos de recuperación y stamps siempre se reemplazan por [PROTEGIDO].
+El interceptor de EF registra creación, actualización y eliminación de usuarios, roles/permisos, catálogos, parámetros, reglas/riegos, comandos/ACK, alertas, mantenimiento, la jerarquía territorial (centros, fincas, bloques, sectores y zonas) y la agronomía (tipos de suelo, tipos de cultivo, cultivos, etapas fenológicas, requerimientos, ciclos y rotaciones). Las asignaciones IrrigationZoneSensor e IrrigationZoneValve quedan fuera a propósito: SyncAssignmentsAsync las borra y reinserta en cada actualización de zona, de modo que auditarlas produciría ruido sin cambio real, y la zona ya registra quién la modificó. En actualizaciones almacena JSON antes/después; contraseñas, tokens, autenticadores, códigos de recuperación y stamps siempre se reemplazan por [PROTEGIDO].
 
 La auditoría tiene tabla y política de retención independientes. AuditRetentionService busca el parámetro AUDIT_RETENTION_DAYS; si no existe usa 730 días, con límites de 30 a 3650 días, y depura diariamente. La consulta y las exportaciones filtradas están en:
 

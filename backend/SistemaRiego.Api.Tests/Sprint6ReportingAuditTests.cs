@@ -56,6 +56,38 @@ public sealed class Sprint6ReportingAuditTests
     }
 
     [Fact]
+    public async Task AuditInterceptor_RecordsTerritoryAndAgronomyChanges()
+    {
+        var http = new DefaultHttpContext { TraceIdentifier = "corr-territorio" };
+        http.Connection.RemoteIpAddress = System.Net.IPAddress.Loopback;
+        http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()), new Claim(ClaimTypes.Email, "admin@test.local")], "test"));
+        var accessor = new HttpContextAccessor { HttpContext = http };
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).AddInterceptors(new AuditSaveChangesInterceptor(accessor)).Options;
+        await using var db = new AppDbContext(options);
+
+        // Crear, modificar y borrar una zona debe quedar registrado: reconstruir esto
+        // desde los logs de Serilog fue lo que costo rastrear las zonas huerfanas.
+        var zone = new IrrigationZone { IrrigationSectorId = Guid.NewGuid(), Code = "Z-AUD", Name = "Zona auditada", AreaHectares = 1, OperationalStatusId = Guid.NewGuid() };
+        db.Add(zone); await db.SaveChangesAsync();
+        zone.Name = "Zona renombrada"; await db.SaveChangesAsync();
+        db.Remove(zone); await db.SaveChangesAsync();
+
+        var zoneAudits = await db.AuditEntries.Where(x => x.EntityType == "IrrigationZone").OrderBy(x => x.Id).ToListAsync();
+        Assert.Equal(["Creación", "Actualización", "Eliminación"], zoneAudits.Select(x => x.ActionType));
+        Assert.Equal("admin@test.local", zoneAudits[0].UserEmail);
+        Assert.Equal("corr-territorio", zoneAudits[0].CorrelationId);
+        Assert.Contains("\"Name\":\"Zona auditada\"", zoneAudits[1].BeforeJson);
+        Assert.Contains("\"Name\":\"Zona renombrada\"", zoneAudits[1].AfterJson);
+        Assert.Null(zoneAudits[2].AfterJson);
+
+        var crop = new Crop { CropTypeId = Guid.NewGuid(), Code = "C-AUD", Name = "Cultivo auditado" };
+        var center = new UniversityCenter { Code = "U-AUD", Name = "Centro auditado" };
+        db.AddRange(crop, center); await db.SaveChangesAsync();
+        Assert.Single(await db.AuditEntries.Where(x => x.EntityType == "Crop").ToListAsync());
+        Assert.Single(await db.AuditEntries.Where(x => x.EntityType == "UniversityCenter").ToListAsync());
+    }
+
+    [Fact]
     public async Task CorrelationMiddleware_PreservesIncomingIdAndReturnsIt()
     {
         var context = new DefaultHttpContext();
