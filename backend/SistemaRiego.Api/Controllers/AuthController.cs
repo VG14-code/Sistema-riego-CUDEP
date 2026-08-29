@@ -24,10 +24,20 @@ public sealed class AuthController(IAuthService auth, ITotpService? totp = null)
     }
 
     [HttpPost("login"), AllowAnonymous, EnableRateLimiting("auth")]
-    public async Task<ActionResult<AuthResponse>> Login(LoginRequest request, CancellationToken ct)
+    public async Task<IActionResult> Login(LoginRequest request, CancellationToken ct)
     {
         var result = await auth.LoginAsync(request, Context(), ct);
-        return result is null ? Unauthorized(new { message = "Credenciales inválidas o cuenta no disponible." }) : Ok(result);
+        if (result is null) return Unauthorized(new { message = "Credenciales inválidas o cuenta no disponible." });
+        // Con segundo factor activo la respuesta no trae token: solo el desafío que
+        // /auth/login/2fa canjea después de verificar el código.
+        return result.Challenge is not null ? Ok(result.Challenge) : Ok(result.Session);
+    }
+
+    [HttpPost("login/2fa"), AllowAnonymous, EnableRateLimiting("auth")]
+    public async Task<ActionResult<AuthResponse>> LoginTwoFactor(TwoFactorLoginRequest request, CancellationToken ct)
+    {
+        var result = await auth.CompleteTwoFactorLoginAsync(request, Context(), ct);
+        return result is null ? Unauthorized(new { message = "El código es inválido, expiró o el desafío ya no es válido." }) : Ok(result);
     }
 
     [HttpPost("refresh"), AllowAnonymous]

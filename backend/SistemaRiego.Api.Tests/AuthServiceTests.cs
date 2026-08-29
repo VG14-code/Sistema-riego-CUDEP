@@ -33,7 +33,7 @@ public sealed class AuthServiceTests
     {
         var setup = Create();
         await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
-        var response = await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default);
+        var response = (await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default))?.Session;
         Assert.NotNull(response);
         Assert.Contains('.', response!.AccessToken);
         Assert.False(string.IsNullOrWhiteSpace(response.RefreshToken));
@@ -51,7 +51,7 @@ public sealed class AuthServiceTests
         await setup.Db.SaveChangesAsync();
 
         await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona de prueba"), default);
-        var response = await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default);
+        var response = (await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default))?.Session;
 
         var token = new JwtSecurityTokenHandler().ReadJwtToken(response!.AccessToken);
         Assert.Contains(token.Claims, c => c.Type == "perm" && c.Value == "riego.operar");
@@ -62,7 +62,7 @@ public sealed class AuthServiceTests
     {
         var setup = Create();
         await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
-        Assert.Null(await setup.Service.LoginAsync(new("persona@correo.gt", "incorrecta"), TestContext, default));
+        Assert.Null((await setup.Service.LoginAsync(new("persona@correo.gt", "incorrecta"), TestContext, default))?.Session);
         Assert.Equal(1, await setup.Db.AccessAudits.CountAsync(x => x.EventType == "LOGIN_FAILED"));
     }
 
@@ -71,7 +71,7 @@ public sealed class AuthServiceTests
     {
         var setup = Create();
         await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
-        var login = await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default);
+        var login = (await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default))?.Session;
         var refreshed = await setup.Service.RefreshAsync(login!.RefreshToken, TestContext, default);
         Assert.NotNull(refreshed);
         Assert.NotEqual(login.RefreshToken, refreshed!.RefreshToken);
@@ -83,7 +83,7 @@ public sealed class AuthServiceTests
     {
         var setup = Create();
         await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
-        var login = await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default);
+        var login = (await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default))?.Session;
         Assert.True(await setup.Service.LogoutAsync(login!.RefreshToken, default));
         Assert.False(await setup.Service.LogoutAsync(login.RefreshToken, default));
     }
@@ -93,14 +93,14 @@ public sealed class AuthServiceTests
     {
         var setup = Create();
         await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
-        var oldSession = await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default);
+        var oldSession = (await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default))?.Session;
         await setup.Service.RequestPasswordRecoveryAsync("persona@correo.gt", TestContext, default);
         var token = setup.Mail.LastToken;
 
         Assert.True(await setup.Service.ResetPasswordAsync(new(token, "Nueva123!"), TestContext, default));
         Assert.False(await setup.Service.ResetPasswordAsync(new(token, "Otra123!"), TestContext, default));
         Assert.Null(await setup.Service.RefreshAsync(oldSession!.RefreshToken, TestContext, default));
-        Assert.NotNull(await setup.Service.LoginAsync(new("persona@correo.gt", "Nueva123!"), TestContext, default));
+        Assert.NotNull((await setup.Service.LoginAsync(new("persona@correo.gt", "Nueva123!"), TestContext, default))?.Session);
     }
 
     [Fact]
@@ -165,20 +165,172 @@ public sealed class AuthServiceTests
     {
         var setup = Create();
         var target = await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
-        var oldSession = await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default);
+        var oldSession = (await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default))?.Session;
         var temporary = await setup.Service.AdminResetPasswordAsync(Guid.NewGuid(), target.Id, TestContext, default);
 
         Assert.NotNull(temporary);
         Assert.Null(await setup.Service.RefreshAsync(oldSession!.RefreshToken, TestContext, default));
-        var restricted = await setup.Service.LoginAsync(new("persona@correo.gt", temporary!), TestContext, default);
+        var restricted = (await setup.Service.LoginAsync(new("persona@correo.gt", temporary!), TestContext, default))?.Session;
         Assert.True(restricted!.User.MustChangePassword);
 
         var completed = await setup.Service.ChangeRequiredPasswordAsync(target.Id, new(temporary!, "Definitiva123!"), TestContext, default);
         Assert.NotNull(completed);
         Assert.False(completed!.User.MustChangePassword);
-        Assert.NotNull(await setup.Service.LoginAsync(new("persona@correo.gt", "Definitiva123!"), TestContext, default));
+        Assert.NotNull((await setup.Service.LoginAsync(new("persona@correo.gt", "Definitiva123!"), TestContext, default))?.Session);
         var audit = await setup.Db.AccessAudits.SingleAsync(x => x.EventType == "PASSWORD_ADMIN_RESET");
         Assert.DoesNotContain(temporary!, audit.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Login_WithTwoFactorEnabled_IssuesChallengeInsteadOfSession()
+    {
+        var setup = Create();
+        await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
+        await EnableTwoFactor(setup);
+
+        var result = await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default);
+
+        // La contraseña correcta no debe producir token de acceso por si sola.
+        Assert.NotNull(result);
+        Assert.Null(result!.Session);
+        Assert.NotNull(result.Challenge);
+        Assert.True(result.Challenge!.RequiresTwoFactor);
+        Assert.True(result.Challenge.ExpiresAtUtc > DateTime.UtcNow);
+        Assert.Empty(await setup.Db.Sessions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task CompleteTwoFactorLogin_WithValidCode_CreatesSessionAndConsumesChallenge()
+    {
+        var setup = Create();
+        await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
+        var user = await EnableTwoFactor(setup);
+        var challenge = (await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default))!.Challenge!;
+        var code = await CurrentTotpAsync(setup, user);
+
+        var session = await setup.Service.CompleteTwoFactorLoginAsync(new("persona@correo.gt", challenge.ChallengeToken, code), TestContext, default);
+
+        Assert.NotNull(session);
+        Assert.False(string.IsNullOrWhiteSpace(session!.AccessToken));
+        Assert.Single(await setup.Db.Sessions.ToListAsync());
+        // El desafio es de un solo uso: reutilizarlo no debe abrir otra sesion.
+        Assert.Null(await setup.Service.CompleteTwoFactorLoginAsync(new("persona@correo.gt", challenge.ChallengeToken, code), TestContext, default));
+        Assert.Single(await setup.Db.Sessions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task CompleteTwoFactorLogin_WithWrongCode_DoesNotCreateSession()
+    {
+        var setup = Create();
+        await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
+        await EnableTwoFactor(setup);
+        var challenge = (await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default))!.Challenge!;
+
+        Assert.Null(await setup.Service.CompleteTwoFactorLoginAsync(new("persona@correo.gt", challenge.ChallengeToken, "000000"), TestContext, default));
+        Assert.Empty(await setup.Db.Sessions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task CompleteTwoFactorLogin_StopsAfterFiveFailedAttempts()
+    {
+        var setup = Create();
+        await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
+        var user = await EnableTwoFactor(setup);
+        var challenge = (await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default))!.Challenge!;
+
+        for (var i = 0; i < 5; i++)
+            Assert.Null(await setup.Service.CompleteTwoFactorLoginAsync(new("persona@correo.gt", challenge.ChallengeToken, "000000"), TestContext, default));
+
+        // Agotados los intentos el desafio queda quemado, aunque el codigo sea correcto.
+        var valid = await CurrentTotpAsync(setup, user);
+        Assert.Null(await setup.Service.CompleteTwoFactorLoginAsync(new("persona@correo.gt", challenge.ChallengeToken, valid), TestContext, default));
+        Assert.Empty(await setup.Db.Sessions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task CompleteTwoFactorLogin_RejectsChallengeIssuedForAnotherAccount()
+    {
+        var setup = Create();
+        await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
+        await setup.Service.RegisterAsync(new("otra@correo.gt", "Segura123!", "Otra persona"), default);
+        var user = await EnableTwoFactor(setup);
+        var challenge = (await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default))!.Challenge!;
+        var code = await CurrentTotpAsync(setup, user);
+
+        Assert.Null(await setup.Service.CompleteTwoFactorLoginAsync(new("otra@correo.gt", challenge.ChallengeToken, code), TestContext, default));
+        Assert.Empty(await setup.Db.Sessions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task CompleteTwoFactorLogin_AcceptsRecoveryCodeOnce()
+    {
+        var setup = Create();
+        await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
+        var user = await EnableTwoFactor(setup);
+        var recoveryCodes = (await setup.Users.GenerateNewTwoFactorRecoveryCodesAsync(user, 3))!.ToArray();
+        var challenge = (await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default))!.Challenge!;
+
+        Assert.NotNull(await setup.Service.CompleteTwoFactorLoginAsync(new("persona@correo.gt", challenge.ChallengeToken, recoveryCodes[0]), TestContext, default));
+
+        // El mismo codigo de recuperacion no sirve dos veces.
+        var second = (await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default))!.Challenge!;
+        Assert.Null(await setup.Service.CompleteTwoFactorLoginAsync(new("persona@correo.gt", second.ChallengeToken, recoveryCodes[0]), TestContext, default));
+    }
+
+    [Fact]
+    public async Task Login_WithoutTwoFactor_KeepsReturningSessionDirectly()
+    {
+        var setup = Create();
+        await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
+
+        var result = await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default);
+
+        Assert.NotNull(result!.Session);
+        Assert.Null(result.Challenge);
+    }
+
+    // El proveedor de autenticador de Identity no genera codigos desde el servidor:
+    // GenerateTwoFactorTokenAsync devuelve cadena vacia porque el codigo lo produce la
+    // app del usuario. La prueba calcula el TOTP igual que lo haria esa app.
+    private static async Task<string> CurrentTotpAsync(Setup setup, User user)
+    {
+        var key = await setup.Users.GetAuthenticatorKeyAsync(user) ?? throw new InvalidOperationException("El usuario no tiene clave TOTP.");
+        var secret = Base32Decode(key);
+        var timestep = (long)((DateTimeOffset.UtcNow - DateTimeOffset.UnixEpoch).TotalSeconds / 30);
+        var counter = new byte[8];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(counter, timestep);
+        using var hmac = new System.Security.Cryptography.HMACSHA1(secret);
+        var hash = hmac.ComputeHash(counter);
+        var offset = hash[^1] & 0x0F;
+        var binary = ((hash[offset] & 0x7F) << 24) | ((hash[offset + 1] & 0xFF) << 16) | ((hash[offset + 2] & 0xFF) << 8) | (hash[offset + 3] & 0xFF);
+        return (binary % 1_000_000).ToString("D6");
+    }
+
+    private static byte[] Base32Decode(string value)
+    {
+        const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+        var clean = value.Replace(" ", string.Empty).TrimEnd('=').ToUpperInvariant();
+        var output = new List<byte>();
+        int bits = 0, accumulator = 0;
+        foreach (var character in clean)
+        {
+            var index = alphabet.IndexOf(character);
+            if (index < 0) throw new FormatException($"Caracter invalido en base32: {character}");
+            accumulator = (accumulator << 5) | index;
+            bits += 5;
+            if (bits < 8) continue;
+            output.Add((byte)((accumulator >> (bits - 8)) & 0xFF));
+            bits -= 8;
+        }
+        return output.ToArray();
+    }
+
+    private static async Task<User> EnableTwoFactor(Setup setup)
+    {
+        var user = await setup.Users.FindByEmailAsync("persona@correo.gt") ?? throw new InvalidOperationException("Usuario de prueba no encontrado.");
+        await setup.Users.ResetAuthenticatorKeyAsync(user);
+        await setup.Users.SetTwoFactorEnabledAsync(user, true);
+        return user;
     }
 
     private static Setup Create(IEmailSender? sender = null, ILogger<AuthService>? logger = null)
@@ -211,10 +363,10 @@ public sealed class AuthServiceTests
         services.AddScoped<AuthService>();
         services.AddScoped<IPermissionResolver, PermissionResolver>();
         var provider = services.BuildServiceProvider();
-        return new(provider.GetRequiredService<AuthService>(), db, mail);
+        return new(provider.GetRequiredService<AuthService>(), db, mail, provider.GetRequiredService<UserManager<User>>());
     }
 
-    private sealed record Setup(AuthService Service, AppDbContext Db, FakeEmailSender Mail);
+    private sealed record Setup(AuthService Service, AppDbContext Db, FakeEmailSender Mail, UserManager<User> Users);
 
     private sealed class FakeEmailSender : IEmailSender
     {

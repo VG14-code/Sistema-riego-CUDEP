@@ -107,6 +107,8 @@ dotnet user-secrets list --project .\backend\SistemaRiego.Api\SistemaRiego.Api.c
 
 Una cuenta recién sembrada inicia con 2FA desactivado. Para operaciones críticas, entra en **Seguridad 2FA**, genera la clave, agrégala a una aplicación TOTP y confirma con el código de seis dígitos. No existe un secreto TOTP fijo de pruebas; generar una clave reemplaza la anterior.
 
+**Con 2FA activo el segundo factor se exige también al iniciar sesión.** La contraseña ya no basta: el login pide después un código de seis dígitos, y el acceso solo se emite al verificarlo. Guarda los códigos de recuperación que aparecen al activar el 2FA, porque son la única forma de entrar si pierdes el autenticador; cada uno sirve una vez. Si te quedas sin autenticador y sin códigos, la salida es desactivar `TwoFactorEnabled` de esa cuenta directamente en la base de datos.
+
 ## Recuperación de contraseña
 
 El login expone **¿Olvidaste tu contraseña?** y siempre responde: “Si el correo está registrado, recibirás un enlace en unos minutos.” El enlace vence en 30 minutos, solo se acepta una vez y, al completarse, revoca los refresh tokens y los JWT activos mediante el sello de seguridad de Identity. Las solicitudes y los cambios se auditan sin guardar contraseñas ni tokens.

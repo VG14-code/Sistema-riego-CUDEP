@@ -25,12 +25,14 @@ function Access({ onLogin }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
+  const [code, setCode] = useState('')
+  const [challenge, setChallenge] = useState(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
 
   const goToLogin = () => {
     window.history.replaceState({}, document.title, window.location.pathname)
-    setMode('login'); setPassword(''); setConfirmation(''); setMessage('')
+    setMode('login'); setPassword(''); setConfirmation(''); setCode(''); setChallenge(null); setMessage('')
   }
 
   const submit = async event => {
@@ -49,19 +51,31 @@ function Access({ onLogin }) {
         setMessage('Contraseña actualizada. Ya puedes iniciar sesión.')
         return
       }
-      onLogin(await api.login(email, password))
+      if (mode === '2fa') {
+        onLogin(await api.loginTwoFactor(email, challenge.challengeToken, code))
+        return
+      }
+      const result = await api.login(email, password)
+      // Con segundo factor activo la respuesta no trae sesion: hay que canjear el desafio.
+      if (result?.requiresTwoFactor) {
+        setChallenge(result); setPassword(''); setCode(''); setMode('2fa')
+        setMessage('Contraseña verificada. Ingresa el código de tu aplicación de autenticación.')
+        return
+      }
+      onLogin(result)
     } catch (error) { setMessage(error.message) } finally { setBusy(false) }
   }
 
-  const title = mode === 'login' ? 'Bienvenido de nuevo' : mode === 'forgot' ? 'Recupera tu acceso' : 'Define tu nueva contraseña'
-  const subtitle = mode === 'login' ? 'Ingresa con uno de los perfiles habilitados.' : mode === 'forgot' ? 'Te enviaremos un enlace de un solo uso si el correo está registrado.' : 'El enlace es válido durante 30 minutos y solo puede utilizarse una vez.'
+  const title = mode === 'login' ? 'Bienvenido de nuevo' : mode === '2fa' ? 'Verificación en dos pasos' : mode === 'forgot' ? 'Recupera tu acceso' : 'Define tu nueva contraseña'
+  const subtitle = mode === 'login' ? 'Ingresa con uno de los perfiles habilitados.' : mode === '2fa' ? 'Escribe el código de seis dígitos de tu aplicación, o uno de tus códigos de recuperación.' : mode === 'forgot' ? 'Te enviaremos un enlace de un solo uso si el correo está registrado.' : 'El enlace es válido durante 30 minutos y solo puede utilizarse una vez.'
 
   return <main className="w2-login"><section className="w2-login-story"><div className="w2-logo"><span><Leaf/></span> Sistema de Riego</div><div><p className="w2-kicker">CUDEP · AGRICULTURA INTELIGENTE</p><h1>Seguridad para<br/>cada <em>decisión.</em></h1><p>Acceso por roles, datos maestros centralizados y trazabilidad de las operaciones del sistema.</p></div><small>Avance académico · Semana 2</small></section><section className="w2-login-form"><form onSubmit={submit}><p className="w2-kicker">ACCESO INSTITUCIONAL</p><h2>{title}</h2><p>{subtitle}</p>
-    {mode !== 'reset' && <label>Correo electrónico<input type="email" value={email} onChange={event=>setEmail(event.target.value)} required autoComplete="email"/></label>}
+    {mode !== 'reset' && mode !== '2fa' && <label>Correo electrónico<input type="email" value={email} onChange={event=>setEmail(event.target.value)} required autoComplete="email"/></label>}
+    {mode === '2fa' && <label>Código de verificación<input value={code} onChange={event=>setCode(event.target.value)} required autoFocus inputMode="numeric" autoComplete="one-time-code" placeholder="000000"/></label>}
     {mode === 'login' && <label>Contraseña<input type="password" value={password} onChange={event=>setPassword(event.target.value)} required autoComplete="current-password"/></label>}
     {mode === 'reset' && <><label>Nueva contraseña<input type="password" value={password} onChange={event=>setPassword(event.target.value)} required minLength={8} autoComplete="new-password"/></label><label>Confirmar nueva contraseña<input type="password" value={confirmation} onChange={event=>setConfirmation(event.target.value)} required minLength={8} autoComplete="new-password"/></label><p className="w2-password-rules">Mínimo 8 caracteres, con mayúscula, minúscula, número y símbolo.</p></>}
     {message&&<div className="w2-alert" role="status">{message}</div>}
-    <button disabled={busy}>{busy?'Procesando…':mode==='login'?'Iniciar sesión':mode==='forgot'?'Enviar enlace':'Guardar nueva contraseña'} <b>→</b></button>
+    <button disabled={busy}>{busy?'Procesando…':mode==='login'?'Iniciar sesión':mode==='2fa'?'Verificar código':mode==='forgot'?'Enviar enlace':'Guardar nueva contraseña'} <b>→</b></button>
     {mode==='login'&&<button type="button" className="w2-forgot-link" onClick={()=>{setMode('forgot');setMessage('')}}>¿Olvidaste tu contraseña?</button>}
     {mode!=='login'&&<button type="button" className="w2-forgot-link" onClick={goToLogin}>← Volver al inicio de sesión</button>}
   </form></section></main>

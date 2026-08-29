@@ -23,6 +23,7 @@ public sealed class AuthService(
 {
     private readonly JwtOptions jwt = options.Value;
     private readonly EmailOptions email = emailOptions.Value;
+    private const int MaxTwoFactorAttempts = 5;
 
     public async Task<UserSummary> RegisterAsync(RegisterRequest request, CancellationToken ct)
     {
@@ -40,7 +41,7 @@ public sealed class AuthService(
         return Summary((await LoadUser(normalized, ct))!);
     }
 
-    public async Task<AuthResponse?> LoginAsync(LoginRequest request, AuthContext context, CancellationToken ct)
+    public async Task<LoginResult?> LoginAsync(LoginRequest request, AuthContext context, CancellationToken ct)
     {
         var user = await LoadUser(request.Email.Trim().ToUpperInvariant(), ct);
         var locked = user is not null && await userManager.IsLockedOutAsync(user);
@@ -56,7 +57,73 @@ public sealed class AuthService(
             return null;
         }
         await userManager.ResetAccessFailedCountAsync(user);
+
+        // La contraseña correcta no basta cuando la cuenta tiene segundo factor: aquí
+        // no se emite ningún token de acceso, solo un desafío de un solo uso que
+        // /auth/login/2fa canjea despues de verificar el codigo.
+        if (await userManager.GetTwoFactorEnabledAsync(user))
+            return new LoginResult(null, await CreateTwoFactorChallenge(user, context, ct));
+
+        return new LoginResult(await CreateSession(user, context, ct), null);
+    }
+
+    public async Task<AuthResponse?> CompleteTwoFactorLoginAsync(TwoFactorLoginRequest request, AuthContext context, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var challenge = await db.TwoFactorLoginChallenges.Include(x => x.User).ThenInclude(x => x.UserRoles).ThenInclude(x => x.Role)
+            .SingleOrDefaultAsync(x => x.TokenHash == Hash(request.ChallengeToken), ct);
+        if (challenge is null || challenge.UsedAtUtc is not null || challenge.ExpiresAtUtc <= now || challenge.AttemptCount >= MaxTwoFactorAttempts)
+        {
+            await Failed(challenge?.UserId, context, ct);
+            return null;
+        }
+        var user = challenge.User;
+        // El desafio esta ligado al correo con el que se pidio: un token valido no
+        // sirve para completar el acceso de otra cuenta.
+        if (user.Status != UserStatus.Active || !string.Equals(user.NormalizedEmail, request.Email.Trim().ToUpperInvariant(), StringComparison.Ordinal))
+        {
+            challenge.UsedAtUtc = now;
+            await Failed(user.Id, context, ct);
+            return null;
+        }
+
+        challenge.AttemptCount++;
+        // El TOTP se normaliza quitando separadores, pero los codigos de recuperacion
+        // de Identity incluyen el guion y deben canjearse tal como se entregaron.
+        var entered = request.Code.Trim();
+        var code = entered.Replace(" ", string.Empty).Replace("-", string.Empty);
+        var verified = await userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, code);
+        if (!verified)
+        {
+            // Los codigos de recuperacion generados al activar el 2FA tambien valen
+            // aqui; cada uno se consume al usarse.
+            // RedeemTwoFactorRecoveryCodeAsync lanza si el codigo viene vacio.
+            var redeemed = string.IsNullOrWhiteSpace(entered) ? IdentityResult.Failed() : await userManager.RedeemTwoFactorRecoveryCodeAsync(user, entered);
+            verified = redeemed.Succeeded;
+            if (verified) db.AccessAudits.Add(new AccessAudit { UserId = user.Id, EventType = "LOGIN_2FA_RECOVERY_CODE", Detail = "Acceso completado con código de recuperación", IpAddress = context.IpAddress });
+        }
+        if (!verified)
+        {
+            if (challenge.AttemptCount >= MaxTwoFactorAttempts) challenge.UsedAtUtc = now;
+            db.AccessAudits.Add(new AccessAudit { UserId = user.Id, EventType = "LOGIN_2FA_FAILED", Detail = $"Código de segundo factor inválido (intento {challenge.AttemptCount} de {MaxTwoFactorAttempts})", IpAddress = context.IpAddress });
+            await db.SaveChangesAsync(ct);
+            return null;
+        }
+
+        challenge.UsedAtUtc = now;
         return await CreateSession(user, context, ct);
+    }
+
+    private async Task<TwoFactorChallengeResponse> CreateTwoFactorChallenge(User user, AuthContext context, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var previous in await db.TwoFactorLoginChallenges.Where(x => x.UserId == user.Id && x.UsedAtUtc == null).ToListAsync(ct)) previous.UsedAtUtc = now;
+        var raw = RandomToken();
+        var expires = now.AddMinutes(Math.Max(1, jwt.TwoFactorChallengeMinutes));
+        db.TwoFactorLoginChallenges.Add(new TwoFactorLoginChallenge { UserId = user.Id, TokenHash = Hash(raw), ExpiresAtUtc = expires, IpAddress = context.IpAddress });
+        db.AccessAudits.Add(new AccessAudit { UserId = user.Id, EventType = "LOGIN_2FA_REQUIRED", Detail = "Contraseña verificada; pendiente el segundo factor", IpAddress = context.IpAddress });
+        await db.SaveChangesAsync(ct);
+        return new TwoFactorChallengeResponse(raw, expires);
     }
 
     public async Task<AuthResponse?> RefreshAsync(string raw, AuthContext context, CancellationToken ct)

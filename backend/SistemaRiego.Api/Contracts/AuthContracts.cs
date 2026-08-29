@@ -8,3 +8,6 @@ public sealed record RequiredPasswordChangeRequest([Required] string CurrentPass
 public sealed record AuthResponse(string AccessToken, string RefreshToken, DateTime AccessTokenExpiresAtUtc, UserSummary User);
 public sealed record UserSummary(Guid Id, string Email, string FullName, string Status, IReadOnlyCollection<string> Roles, bool MustChangePassword = false);
 public sealed record ForgotPasswordResponse(string Message); public sealed record AuthContext(string? IpAddress, string? UserAgent);
+public sealed record TwoFactorLoginRequest([Required, EmailAddress] string Email, [Required] string ChallengeToken, [Required] string Code);
+public sealed record TwoFactorChallengeResponse(string ChallengeToken, DateTime ExpiresAtUtc, bool RequiresTwoFactor = true);
+public sealed record LoginResult(AuthResponse? Session, TwoFactorChallengeResponse? Challenge);

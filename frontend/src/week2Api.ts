@@ -38,8 +38,13 @@ async function downloadAudit(token: string, query: string, format: 'csv' | 'xlsx
 }
 
 
+// El login devuelve la sesion, o un desafio cuando la cuenta tiene segundo factor.
+export type TwoFactorChallenge = { requiresTwoFactor: true; challengeToken: string; expiresAtUtc: string }
+export type LoginOutcome = AuthSession | TwoFactorChallenge
+
 export const week2Api = {
-  login: (email: string, password: string) => request<AuthSession>('/auth/login', { method: 'POST', ...json({ email, password }) }),
+  login: (email: string, password: string) => request<LoginOutcome>('/auth/login', { method: 'POST', ...json({ email, password }) }),
+  loginTwoFactor: (email: string, challengeToken: string, code: string) => request<AuthSession>('/auth/login/2fa', { method: 'POST', ...json({ email, challengeToken, code }) }),
   forgot: (email: string) => request<{ message: string }>('/auth/forgot-password', { method: 'POST', ...json({ email }) }),
   resetPassword: (token: string, newPassword: string) => request<void>('/auth/reset-password', { method: 'POST', ...json({ token, newPassword }) }),
   changeRequiredPassword: (token: string, currentPassword: string, newPassword: string) => request<AuthSession>('/auth/change-required-password', { method: 'POST', ...json({ currentPassword, newPassword }) }, token),

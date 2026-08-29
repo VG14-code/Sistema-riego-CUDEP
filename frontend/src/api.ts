@@ -27,7 +27,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  login: (email: string, password: string) => request<AuthSession>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  login: (email: string, password: string) => request<AuthSession & { requiresTwoFactor?: boolean; challengeToken?: string }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  loginTwoFactor: (email: string, challengeToken: string, code: string) => request<AuthSession>('/auth/login/2fa', { method: 'POST', body: JSON.stringify({ email, challengeToken, code }) }),
   forgot: (email: string) => request<{ message: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
   logout: (accessToken: string, refreshToken: string) => request<void>('/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ refreshToken }) }),
 }
