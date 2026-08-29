@@ -70,6 +70,10 @@ Toda lectura sembrada declara su origen en `Transport` (`SIMULACIÓN` o `MUESTRA
 
 El método oficial evita el controlador integrado afectado por ACL de Windows. Usa el Chromium administrado por Playwright y un perfil temporal aislado con `--no-sandbox` y `--disable-gpu`. Mantén backend, frontend y simulador ejecutándose antes de iniciar la captura.
 
+> **Estos bloques son de PowerShell, no de `cmd.exe`.** Si tu prompt se ve como `C:\Users\...>` estás en `cmd.exe`, y la sintaxis `$env:VARIABLE="valor"` falla con «El nombre de archivo, el nombre de directorio o la sintaxis de la etiqueta del volumen no son correctos». Escribe `powershell` para cambiar de intérprete: el prompt pasará a `PS C:\Users\...>`.
+>
+> **Ejecuta cada bloque completo, incluida su primera línea `cd`.** `npm run` busca `package.json` en el directorio actual; lanzado desde la raíz del repositorio falla con `ENOENT ... package.json`, porque ese archivo vive en `frontend/`.
+
 Instalación inicial:
 
 ~~~powershell
@@ -88,6 +92,13 @@ $env:VISUAL_TOTP_SECRET = Read-Host "Clave del autenticador (solo si la cuenta t
 npm run visual:capture
 ~~~
 
+`Read-Host` muestra en pantalla lo que escribes, y la contraseña queda en el desplazamiento de la terminal. Para que no se vea, reemplaza esa línea por:
+
+~~~powershell
+$secreta = Read-Host "Contraseña administrativa de Development" -AsSecureString
+$env:VISUAL_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secreta))
+~~~
+
 Cuando la cuenta exige segundo factor, los guiones resuelven el paso de verificación por su cuenta: `scripts/login.mjs` calcula el código de seis dígitos a partir de la clave compartida en base32 que entrega **Seguridad 2FA** al generarla. Los escenarios E2E usan `E2E_TOTP_SECRET` en lugar de `VISUAL_TOTP_SECRET`. Si la cuenta no tiene 2FA, la variable se omite y el inicio de sesión funciona como antes.
 
 Esa clave solo se muestra al generarla. Si ya no la conservas y necesitas automatizar, hay dos caminos: volver a ejecutar **Seguridad 2FA → generar clave** —lo que invalida la anterior y obliga a reconfigurar el autenticador— o desactivar el 2FA de esa cuenta mientras dure la captura.
@@ -98,6 +109,20 @@ El comando espera el dashboard y una lectura real de telemetría, abre el centro
 - `artifacts/visual-validation/notifications-panel.png`
 
 La reproducción literal del error del controlador integrado se conserva en `artifacts/visual-validation/acl-diagnostic.txt` y las comprobaciones CSS en `artifacts/visual-validation/capture-report.json`.
+
+### Evidencia de trazabilidad (16 capturas)
+
+`visual:traceability` regenera las capturas que respaldan la matriz de [docs/trazabilidad-modulos-1-7.md](docs/trazabilidad-modulos-1-7.md). Recorre los siete módulos y sobrescribe `artifacts/trazabilidad/`, incluido `capture-report.json` con la marca de tiempo de la corrida.
+
+~~~powershell
+cd "C:\Users\VICTOR\Desktop\Sistema de Riego\frontend"
+$env:VISUAL_EMAIL = "admin@sistemariego.local"
+$env:VISUAL_PASSWORD = Read-Host "Contraseña administrativa de Development"
+$env:VISUAL_TOTP_SECRET = Read-Host "Clave del autenticador (solo si la cuenta tiene 2FA)"
+npm run visual:traceability
+~~~
+
+Termina imprimiendo un JSON con las 16 rutas generadas. Como varias pantallas muestran telemetría en vivo, conviene tener el simulador publicando: si no, las tarjetas de lecturas aparecen vacías y la evidencia pierde valor.
 
 Los escenarios E2E que creen datos de catálogo deben eliminarlos en un bloque `finally` y restaurar cualquier registro permanente que modifiquen. `tank-crud-ui-e2e.mjs` elimina su tanque temporal mediante el endpoint protegido para tanques inactivos sin bombas; `crop-types-crud.mjs` elimina su tipo de cultivo temporal. Esta regla también aplica a futuros cultivos, sectores, usuarios y demás entidades de prueba.
 
