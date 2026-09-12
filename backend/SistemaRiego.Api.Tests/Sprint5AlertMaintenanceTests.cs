@@ -127,12 +127,37 @@ public sealed class Sprint5AlertMaintenanceTests
     public async Task MaintenanceController_CreatesPlanAndResolvesIncident()
     {
         await using var db = Db(); var controller = new MaintenanceController(db);
-        var planResult = await controller.CreatePlan(new("Inspección", "Recurrente", 30, "Bomba", "P1", DateTime.UtcNow.AddDays(1), null, "tec@test.local", "Revisar", "Pendiente"), default);
+        var panel = new SolarPanelArray { Name = "Arreglo norte" }; db.Add(panel); await db.SaveChangesAsync();
+        var planResult = await controller.CreatePlan(new("Inspección", "Recurrente", 30, "Panel solar", panel.Id.ToString(), DateTime.UtcNow.AddDays(1), null, "tec@test.local", "Revisar", "Pendiente"), default);
         Assert.IsType<OkObjectResult>(planResult); Assert.Single(db.MaintenancePlans);
         var incidentResult = await controller.CreateIncident(new("Falla", "Corriente alta", "Bomba", "P1", "Crítica", null, null, null), default);
         var incident = Assert.IsType<MaintenanceIncident>(Assert.IsType<OkObjectResult>(incidentResult).Value);
         await controller.UpdateIncident(incident.Id, new("Resuelta", null, "tec@test.local", "Motor revisado"), default);
         Assert.NotNull(incident.ResolvedAtUtc);
+    }
+
+    [Fact]
+    public async Task MaintenanceController_RejectsPlanForEquipmentThatIsNotRegistered()
+    {
+        await using var db = Db(); var controller = new MaintenanceController(db);
+        var panel = new SolarPanelArray { Name = "Arreglo norte" }; db.Add(panel); await db.SaveChangesAsync();
+
+        // Antes el ID se escribia a mano y se aceptaba cualquier texto, o un equipo con el tipo equivocado.
+        Assert.IsType<BadRequestObjectResult>(await controller.CreatePlan(new("Inspección", "Recurrente", 30, "Bomba", "P1", DateTime.UtcNow.AddDays(1), null, null, null), default));
+        Assert.IsType<BadRequestObjectResult>(await controller.CreatePlan(new("Inspección", "Recurrente", 30, "Bomba", panel.Id.ToString(), DateTime.UtcNow.AddDays(1), null, null, null), default));
+        Assert.Empty(db.MaintenancePlans);
+    }
+
+    [Fact]
+    public async Task MaintenanceController_ListsRegisteredEquipmentByType()
+    {
+        await using var db = Db(); var controller = new MaintenanceController(db);
+        var panel = new SolarPanelArray { Name = "Arreglo norte" }; db.Add(panel); await db.SaveChangesAsync();
+
+        var options = Assert.IsType<List<MaintenanceEquipmentOption>>(Assert.IsType<OkObjectResult>(await controller.Equipment(default)).Value);
+
+        var option = Assert.Single(options);
+        Assert.Equal(new MaintenanceEquipmentOption("Panel solar", panel.Id.ToString(), "Arreglo norte"), option);
     }
 
     [Fact]
