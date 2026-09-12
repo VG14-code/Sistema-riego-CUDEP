@@ -4,9 +4,13 @@ Fecha de corte: 12 de septiembre de 2026.
 
 ## Resultado ejecutivo
 
-Los once módulos funcionales del sistema están implementados y validados en el entorno local. El Módulo 12 queda pendiente por decisión del proyecto, porque reúne publicación en Azure, secretos y certificados de producción, instalación física y puesta en marcha. El Módulo 13 no presenta una brecha de software: su ejecución presencial, entrega de credenciales institucionales y firma de aceptación dependen de que el despliegue haya concluido.
+Los módulos funcionales 1 a 10 están implementados y validados en el entorno local. El Módulo 11 queda parcial: los reportes PDF/Excel, las vistas SQL y el dashboard web funcionan, pero el modelo de Power BI no se ha construido y el dashboard carece de indicadores de humedad y temperatura, de la tendencia semanal en pantalla y de la comparación entre periodos. El Módulo 12 queda pendiente por decisión del proyecto, porque reúne publicación en Azure, secretos y certificados de producción, instalación física y puesta en marcha. El Módulo 13 no presenta una brecha de software: su ejecución presencial, entrega de credenciales institucionales y firma de aceptación dependen de que el despliegue haya concluido.
 
-El cronograma oficial registra 119 actividades funcionales al 100 %, seis actividades de despliegue al 0 % y tres actividades de capacitación/cierre al 0 % por su dependencia del despliegue. Otras dos actividades quedan al 0 % porque son montaje físico en campo: la fila 28 (protecciones, cajas y alimentación) y la fila 81 (sensores de nivel, relés y conexiones de la bomba); su software está validado con el simulador MQTT, pero la instalación no se ha realizado. El avance ponderado por horas es 88.2 %.
+El cronograma oficial registra 111 actividades al 100 %, 6 al 50 % y 13 al 0 %. El avance ponderado por horas es 83.9 %.
+
+- **Al 0 %:** seis actividades de despliegue y tres de capacitación/cierre, que dependen del despliegue; dos de montaje físico en campo, la fila 28 (protecciones, cajas y alimentación) y la fila 81 (sensores de nivel, relés y conexiones de la bomba), cuyo software está validado con el simulador MQTT; y las filas 113 y 114, conexión y modelo de Power BI, que no se han construido.
+- **Al 50 %:** las filas 86 y 88, cuyas protecciones por software están probadas pero las eléctricas son físicas; la 115, que tiene las vistas probadas pero no el modelo de Power BI; y las filas 116, 117 y 119, a cuyo dashboard le faltan humedad, temperatura, tendencia semanal en pantalla y comparación entre periodos.
+- **Adelantadas:** 34 actividades de los módulos 8 a 11 tienen fecha de inicio posterior al corte y siguen al 100 %, porque su código está en el repositorio desde el 17/08/2026. Conservan las fechas planificadas como línea base y lo indican en Observaciones.
 
 ## Estado por módulo
 
@@ -22,7 +26,7 @@ El cronograma oficial registra 119 actividades funcionales al 100 %, seis activi
 | 8. Bomba y abastecimiento del tanque | Completo en software | Control, protecciones, telemetría e historial validados con simulador. Montaje físico en M12. |
 | 9. Riegos manuales y operación asistida | Completo | Autorización, TOTP, trazabilidad, pausa y reanudación del modo automático. |
 | 10. Consumo e historial operativo | Completo | Cálculo medido/estimado, consolidados, bitácora, filtros y exportación. |
-| 11. Reportes, dashboards y análisis | Completo en software | PDF/Excel, dashboards web, vistas SQL y modelo analítico reproducible. Publicación productiva en M12. |
+| 11. Reportes, dashboards y análisis | Parcial | PDF/Excel, dashboard web, vistas SQL y procedimiento de origen. Pendiente: modelo Power BI (.pbix y DAX), indicadores de humedad y temperatura, tendencia semanal en pantalla y comparación entre periodos. |
 | 12. Despliegue e implementación | Pendiente | Azure, CI/CD, certificados, secretos, instalación física, migración y publicación. |
 | 13. Capacitación y entrega | Dependiente de M12 | Material y documentación disponibles; capacitación, entrega institucional y aceptación se realizan después del despliegue. |
 
@@ -36,7 +40,7 @@ El cronograma oficial registra 119 actividades funcionales al 100 %, seis activi
 
 ## Validación final
 
-- Backend: 170 de 170 pruebas .NET superadas.
+- Backend: 173 de 173 pruebas .NET superadas.
 - Frontend: typecheck, ESLint y build de producción superados.
 - Simulador MQTT: compilación .NET 10 superada sin errores ni advertencias.
 - Cronograma XLSX: reabierto después de exportar, fórmula ponderada recalculada y cero errores de fórmula.
