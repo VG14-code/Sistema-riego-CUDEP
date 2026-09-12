@@ -55,3 +55,5 @@
 .lt-export button { padding: 0.4rem 0.8rem; border: 1px solid rgba(27, 127, 140, 0.35); border-radius: 8px; background: #fff; font: inherit; font-size: 0.82rem; font-weight: 600; color: #1b7f8c; cursor: pointer; }
 .lt-export button:hover:not(:disabled) { background: rgba(27, 127, 140, 0.09); }
 .lt-export button:disabled { opacity: 0.45; cursor: default; }
+.s2-form .s2-check { flex-direction: row; align-items: center; gap: 0.45rem; white-space: nowrap; }
+.s2-form .s2-check input { width: auto; }
