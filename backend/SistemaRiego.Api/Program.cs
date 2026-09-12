@@ -57,7 +57,7 @@ if (builder.Environment.IsDevelopment())
 builder.Services.AddSingleton<MqttWorker>();
 builder.Services.AddSingleton<IMqttCommandPublisher>(serviceProvider => serviceProvider.GetRequiredService<MqttWorker>());
 builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<MqttWorker>());
-builder.Services.AddDbContext<AppDbContext>((services, options) => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")).AddInterceptors(services.GetRequiredService<AuditSaveChangesInterceptor>()));
+builder.Services.AddDbContext<AppDbContext>((services, options) => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"), sql => sql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)).AddInterceptors(services.GetRequiredService<AuditSaveChangesInterceptor>()));
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
 builder.Services.AddIdentityCore<User>(options =>
