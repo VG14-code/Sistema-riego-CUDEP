@@ -70,6 +70,10 @@
 .m-form>button:hover{background:#15564a}
 .m-form>button:disabled{opacity:.6;cursor:progress}
 .m-incidents article>select{align-self:center;min-width:150px}
+.m-incidents article>div{display:grid;gap:4px;align-content:start}
 .m-grid article>p{color:#61776f}
+.m-grid h2{margin:0 0 6px;color:#173f35;font:600 1.3rem/1.2 Georgia,serif}
+/* La regla general .s5-page small es para etiquetas en versalitas; aqui es un dato del registro. */
+.m-grid article>div small{margin-top:3px;letter-spacing:0;font-size:.78rem;font-weight:500;color:#61776f;overflow-wrap:anywhere}
 @media(max-width:600px){.m-form>div{grid-template-columns:1fr}}
 .s5-status{display:inline-flex;align-items:center;border-radius:999px;padding:.38rem .68rem;font-size:.68rem;letter-spacing:.06em}.s5-status.activa{background:#fde8e5;color:#a83e36;border:1px solid #f1c7c2}.s5-status.reconocida{background:#fff1cf;color:#80600f;border:1px solid #ecd99c}.s5-status.resuelta{background:#dff3e9;color:#216c51;border:1px solid #bfe1d1}
