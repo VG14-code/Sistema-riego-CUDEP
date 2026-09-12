@@ -30,26 +30,35 @@ public sealed class AuthController(IAuthService auth, ITotpService? totp = null)
         if (result is null) return Unauthorized(new { message = "Credenciales inválidas o cuenta no disponible." });
         // Con segundo factor activo la respuesta no trae token: solo el desafío que
         // /auth/login/2fa canjea después de verificar el código.
-        return result.Challenge is not null ? Ok(result.Challenge) : Ok(result.Session);
+        if (result.Challenge is not null) return Ok(result.Challenge);
+        return SessionResponse(result.Session!);
     }
 
     [HttpPost("login/2fa"), AllowAnonymous, EnableRateLimiting("auth")]
     public async Task<ActionResult<AuthResponse>> LoginTwoFactor(TwoFactorLoginRequest request, CancellationToken ct)
     {
         var result = await auth.CompleteTwoFactorLoginAsync(request, Context(), ct);
-        return result is null ? Unauthorized(new { message = "El código es inválido, expiró o el desafío ya no es válido." }) : Ok(result);
+        return result is null ? Unauthorized(new { message = "El código es inválido, expiró o el desafío ya no es válido." }) : SessionResponse(result);
     }
 
     [HttpPost("refresh"), AllowAnonymous]
     public async Task<ActionResult<AuthResponse>> Refresh(RefreshRequest request, CancellationToken ct)
     {
-        var result = await auth.RefreshAsync(request.RefreshToken, Context(), ct);
-        return result is null ? Unauthorized(new { message = "La sesión no es válida o ha expirado." }) : Ok(result);
+        var refreshToken = Token(request.RefreshToken);
+        if (string.IsNullOrWhiteSpace(refreshToken)) return Unauthorized(new { message = "La sesión no contiene un token de renovación." });
+        var result = await auth.RefreshAsync(refreshToken, Context(), ct);
+        return result is null ? Unauthorized(new { message = "La sesión no es válida o ha expirado." }) : SessionResponse(result);
     }
 
     [HttpPost("logout"), Authorize]
-    public async Task<IActionResult> Logout(LogoutRequest request, CancellationToken ct) =>
-        await auth.LogoutAsync(request.RefreshToken, ct) ? NoContent() : BadRequest(new { message = "La sesión ya no está activa." });
+    public async Task<IActionResult> Logout(LogoutRequest request, CancellationToken ct)
+    {
+        var refreshToken = Token(request.RefreshToken);
+        if (string.IsNullOrWhiteSpace(refreshToken)) return BadRequest(new { message = "La sesión ya no está activa." });
+        var closed = await auth.LogoutAsync(refreshToken, ct);
+        ClearRefreshCookie();
+        return closed ? NoContent() : BadRequest(new { message = "La sesión ya no está activa." });
+    }
 
     [HttpPost("forgot-password"), AllowAnonymous, EnableRateLimiting("auth")]
     public async Task<ActionResult<ForgotPasswordResponse>> Forgot(ForgotPasswordRequest request, CancellationToken ct)
@@ -72,10 +81,36 @@ public sealed class AuthController(IAuthService auth, ITotpService? totp = null)
         try
         {
             var response = await auth.ChangeRequiredPasswordAsync(userId, request, Context(), ct);
-            return response is null ? BadRequest(new { message = "No existe un cambio obligatorio pendiente o la cuenta no está disponible." }) : Ok(response);
+            return response is null ? BadRequest(new { message = "No existe un cambio obligatorio pendiente o la cuenta no está disponible." }) : SessionResponse(response);
         }
         catch (InvalidOperationException exception) { return BadRequest(new { message = exception.Message }); }
     }
 
     private AuthContext Context() => new(HttpContext.Connection.RemoteIpAddress?.ToString(), Request.Headers.UserAgent.ToString());
+
+    private OkObjectResult SessionResponse(AuthResponse response)
+    {
+        Response.Cookies.Append("riego.refresh", response.RefreshToken, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = Request.IsHttps,
+            SameSite = SameSiteMode.Strict,
+            Path = "/api/auth",
+            Expires = DateTimeOffset.UtcNow.AddDays(7),
+            IsEssential = true
+        });
+        return Ok(response);
+    }
+
+    private string? Token(string? bodyToken) => string.IsNullOrWhiteSpace(bodyToken)
+        ? Request.Cookies["riego.refresh"]
+        : bodyToken;
+
+    private void ClearRefreshCookie() => Response.Cookies.Delete("riego.refresh", new CookieOptions
+    {
+        HttpOnly = true,
+        Secure = Request.IsHttps,
+        SameSite = SameSiteMode.Strict,
+        Path = "/api/auth"
+    });
 }

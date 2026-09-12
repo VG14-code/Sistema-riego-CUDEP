@@ -117,6 +117,28 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
+    public async Task LoginSetsHttpOnlyCookie_AndRefreshAcceptsCookie()
+    {
+        var setup = Create();
+        await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
+        var loginContext = new DefaultHttpContext();
+        var loginController = new AuthController(setup.Service) { ControllerContext = new ControllerContext { HttpContext = loginContext } };
+
+        var login = Assert.IsType<OkObjectResult>(await loginController.Login(new("persona@correo.gt", "Segura123!"), default));
+        var session = Assert.IsType<AuthResponse>(login.Value);
+        var setCookie = loginContext.Response.Headers.SetCookie.ToString();
+        Assert.Contains("riego.refresh=", setCookie);
+        Assert.Contains("httponly", setCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("samesite=strict", setCookie, StringComparison.OrdinalIgnoreCase);
+
+        var refreshContext = new DefaultHttpContext();
+        refreshContext.Request.Headers.Cookie = $"riego.refresh={session.RefreshToken}";
+        var refreshController = new AuthController(setup.Service) { ControllerContext = new ControllerContext { HttpContext = refreshContext } };
+        var refreshed = Assert.IsType<OkObjectResult>((await refreshController.Refresh(new(null), default)).Result);
+        Assert.IsType<AuthResponse>(refreshed.Value);
+    }
+
+    [Fact]
     public async Task ForgotPassword_DoesNotRevealWhetherEmailExists()
     {
         var setup = Create();
