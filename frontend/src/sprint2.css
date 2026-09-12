@@ -51,3 +51,7 @@
 .s2-card-actions button:hover { background: rgba(15, 76, 92, 0.06); }
 .s2-card-actions button.danger { color: #b91c1c; border-color: rgba(185, 28, 28, 0.28); }
 .s2-card-actions button.danger:hover { background: rgba(185, 28, 28, 0.07); }
+.lt-export { display: flex; gap: 0.4rem; }
+.lt-export button { padding: 0.4rem 0.8rem; border: 1px solid rgba(27, 127, 140, 0.35); border-radius: 8px; background: #fff; font: inherit; font-size: 0.82rem; font-weight: 600; color: #1b7f8c; cursor: pointer; }
+.lt-export button:hover:not(:disabled) { background: rgba(27, 127, 140, 0.09); }
+.lt-export button:disabled { opacity: 0.45; cursor: default; }

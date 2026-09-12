@@ -30,6 +30,8 @@ export function usePagination<T>(items: T[], searchable: (item: T) => string, pa
     pageCount,
     setPage,
     visible,
+    /** Todos los que pasan el filtro, no solo la pagina visible: es lo que se exporta. */
+    filtered,
     total: items.length,
     matches: filtered.length,
     from: filtered.length === 0 ? 0 : from + 1,

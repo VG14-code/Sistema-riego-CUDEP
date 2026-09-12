@@ -35,6 +35,7 @@ builder.Services.AddScoped<IWaterCapacityService, WaterCapacityService>();
 builder.Services.AddScoped<IConsumptionCalculator, ConsumptionCalculator>();
 builder.Services.AddScoped<IAlertService, AlertService>();
 builder.Services.AddScoped<Sprint6ReportService>();
+builder.Services.AddScoped<TableExportService>();
 builder.Services.AddScoped<AuditSaveChangesInterceptor>();
 builder.Services.AddHostedService<AuditRetentionService>();
 builder.Services.AddScoped<IAlertEscalationProcessor, AlertEscalationProcessor>();
@@ -125,7 +126,7 @@ builder.Services.AddAuthorization(o =>
         o.AddPolicy(policyName, p => p.Requirements.Add(new PermissionRequirement(code)));
     }
 });
-builder.Services.AddCors(o => o.AddPolicy("Frontend", p => p.WithOrigins(builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? ["http://localhost:5173"]).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
+builder.Services.AddCors(o => o.AddPolicy("Frontend", p => p.WithOrigins(builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? ["http://localhost:5173"]).AllowAnyHeader().AllowAnyMethod().AllowCredentials().WithExposedHeaders("Content-Disposition")));  // el navegador necesita leerla para nombrar las descargas
 
 var app = builder.Build();
 var activeEmailProvider = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<EmailOptions>>().Value.Provider;
