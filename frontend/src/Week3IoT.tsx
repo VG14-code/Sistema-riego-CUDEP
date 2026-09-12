@@ -5,6 +5,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { week3Api as api } from './week3Api'
 import IoTTraceabilityPanel from './IoTTraceabilityPanel'
+import ListToolbar from './ListToolbar'
+import { usePagination } from './usePagination'
 
 const tabs = [
   ['network', 'Red en campo', '◉'],
@@ -51,13 +53,16 @@ function Toolbar({ label, canEdit, onNew, count }) {
   return <div className="iot-toolbar"><div><span>{count}</span><p><b>{label}</b><small>Inventario actualizado</small></p></div>{canEdit&&<button onClick={onNew}><b>＋</b> Nuevo registro</button>}</div>
 }
 
+const iotText=(x)=>[x.code,x.name,x.serialNumber,x.model,x.manufacturer,x.location,x.node,x.device,x.deviceType,x.sensorType].filter(Boolean).join(' ')
 function SensorGrid({ items, canEdit, onEdit, onDeactivate }) {
-  return <div className="iot-grid">{items.map(item=><article className={`iot-sensor-card ${!item.isActive?'disabled':''}`} key={item.id}><header><span className="iot-drop">⌁</span><span className={`iot-state ${statusClass(item.operationalStatus)}`}>{item.isActive?item.operationalStatus:'Inactivo'}</span></header><small>{item.code}</small><h3>{item.name}</h3><p>{item.model} · {item.channel??'Canal no definido'}</p><div className="iot-range"><span style={{width:`${Math.min(100,Math.max(8,(Number(item.calibrationOffset)+10)*5))}%`}}/><small>{item.minimumValue} – {item.maximumValue} {item.unitSymbol}</small></div><dl><div><dt>Asignado a</dt><dd>{item.deviceName??'Sin asignar'}</dd></div><div><dt>Calibración</dt><dd>{item.lastCalibrationUtc?new Date(item.lastCalibrationUtc).toLocaleDateString('es-GT'):'Pendiente'}</dd></div></dl>{canEdit&&<footer><button onClick={()=>onEdit(item)}>Editar</button>{item.isActive&&<button className="danger" onClick={()=>onDeactivate(item)}>Desactivar</button>}</footer>}</article>)}</div>
+  const pg=usePagination(items,iotText)
+  return <><ListToolbar {...pg} onQuery={pg.setQuery} onPage={pg.setPage} placeholder="Buscar sensor…" empty="Aún no hay sensores registrados."/><div className="iot-grid">{pg.visible.map(item=><article className={`iot-sensor-card ${!item.isActive?'disabled':''}`} key={item.id}><header><span className="iot-drop">⌁</span><span className={`iot-state ${statusClass(item.operationalStatus)}`}>{item.isActive?item.operationalStatus:'Inactivo'}</span></header><small>{item.code}</small><h3>{item.name}</h3><p>{item.model} · {item.channel??'Canal no definido'}</p><div className="iot-range"><span style={{width:`${Math.min(100,Math.max(8,(Number(item.calibrationOffset)+10)*5))}%`}}/><small>{item.minimumValue} – {item.maximumValue} {item.unitSymbol}</small></div><dl><div><dt>Asignado a</dt><dd>{item.deviceName??'Sin asignar'}</dd></div><div><dt>Calibración</dt><dd>{item.lastCalibrationUtc?new Date(item.lastCalibrationUtc).toLocaleDateString('es-GT'):'Pendiente'}</dd></div></dl>{canEdit&&<footer><button onClick={()=>onEdit(item)}>Editar</button>{item.isActive&&<button className="danger" onClick={()=>onDeactivate(item)}>Desactivar</button>}</footer>}</article>)}</div></>
 }
 
 function InventoryTable({ kind, items, canEdit, onEdit, onDeactivate }) {
+  const pg=usePagination(items,iotText)
   const isNode = kind==='node'
-  return <div className="w2-table-card iot-table"><table><thead><tr><th>Código</th><th>Nombre</th><th>{isNode?'Conectividad':'Tipo y modelo'}</th><th>{isNode?'Ubicación':'Asignación'}</th><th>Estado</th>{canEdit&&<th>Acciones</th>}</tr></thead><tbody>{items.map(item=><tr key={item.id}><td><code>{item.code}</code></td><td><b>{item.name}</b><small>{isNode?item.firmwareVersion:item.serialNumber}</small></td><td>{isNode?<><b>{item.communicationProtocol}</b><small>{item.ipAddress??'IP pendiente'}</small></>:<><b>{item.deviceType}</b><small>{item.manufacturer} {item.model}</small></>}</td><td>{isNode?item.location:(item.nodeName??'Sin asignar')}</td><td><span className={`iot-state ${item.isActive?statusClass(item.operationalStatus):'offline'}`}>{item.isActive?item.operationalStatus:'Inactivo'}</span></td>{canEdit&&<td className="actions"><button className="edit" onClick={()=>onEdit(item)}>Editar</button>{item.isActive&&<button className="danger" onClick={()=>onDeactivate(item)}>Desactivar</button>}</td>}</tr>)}</tbody></table></div>
+  return <><ListToolbar {...pg} onQuery={pg.setQuery} onPage={pg.setPage} placeholder="Buscar por código, nombre o modelo…" empty="Aún no hay registros."/><div className="w2-table-card iot-table"><table><thead><tr><th>Código</th><th>Nombre</th><th>{isNode?'Conectividad':'Tipo y modelo'}</th><th>{isNode?'Ubicación':'Asignación'}</th><th>Estado</th>{canEdit&&<th>Acciones</th>}</tr></thead><tbody>{pg.visible.map(item=><tr key={item.id}><td><code>{item.code}</code></td><td><b>{item.name}</b><small>{isNode?item.firmwareVersion:item.serialNumber}</small></td><td>{isNode?<><b>{item.communicationProtocol}</b><small>{item.ipAddress??'IP pendiente'}</small></>:<><b>{item.deviceType}</b><small>{item.manufacturer} {item.model}</small></>}</td><td>{isNode?item.location:(item.nodeName??'Sin asignar')}</td><td><span className={`iot-state ${item.isActive?statusClass(item.operationalStatus):'offline'}`}>{item.isActive?item.operationalStatus:'Inactivo'}</span></td>{canEdit&&<td className="actions"><button className="edit" onClick={()=>onEdit(item)}>Editar</button>{item.isActive&&<button className="danger" onClick={()=>onDeactivate(item)}>Desactivar</button>}</td>}</tr>)}</tbody></table></div></>
 }
 
 function CalibrationPanel({ sensors, calibrations, canEdit, onCreate }) {
