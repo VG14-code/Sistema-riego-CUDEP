@@ -79,9 +79,9 @@ builder.Services.AddScoped<IEmailSender>(services =>
 builder.Services.AddScoped<ITotpService, TotpService>();
 
 
-var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? throw new InvalidOperationException("Falta la configuración JWT.");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
 {
+    var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? throw new InvalidOperationException("Falta la configuración JWT.");
     o.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true, ValidateAudience = true, ValidateLifetime = true, ValidateIssuerSigningKey = true,
@@ -137,7 +137,7 @@ if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseSerilogRequestLogging();
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment()) app.UseHttpsRedirection();
 app.UseCors("Frontend");
 app.UseRateLimiter();
 app.UseAuthentication();

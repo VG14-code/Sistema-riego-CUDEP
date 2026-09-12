@@ -10,7 +10,7 @@ public static class DbSeeder
     {
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        if (db.Database.IsRelational()) await db.Database.MigrateAsync();
+        if (db.Database.IsRelational()) await db.Database.MigrateAsync(); else await db.Database.EnsureCreatedAsync();
         var catalogDefinitions = new (CatalogKind Kind, string Code, string Name, string? Symbol)[]
         {
             (CatalogKind.ValveType, "SOLENOID", "Válvula solenoide", null),
