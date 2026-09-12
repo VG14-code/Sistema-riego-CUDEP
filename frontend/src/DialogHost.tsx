@@ -41,6 +41,14 @@ export function DialogHost() {
           {request.kind === 'form' && request.fields.map((field, index) => (
             <label key={field.name}>
               {field.label}
+              {field.type === 'select' ? (
+                <select
+                  value={values[field.name] ?? ''}
+                  onChange={event => setValues({ ...values, [field.name]: event.target.value })}
+                >
+                  {(field.options ?? []).map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+              ) : (
               <input
                 ref={index === 0 ? firstField : undefined}
                 type={field.type === 'otp' ? 'text' : field.type ?? 'text'}
@@ -51,6 +59,7 @@ export function DialogHost() {
                 value={values[field.name] ?? ''}
                 onChange={event => setValues({ ...values, [field.name]: event.target.value })}
               />
+              )}
               {field.hint && <small>{field.hint}</small>}
             </label>
           ))}

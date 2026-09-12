@@ -105,3 +105,6 @@
   .dlg input:focus { background: rgba(255, 255, 255, 0.09); }
   .dlg-actions .dlg-cancel { color: #b9d6dd; border-color: rgba(255, 255, 255, 0.2); }
 }
+.dlg select { width: 100%; padding: 0.62rem 0.75rem; border: 1px solid rgba(15, 76, 92, 0.24); border-radius: 10px; font: inherit; font-weight: 500; color: #0b3a46; background: #f8fbfc; cursor: pointer; }
+.dlg select:focus { outline: none; border-color: #1b7f8c; background: #fff; box-shadow: 0 0 0 3px rgba(27, 127, 140, 0.16); }
+@media (prefers-color-scheme: dark) { .dlg select { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.16); color: #eaf6f8; } }

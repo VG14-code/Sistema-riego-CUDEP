@@ -90,6 +90,40 @@ public sealed class ThesisTraceabilityTests
         var calibration = await setup.Db.SensorCalibrations.SingleAsync();
         Assert.Equal("Patrón ISO-17025", calibration.CalibrationPattern); Assert.Equal("Técnico CUDEP", calibration.TechnicianName); Assert.Equal(next, calibration.NextCalibrationDate);
     }
+    [Fact]
+    public async Task UpdateInventory_RejectsAStatusOutsideTheAllowedSet()
+    {
+        var setup = await Setup();
+
+        // Antes bastaba con que no fuese vacio: cualquier texto se guardaba tal cual
+        // y ningun filtro agrupaba despues los dispositivos.
+        var result = await setup.IoT.UpdateInventory(setup.Device.Id, new InventoryUpdateRequest("Ana", "averiado", null, null, 100, "GTQ"), default);
+
+        var bad = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Contains("En mantenimiento", bad.Value!.ToString());
+        Assert.NotEqual("averiado", (await setup.Db.IoTDevices.SingleAsync(x => x.Id == setup.Device.Id)).InventoryStatus);
+    }
+
+    [Fact]
+    public async Task UpdateInventory_NormalisesTheCaseOfAnAllowedStatus()
+    {
+        var setup = await Setup();
+
+        var result = await setup.IoT.UpdateInventory(setup.Device.Id, new InventoryUpdateRequest("Ana", "  en MANTENIMIENTO  ", null, null, 100, "gtq"), default);
+
+        Assert.IsType<NoContentResult>(result);
+        var device = await setup.Db.IoTDevices.SingleAsync(x => x.Id == setup.Device.Id);
+        Assert.Equal("En mantenimiento", device.InventoryStatus);
+        Assert.Equal("GTQ", device.Currency);
+    }
+
+    [Fact]
+    public void InventoryStatuses_AreExposedForTheInterface()
+    {
+        var ok = Assert.IsType<OkObjectResult>(new IoTTraceabilityController(null!).Statuses());
+        Assert.Equal(["Instalado", "Disponible", "Dañado", "En mantenimiento"], Assert.IsType<string[]>(ok.Value));
+    }
+
     private static async Task<SetupData> Setup()
     {
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

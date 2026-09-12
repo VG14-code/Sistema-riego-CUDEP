@@ -84,13 +84,22 @@ public sealed class IoTTraceabilityController(AppDbContext db) : ControllerBase
         .Select(x => new { x.Id, x.Code, x.Name, x.SerialNumber, Type = x.DeviceType.Name, x.Owner, x.InventoryStatus, x.PurchaseDate, x.WarrantyUntil, x.AcquisitionCost, x.Currency, x.IsActive, WarrantyExpired = x.WarrantyUntil.HasValue && x.WarrantyUntil < DateOnly.FromDateTime(DateTime.UtcNow) })
         .ToListAsync(ct));
 
+    public static readonly string[] InventoryStatuses = ["Instalado", "Disponible", "Dañado", "En mantenimiento"];
+
+    [HttpGet("inventory/statuses")]
+    public IActionResult Statuses() => Ok(InventoryStatuses);
+
     [HttpPatch("inventory/{deviceId:guid}"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<IActionResult> UpdateInventory(Guid deviceId, InventoryUpdateRequest request, CancellationToken ct)
     {
         var item = await db.IoTDevices.FindAsync([deviceId], ct); if (item is null) return NotFound();
-        if (request.AcquisitionCost < 0 || request.Currency.Trim().Length != 3 || string.IsNullOrWhiteSpace(request.InventoryStatus)) return BadRequest(new { message = "Datos de inventario inválidos." });
+        if (request.AcquisitionCost < 0 || request.Currency.Trim().Length != 3) return BadRequest(new { message = "Datos de inventario inválidos." });
+        // Antes bastaba con que el estado no fuese vacio: "instalado", "Dañada" o
+        // cualquier texto entraban tal cual y ningun filtro los agrupaba despues.
+        var status = InventoryStatuses.FirstOrDefault(x => string.Equals(x, request.InventoryStatus?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (status is null) return BadRequest(new { message = $"El estado de inventario debe ser uno de: {string.Join(", ", InventoryStatuses)}." });
         if (request.WarrantyUntil.HasValue && request.PurchaseDate.HasValue && request.WarrantyUntil < request.PurchaseDate) return BadRequest(new { message = "La garantía no puede vencer antes de la compra." });
-        item.Owner = request.Owner?.Trim(); item.InventoryStatus = request.InventoryStatus.Trim(); item.PurchaseDate = request.PurchaseDate; item.WarrantyUntil = request.WarrantyUntil; item.AcquisitionCost = request.AcquisitionCost; item.Currency = request.Currency.Trim().ToUpperInvariant(); item.UpdatedAtUtc = DateTime.UtcNow;
+        item.Owner = request.Owner?.Trim(); item.InventoryStatus = status; item.PurchaseDate = request.PurchaseDate; item.WarrantyUntil = request.WarrantyUntil; item.AcquisitionCost = request.AcquisitionCost; item.Currency = request.Currency.Trim().ToUpperInvariant(); item.UpdatedAtUtc = DateTime.UtcNow;
         await Save("IOT_INVENTORY_UPDATED", item.Code, ct); return NoContent();
     }
 
