@@ -46,7 +46,7 @@ export default function Week14Analytics({session,notify}){
  const reportFile=(path,name)=>download(`/reports/${path}${query({from:filters.from,to:filters.to,zoneId:filters.zoneId})}`,token,name).then(()=>notify('Reporte generado correctamente.')).catch(e=>notify(e.message))
 
  return <div className="s14">
-  <header className="s14-hero"><div><p>SEMANA 14 · MODELO ANALÍTICO</p><h1>Reportes y trazabilidad</h1><span>Consolidación diaria, semanal y por sector. Incluye una muestra calibrada de prueba de 84 días para Power BI.</span></div><select value={days} onChange={e=>setDays(Number(e.target.value))}><option value="7">Últimos 7 días</option><option value="30">Últimos 30 días</option><option value="90">Últimos 90 días</option><option value="365">Último año</option></select></header>
+  <header className="s14-hero"><div><p>MÓDULOS 10 Y 11 · CONSUMO Y REPORTES</p><h1>Reportes y trazabilidad</h1><span>Consolidación diaria, semanal y por sector. Incluye una muestra calibrada de prueba de 84 días para Power BI.</span></div><select value={days} onChange={e=>setDays(Number(e.target.value))}><option value="7">Últimos 7 días</option><option value="30">Últimos 30 días</option><option value="90">Últimos 90 días</option><option value="365">Último año</option></select></header>
 
   {dashboard&&<>
    <section className="s14-kpis"><article><span>Consumo total</span><b>{number(dashboard.totalLiters)} L</b></article><article><span>Eventos de riego</span><b>{dashboard.eventCount}</b></article><article><span>Promedio por evento</span><b>{number(dashboard.averageLiters)} L</b></article><article><span>Costo estimado</span><b>Q {number(dashboard.totalEstimatedCost)}</b></article></section>

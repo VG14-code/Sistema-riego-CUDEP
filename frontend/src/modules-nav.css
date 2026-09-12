@@ -1,6 +1,28 @@
 .w2-app>aside>nav{min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#4b8277 transparent;padding-right:.2rem}.w2-app>aside>nav::-webkit-scrollbar{width:4px}.w2-app>aside>nav::-webkit-scrollbar-thumb{border-radius:99px;background:#4b8277}@media(max-width:900px){.w2-app>aside>nav{overflow-x:auto;overflow-y:hidden;padding-right:0}}
 
-/* Menu agrupado por modulos de la planificacion */
+/* Menu agrupado por los modulos de la planificacion; cada grupo se pliega.
+   El desplazamiento de nav button:hover (translateX) sacaba los botones del ancho y,
+   con overflow-y:auto, aparecia una barra horizontal en escritorio. */
+@media (min-width: 901px) { .w2-app>aside>nav { overflow-x: hidden; } }
 .w2-nav-group { display: flex; flex-direction: column; }
-.w2-nav-group + .w2-nav-group { margin-top: 0.85rem; padding-top: 0.55rem; border-top: 1px solid rgba(255, 255, 255, 0.09); }
-.w2-nav-group-title { margin: 0 0 0.3rem 0.9rem; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: rgba(255, 255, 255, 0.42); }
+.w2-nav-group + .w2-nav-group { margin-top: 0.3rem; padding-top: 0.3rem; border-top: 1px solid rgba(255, 255, 255, 0.07); }
+.w2-nav-items { display: flex; flex-direction: column; }
+.w2-nav-group.collapsed .w2-nav-items { display: none; }
+.w2-app nav .w2-nav-group-toggle { display: flex; align-items: center; gap: 0.55rem; width: 100%; margin: 0; padding: 0.5rem 0.6rem; border-radius: 0.5rem; background: transparent; box-shadow: none; color: rgba(255, 255, 255, 0.55); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; text-align: left; transform: none; }
+.w2-app nav .w2-nav-group-toggle::before { display: none; }
+.w2-app nav .w2-nav-group-toggle:hover { background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.88); transform: none; }
+.w2-app nav .w2-nav-group-toggle:focus-visible { outline: 2px solid rgba(125, 217, 228, 0.6); outline-offset: 1px; }
+.w2-nav-module { flex: 0 0 auto; min-width: 1.45rem; height: 1.45rem; padding: 0 0.3rem; box-sizing: border-box; display: grid; place-items: center; border-radius: 0.4rem; background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.75); font-size: 0.62rem; letter-spacing: 0; }
+.w2-nav-group.has-active .w2-nav-module { background: rgba(19, 171, 193, 0.32); color: #fff; }
+.w2-app nav .w2-nav-group.has-active .w2-nav-group-toggle { color: rgba(255, 255, 255, 0.92); }
+.w2-nav-group-name { flex: 1; min-width: 0; line-height: 1.25; }
+.w2-nav-chevron { flex: 0 0 auto; font-size: 1rem; line-height: 1; transform: rotate(90deg); transition: transform 0.18s ease; }
+.w2-nav-group.collapsed .w2-nav-chevron { transform: rotate(0deg); }
+/* En pantallas angostas el menu es una franja horizontal: los grupos van siempre abiertos. */
+@media (max-width: 900px) {
+  .w2-nav-group.collapsed .w2-nav-items { display: flex; }
+  .w2-app nav .w2-nav-group-toggle { pointer-events: none; padding: 0.2rem 0.4rem; }
+  .w2-nav-chevron { display: none; }
+  .w2-nav-group + .w2-nav-group { border-top: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .w2-nav-chevron { transition: none; } }

@@ -8,7 +8,7 @@ import './territory-management.css'
 
 const labels={centers:'Centro',farms:'Finca',blocks:'Bloque',sectors:'Sector',zones:'Zona'}
 const fmt=value=>Number(value??0).toLocaleString('es-GT',{maximumFractionDigits:2})
-const Head=({action})=><div className="m-head"><div><p>MÓDULO 2 · DATOS MAESTROS</p><h1>Territorio de riego</h1><span>Registra y administra la estructura desde el centro universitario hasta cada zona instrumentada.</span></div>{action}</div>
+const Head=({action})=><div className="m-head"><div><p>MÓDULO 6 · SECTORES Y ZONAS</p><h1>Territorio de riego</h1><span>Registra y administra la estructura desde el centro universitario hasta cada zona instrumentada.</span></div>{action}</div>
 const emptyForm=(kind,data={centers:[],farms:[],blocks:[],sectors:[]},extra={soils:[],statuses:[],sensors:[],devices:[]})=>{
  const base={code:'',name:'',isActive:true}
  if(kind==='centers')return {...base,location:'',contact:''}
