@@ -11,6 +11,57 @@ namespace SistemaRiego.Api.Tests;
 public sealed class AgronomyCropTypeTests
 {
     [Fact]
+    public async Task CreateCrop_WithoutCode_AssignsIncrementalCodes()
+    {
+        await using var db = Db();
+        var type = new CropType { Code = "HORT", Name = "Hortaliza" };
+        db.Add(type);
+        await db.SaveChangesAsync();
+        var controller = new AgronomyController(db);
+
+        // Escribir el codigo a mano produjo duplicados y valores sueltos como "2" o
+        // "16"; ahora el formulario puede omitirlo y el servidor lo numera.
+        await controller.CreateCrop(new CropRequest(type.Id, null, "Papa", null, null), default);
+        await controller.CreateCrop(new CropRequest(type.Id, "  ", "Yuca", null, null), default);
+
+        var codes = await db.Crops.OrderBy(x => x.Name).Select(x => x.Code).ToListAsync();
+        Assert.Equal(["CULT-0001", "CULT-0002"], codes);
+    }
+
+    [Fact]
+    public async Task CreateCrop_ContinuesAfterTheHighestExistingNumber()
+    {
+        await using var db = Db();
+        var type = new CropType { Code = "HORT", Name = "Hortaliza" };
+        // Codigos heredados con otro formato no deben romper la numeracion.
+        db.AddRange(type, new Crop { CropType = type, Code = "TOMATE", Name = "Tomate" }, new Crop { CropType = type, Code = "CULT-0007", Name = "Chile" });
+        await db.SaveChangesAsync();
+
+        await new AgronomyController(db).CreateCrop(new CropRequest(type.Id, null, "Papa", null, null), default);
+
+        Assert.Equal("CULT-0008", (await db.Crops.SingleAsync(x => x.Name == "Papa")).Code);
+    }
+
+    [Fact]
+    public async Task CreateCrop_RespectsAnExplicitCode_AndUpdateKeepsItWhenOmitted()
+    {
+        await using var db = Db();
+        var type = new CropType { Code = "HORT", Name = "Hortaliza" };
+        db.Add(type);
+        await db.SaveChangesAsync();
+        var controller = new AgronomyController(db);
+
+        await controller.CreateCrop(new CropRequest(type.Id, "zanahoria", "Zanahoria", null, null), default);
+        var crop = await db.Crops.SingleAsync();
+        Assert.Equal("ZANAHORIA", crop.Code);
+
+        await controller.UpdateCrop(crop.Id, new CropRequest(type.Id, null, "Zanahoria criolla", null, null), default);
+        var updated = await db.Crops.SingleAsync();
+        Assert.Equal("ZANAHORIA", updated.Code);
+        Assert.Equal("Zanahoria criolla", updated.Name);
+    }
+
+    [Fact]
     public async Task CreateRequirement_ResponseSerializesWithoutObjectCycle()
     {
         await using var db = Db();
