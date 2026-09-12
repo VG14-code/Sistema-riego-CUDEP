@@ -20,6 +20,46 @@ public sealed class UsersController(AppDbContext db, IAuthService auth, ITotpSer
         return Ok(users.Select(x => new UserSummary(x.Id, x.Email ?? string.Empty, x.FullName, x.Status.ToString(), x.UserRoles.Select(y => y.Role.Name ?? string.Empty).Where(y => y.Length > 0).Order().ToArray(), x.MustChangePassword)));
     }
 
+    // Sin este endpoint no habia forma de corregir un nombre mal escrito ni un
+    // correo equivocado: el CRUD de usuarios solo permitia crear, cambiar estado y
+    // asignar roles. Eliminar no se ofrece a proposito, porque auditoria, riegos y
+    // sesiones referencian al usuario; para retirar a alguien se desactiva.
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> UpdateProfile(Guid id, UpdateUserProfileRequest request, CancellationToken ct)
+    {
+        if (!await VerifyTotp(ct)) return StatusCode(StatusCodes.Status403Forbidden, new { message = TotpError });
+        var user = await db.Users.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (user is null) return NotFound();
+
+        var fullName = request.FullName.Trim();
+        var email = request.Email.Trim().ToLowerInvariant();
+        var normalized = email.ToUpperInvariant();
+        if (fullName.Length < 3) return BadRequest(new { message = "El nombre debe tener al menos 3 caracteres." });
+        if (await db.Users.AnyAsync(x => x.Id != id && x.NormalizedEmail == normalized, ct))
+            return Conflict(new { message = "Ya existe otra cuenta con ese correo." });
+
+        var previous = $"{user.FullName} <{user.Email}>";
+        var emailChanged = !string.Equals(user.NormalizedEmail, normalized, StringComparison.Ordinal);
+        user.FullName = fullName;
+        user.Email = email;
+        user.NormalizedEmail = normalized;
+        user.UserName = email;
+        user.NormalizedUserName = normalized;
+        user.UpdatedAtUtc = DateTime.UtcNow;
+
+        // Cambiar el correo cambia el identificador con el que se inicia sesion, asi
+        // que las sesiones abiertas dejan de corresponder a la credencial vigente.
+        if (emailChanged)
+        {
+            foreach (var session in await db.Sessions.Where(x => x.UserId == id && x.RevokedAtUtc == null).ToListAsync(ct)) session.RevokedAtUtc = DateTime.UtcNow;
+            await userManager.UpdateSecurityStampAsync(user);
+        }
+
+        db.AccessAudits.Add(new AccessAudit { UserId = id, EventType = "USER_PROFILE_UPDATED", Detail = $"{previous} → {fullName} <{email}>{(emailChanged ? "; sesiones revocadas" : string.Empty)}" });
+        await db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
     [HttpPatch("{id:guid}/status")]
     public async Task<IActionResult> Status(Guid id, UpdateUserStatusRequest request, CancellationToken ct)
     {

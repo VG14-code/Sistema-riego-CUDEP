@@ -55,6 +55,7 @@ export const week2Api = {
   revokeSession: (token: string, id: string) => request<void>("/sessions/"+id, { method: "DELETE" }, token),
   roles: (token: string) => request<Role[]>('/roles', {}, token),
   permissions: (token: string) => request<Permission[]>('/roles/permissions', {}, token),
+  updateUserProfile: (token: string, id: string, body: { fullName: string; email: string }, totp: string) => request<void>(`/users/${id}`, { method: 'PUT', ...json(body) }, token, totp),
   setUserStatus: (token: string, id: string, status: string, totp: string) => request<void>(`/users/${id}/status`, { method: 'PATCH', ...json({ status }) }, token, totp),
   setUserRoles: (token: string, id: string, roles: string[], totp: string) => request<void>(`/users/${id}/roles`, { method: 'PUT', ...json({ roles }) }, token, totp),
   resetUserPassword: (token: string, id: string, totp: string) => request<{ temporaryPassword: string }>(`/users/${id}/reset-password`, { method: 'POST' }, token, totp),
