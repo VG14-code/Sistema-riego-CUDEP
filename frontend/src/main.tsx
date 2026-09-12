@@ -11,6 +11,7 @@ import './modules1to7.css'
 import './modules7to10.css'
 import './modules-nav.css'
 import './sprint2.css'
+import './dialogs.css'
 import './gsapParallax'
 import Week2App from './Week2App'
 createRoot(document.getElementById('root')!).render(<StrictMode><Week2App /></StrictMode>)

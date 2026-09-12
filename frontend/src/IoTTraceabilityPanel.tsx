@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState, type FormEvent } from 'react'
 import { week3Api, type IoTRecord } from './week3Api'
+import { askForm } from './dialogs'
 
 type Named = IoTRecord & { id:string; name:string }
 type Props={token:string;nodes:Named[];devices:Named[];canEdit:boolean;notify:(message:string)=>void}
@@ -16,7 +17,7 @@ export default function IoTTraceabilityPanel({token,nodes,devices,canEdit,notify
  const saveInstallation=async(e:FormEvent)=>{e.preventDefault();await week3Api.createInstallation(token,{...installation,irrigationZoneId:installation.irrigationZoneId||null,installedAtUtc:new Date(installation.installedAtUtc).toISOString()});notify('Instalación registrada con responsable y asociación territorial.');await load()}
  const queue=async(e:FormEvent)=>{e.preventDefault();await week3Api.queueRemoteConfiguration(token,remote);notify('Configuración remota agregada a la cola de confirmación.');await load()}
  const register=async(e:FormEvent)=>{e.preventDefault();await week3Api.registerFirmware(token,release);notify('Versión de firmware registrada.');await load()}
- const editInventory=async(item:IoTRecord)=>{const owner=prompt('Propietario o responsable',String(item.owner??''));if(owner===null)return;const status=prompt('Estado: Instalado, Disponible, Dañado o En mantenimiento',String(item.inventoryStatus??'Instalado'));if(!status)return;const cost=prompt('Costo de adquisición en GTQ',String(item.acquisitionCost??''));await week3Api.updateInventory(token,String(item.id),{owner,inventoryStatus:status,purchaseDate:item.purchaseDate??null,warrantyUntil:item.warrantyUntil??null,acquisitionCost:cost?Number(cost):null,currency:'GTQ'});notify('Inventario actualizado.');await load()}
+ const editInventory=async(item:IoTRecord)=>{const answer=await askForm('Inventario del dispositivo',[{name:'owner',label:'Propietario o responsable',value:String(item.owner??''),required:false},{name:'status',label:'Estado',value:String(item.inventoryStatus??'Instalado'),hint:'Instalado, Disponible, Dañado o En mantenimiento.'},{name:'cost',label:'Costo de adquisición (GTQ)',type:'number',value:String(item.acquisitionCost??''),required:false}],{confirmLabel:'Guardar inventario'});if(!answer)return;const owner=answer.owner,status=answer.status,cost=answer.cost;await week3Api.updateInventory(token,String(item.id),{owner,inventoryStatus:status,purchaseDate:item.purchaseDate??null,warrantyUntil:item.warrantyUntil??null,acquisitionCost:cost?Number(cost):null,currency:'GTQ'});notify('Inventario actualizado.');await load()}
  return <section className="iot-traceability">
   <header><p className="w2-kicker">TRAZABILIDAD DE INFRAESTRUCTURA</p><h2>Instalación, configuración, firmware e inventario</h2><p>La evidencia operativa se conserva como historial; una actualización OTA solo se marca aplicada cuando existe confirmación real.</p></header>
   <div className="iot-trace-grid">
