@@ -18,9 +18,11 @@ public sealed class Week14AnalyticsController(AppDbContext db) : ControllerBase
         var rows = await db.WaterConsumptionRecords.AsNoTracking().Where(x => x.RecordedAtUtc >= from)
             .Select(x => new { x.RecordedAtUtc, x.VolumeLiters, x.Source, x.IsMeasured, x.RecommendedVolumeLiters, x.DeviationPercent, x.EstimatedCost, Zone = x.IrrigationZone.Name, Sector = x.IrrigationZone.IrrigationSector.Name, Crop = db.CropCycles.Where(c => c.IrrigationZoneId == x.IrrigationZoneId && c.Status == "Activo").Select(c => c.Crop.Name).FirstOrDefault() ?? "Sin cultivo" }).ToListAsync(ct);
         var total = rows.Sum(x => x.VolumeLiters);
+        // Con un periodo vacio la pantalla necesita decir hasta cuando hay datos, en vez de tarjetas en blanco.
+        var lastRecordedAtUtc = await db.WaterConsumptionRecords.AsNoTracking().MaxAsync(x => (DateTime?)x.RecordedAtUtc, ct);
         return Ok(new
         {
-            from, to = DateTime.UtcNow, totalLiters = Math.Round(total, 1), eventCount = rows.Count,
+            from, to = DateTime.UtcNow, lastRecordedAtUtc, totalLiters = Math.Round(total, 1), eventCount = rows.Count,
             averageLiters = rows.Count == 0 ? 0 : Math.Round(total / rows.Count, 1),
             daily = rows.GroupBy(x => x.RecordedAtUtc.Date).Select(g => new { date = g.Key, volumeLiters = g.Sum(x => x.VolumeLiters), events = g.Count() }).OrderBy(x => x.date),
             weekly = rows.GroupBy(x => Monday(x.RecordedAtUtc.Date)).Select(g => new { weekStart = g.Key, volumeLiters = g.Sum(x => x.VolumeLiters), events = g.Count() }).OrderBy(x => x.weekStart),
@@ -44,6 +46,19 @@ public sealed class Week14AnalyticsController(AppDbContext db) : ControllerBase
     [HttpGet("history")]
     public async Task<ActionResult> History(DateTime? from, DateTime? to, string? type, Guid? zoneId, string? user, string? search, int take = 300, CancellationToken ct = default)
         => Ok(await Project(Filter(from, to, type, zoneId, user, search)).Take(Math.Clamp(take, 1, 1000)).ToListAsync(ct));
+
+    /// <summary>Bitacora paginada con el total filtrado; la lista simple cortaba en 300 eventos.</summary>
+    [HttpGet("history/paged")]
+    public async Task<ActionResult> HistoryPaged(DateTime? from, DateTime? to, string? type, Guid? zoneId, string? user, string? search, int page = 1, int pageSize = 15, CancellationToken ct = default)
+    {
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var query = Filter(from, to, type, zoneId, user, search);
+        var total = await query.CountAsync(ct);
+        var pageCount = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        page = Math.Clamp(page, 1, pageCount);
+        var items = await Project(query).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        return Ok(new HistoryPage(items, total, page, pageSize, pageCount));
+    }
 
     [HttpGet("history/{id:long}")]
     public async Task<ActionResult> Detail(long id, CancellationToken ct)
@@ -88,9 +103,11 @@ public sealed class Week14AnalyticsController(AppDbContext db) : ControllerBase
         return q;
     }
 
-    private static IQueryable<EventRow> Project(IQueryable<OperationalEvent> q) => q.OrderByDescending(x => x.OccurredAtUtc)
+    // ThenBy por Id deja un orden estable entre paginas cuando dos eventos comparten la marca de tiempo.
+    private static IQueryable<EventRow> Project(IQueryable<OperationalEvent> q) => q.OrderByDescending(x => x.OccurredAtUtc).ThenByDescending(x => x.Id)
         .Select(x => new EventRow(x.Id, x.Category, x.EventType, x.Severity, x.OccurredAtUtc, x.UserEmail, x.IrrigationZone == null ? null : x.IrrigationZone.Name, x.Detail));
     private static DateTime Monday(DateTime date) { var offset = (7 + (date.DayOfWeek - DayOfWeek.Monday)) % 7; return date.AddDays(-offset); }
     private static string Quote(string? value) => $"\"{(value ?? string.Empty).Replace("\"", "\"\"")}\"";
-    private sealed record EventRow(long Id, string Category, string EventType, string Severity, DateTime OccurredAtUtc, string? UserEmail, string? Zone, string Detail);
+    public sealed record EventRow(long Id, string Category, string EventType, string Severity, DateTime OccurredAtUtc, string? UserEmail, string? Zone, string Detail);
+    public sealed record HistoryPage(List<EventRow> Items, int Total, int Page, int PageSize, int PageCount);
 }
