@@ -17,3 +17,9 @@
 .s2-password-modal button.secondary{background:#e7efec;color:#254f49}
 .environmental-validation .s2-grid article{border-left:4px solid #c9544d}.environmental-validation .s2-grid article:has(.s2-status.on){border-left-color:#1f8a68}.crop-rotation .wide{grid-column:1/-1}.crop-rotation textarea{min-height:5rem}.rotation-timeline{position:relative;display:grid;gap:.7rem;margin-top:1rem;padding-left:1.3rem}.rotation-timeline::before{content:"";position:absolute;left:.35rem;top:.3rem;bottom:.3rem;width:2px;background:#89c9c3}.rotation-timeline article{position:relative;padding:1rem;border:1px solid #cce2df;border-radius:.75rem;background:#fff}.rotation-timeline article::before{content:"";position:absolute;left:-1.25rem;top:1.2rem;width:.65rem;height:.65rem;border-radius:50%;background:#16886f}.rotation-timeline article>span{color:#357580;font-size:.72rem;font-weight:800}.rotation-timeline h3{margin:.25rem 0}.rotation-timeline small{display:block;margin:.35rem 0;color:#617b80}
 
+
+/* Requerimientos hidricos y recomendaciones (modulo 6) */
+.s2-empty { margin: 0; padding: 0.9rem 1rem; border: 1px dashed rgba(15, 76, 92, 0.35); border-radius: 12px; color: #4a6b74; background: rgba(15, 76, 92, 0.04); }
+.s2-panel article.s2-recommend { border-color: rgba(21, 128, 61, 0.45); background: linear-gradient(180deg, rgba(21, 128, 61, 0.08), transparent); }
+.s2-form button.cancel { background: transparent; color: #4a6b74; border: 1px solid rgba(15, 76, 92, 0.35); }
+.s2-form button.cancel:hover { background: rgba(15, 76, 92, 0.08); }
