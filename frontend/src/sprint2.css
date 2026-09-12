@@ -51,6 +51,21 @@
 .s2-card-actions button:hover { background: rgba(15, 76, 92, 0.06); }
 .s2-card-actions button.danger { color: #b91c1c; border-color: rgba(185, 28, 28, 0.28); }
 .s2-card-actions button.danger:hover { background: rgba(185, 28, 28, 0.07); }
+/* Filtros de Auditoría. Usaban .s14-filters, cuyos estilos solo se cargan con el módulo de Reportes. */
+.au-filters { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 0.75rem; margin: 1.2rem 0 1rem; padding: 1rem; border: 1px solid rgba(15, 76, 92, 0.12); border-radius: 14px; background: #f4f8f6; }
+.au-filters label { display: grid; gap: 0.35rem; font-size: 0.7rem; font-weight: 700; color: #4a6b74; }
+.au-filters input, .au-filters select { width: 100%; box-sizing: border-box; padding: 0.6rem 0.7rem; border: 1px solid rgba(15, 76, 92, 0.22); border-radius: 9px; background: #fff; font: inherit; font-size: 0.85rem; color: #0b3a46; }
+.au-filters input:focus, .au-filters select:focus { outline: none; border-color: #1b7f8c; box-shadow: 0 0 0 3px rgba(27, 127, 140, 0.14); }
+.au-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.au-actions button { padding: 0.55rem 1.1rem; border: 1px solid rgba(27, 127, 140, 0.35); border-radius: 9px; background: #fff; font: inherit; font-size: 0.84rem; font-weight: 600; color: #1b7f8c; cursor: pointer; }
+.au-actions button:hover:not(:disabled) { background: rgba(27, 127, 140, 0.09); }
+.au-actions .au-primary { border-color: transparent; background: #1b7f8c; color: #fff; }
+.au-actions .au-primary:hover:not(:disabled) { background: #156a75; }
+.au-actions button:disabled { opacity: 0.55; cursor: progress; }
+.au-divider { flex: 1; }
+.lt.au-pager { justify-content: space-between; }
+@media (max-width: 900px) { .au-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .au-filters { grid-template-columns: 1fr; } .au-divider { display: none; } }
 .lt-export { display: flex; gap: 0.4rem; }
 .lt-export button { padding: 0.4rem 0.8rem; border: 1px solid rgba(27, 127, 140, 0.35); border-radius: 8px; background: #fff; font: inherit; font-size: 0.82rem; font-weight: 600; color: #1b7f8c; cursor: pointer; }
 .lt-export button:hover:not(:disabled) { background: rgba(27, 127, 140, 0.09); }

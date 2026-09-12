@@ -31,10 +31,12 @@ public sealed class AuditSaveChangesInterceptor(IHttpContextAccessor httpContext
         // La zona ya registra quien la modifico.
     ];
 
-    // Marcas de latido que la ingestion de telemetria reescribe en cada mensaje MQTT.
-    // Una modificacion que solo las toca no es un cambio de configuracion y no se
-    // audita; si viene acompanada de cualquier otro campo, la entrada si se registra.
-    private static readonly string[] HeartbeatProperties = ["LastReadingUtc", "LastCommunicationUtc"];
+    // Marcas de latido que los procesos automaticos reescriben continuamente: la ingestion
+    // de telemetria en cada mensaje MQTT y AutomationEngine al evaluar cada regla cada
+    // 10 s (esas tres eran el 86 % de la bitacora). Una modificacion que solo las toca no
+    // es un cambio de configuracion y no se audita; si viene acompanada de cualquier otro
+    // campo, la entrada si se registra.
+    private static readonly string[] HeartbeatProperties = ["LastReadingUtc", "LastCommunicationUtc", "LastEvaluatedAtUtc", "LastDecision", "LastReason"];
 
     private static readonly string[] SecretFragments = ["Password", "Token", "Authenticator", "RecoveryCode", "SecurityStamp", "ConcurrencyStamp"];
 

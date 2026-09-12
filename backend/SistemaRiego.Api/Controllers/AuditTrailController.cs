@@ -16,6 +16,19 @@ public sealed class AuditTrailController(AppDbContext db) : ControllerBase
     public async Task<ActionResult> Get(DateTime? from, DateTime? to, string? user, string? action, string? entity, int take = 200, CancellationToken ct = default)
         => Ok(await Filter(from, to, user, action, entity).OrderByDescending(x => x.OccurredAtUtc).Take(Math.Clamp(take, 1, 1000)).ToListAsync(ct));
 
+    /// <summary>Pagina de la bitacora con el total filtrado; la lista simple solo traia las 200 mas recientes.</summary>
+    [HttpGet("paged")]
+    public async Task<ActionResult> Paged(DateTime? from, DateTime? to, string? user, string? action, string? entity, int page = 1, int pageSize = 20, CancellationToken ct = default)
+    {
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var query = Filter(from, to, user, action, entity);
+        var total = await query.CountAsync(ct);
+        var pageCount = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        page = Math.Clamp(page, 1, pageCount);
+        var items = await query.OrderByDescending(x => x.OccurredAtUtc).ThenByDescending(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        return Ok(new AuditPage(items, total, page, pageSize, pageCount));
+    }
+
     [HttpGet("filters")]
     public async Task<ActionResult> Filters(CancellationToken ct)
     {
@@ -68,3 +81,5 @@ public sealed class AuditTrailController(AppDbContext db) : ControllerBase
 
     private static string Quote(string? value) => $"\"{(value ?? string.Empty).Replace("\"", "\"\"")}\"";
 }
+
+public sealed record AuditPage(List<AuditEntry> Items, int Total, int Page, int PageSize, int PageCount);

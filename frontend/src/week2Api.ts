@@ -15,6 +15,7 @@ export interface TotpSetup { sharedKey: string; authenticatorUri: string }
 export interface GlobalParameter { id: string; key: string; value: string; dataType: string; category: string; description: string; isEditable: boolean }
 export interface AuditItem { id: number; actionType: string; entityType: string; entityId: string | null; beforeJson: string | null; afterJson: string | null; detail: string | null; occurredAtUtc: string; userEmail: string | null; ipAddress: string | null; correlationId: string; origin: string }
 export interface AuditFilters { users: string[]; actions: string[]; entities: string[] }
+export interface AuditPage { items: AuditItem[]; total: number; page: number; pageSize: number; pageCount: number }
 type JsonBody = Record<string, unknown>
 
 async function request<T>(path: string, options: RequestInit = {}, accessToken?: string, totpCode?: string): Promise<T> {
@@ -82,6 +83,7 @@ export const week2Api = {
   settings: (token: string) => request<GlobalParameter[]>('/settings', {}, token),
   saveSetting: (token: string, key: string, item: JsonBody) => request<void>(`/settings/${key}`, { method: 'PUT', ...json(item) }, token),
   audit: (token: string, query = '') => request<AuditItem[]>(`/audit-trail?${query}`, {}, token),
+  auditPage: (token: string, query: string, page: number, pageSize: number) => request<AuditPage>(`/audit-trail/paged?${query}${query ? '&' : ''}page=${page}&pageSize=${pageSize}`, {}, token),
   auditFilters: (token: string) => request<AuditFilters>('/audit-trail/filters', {}, token),
   exportAudit: (token: string, query: string, format: 'csv' | 'xlsx') => downloadAudit(token, query, format),
 }

@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using SistemaRiego.Api.Controllers;
 using QuestPDF.Infrastructure;
 using SistemaRiego.Api.Data;
 using SistemaRiego.Api.Middleware;
@@ -147,6 +149,50 @@ public sealed class Sprint6ReportingAuditTests
         var calibration = new SensorCalibration { SensorId = sensor.Id, CalibratedAtUtc = DateTime.UtcNow, ReferenceValue = 50, MeasuredValue = 48, AppliedOffset = 2 };
         db.Add(calibration); await db.SaveChangesAsync();
         Assert.Single(await db.AuditEntries.Where(x => x.EntityType == "SensorCalibration").ToListAsync());
+    }
+
+    [Fact]
+    public async Task AuditInterceptor_IgnoresAutomationEvaluationStamps()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).AddInterceptors(new AuditSaveChangesInterceptor(new HttpContextAccessor())).Options;
+        await using var db = new AppDbContext(options);
+        var rule = new IrrigationRule { Name = "Regla auditada", IrrigationZoneId = Guid.NewGuid(), MinimumMoisturePercent = 35, TargetMoisturePercent = 60 };
+        db.Add(rule); await db.SaveChangesAsync();
+        Assert.Single(await db.AuditEntries.Where(x => x.EntityType == "IrrigationRule").ToListAsync());
+
+        // AutomationEngine reescribe estas marcas en cada ciclo de 10 s: eran el 86 % de la bitacora.
+        for (var i = 0; i < 3; i++)
+        {
+            rule.LastEvaluatedAtUtc = DateTime.UtcNow.AddSeconds(i * 10); rule.LastDecision = i % 2 == 0 ? "No regar" : "Fuera de ventana"; rule.LastReason = $"Humedad {40 + i}%";
+            await db.SaveChangesAsync();
+        }
+        Assert.Single(await db.AuditEntries.Where(x => x.EntityType == "IrrigationRule").ToListAsync());
+
+        rule.MinimumMoisturePercent = 30; rule.LastEvaluatedAtUtc = DateTime.UtcNow.AddMinutes(1);
+        await db.SaveChangesAsync();
+        var audits = await db.AuditEntries.Where(x => x.EntityType == "IrrigationRule").OrderBy(x => x.Id).ToListAsync();
+        Assert.Equal(2, audits.Count);
+        Assert.Contains("\"MinimumMoisturePercent\":30", audits[1].AfterJson);
+    }
+
+    [Fact]
+    public async Task AuditTrail_PagedReturnsNewestFirstWithFilteredTotals()
+    {
+        await using var db = Db();
+        for (var i = 0; i < 45; i++)
+            db.AuditEntries.Add(new AuditEntry { ActionType = "Actualización", EntityType = i % 3 == 0 ? "User" : "IrrigationRule", EntityId = i.ToString(), Detail = "prueba", OccurredAtUtc = new DateTime(2026, 9, 1).AddMinutes(i), CorrelationId = "corr", Origin = "test", IpAddress = "127.0.0.1" });
+        await db.SaveChangesAsync();
+        var controller = new AuditTrailController(db);
+
+        var second = Assert.IsType<AuditPage>(Assert.IsType<OkObjectResult>(await controller.Paged(null, null, null, null, null, 2, 20)).Value);
+        Assert.Equal((45, 3, 2, 20), (second.Total, second.PageCount, second.Page, second.Items.Count));
+        Assert.Equal("24", second.Items[0].EntityId);
+
+        var beyond = Assert.IsType<AuditPage>(Assert.IsType<OkObjectResult>(await controller.Paged(null, null, null, null, null, 99, 20)).Value);
+        Assert.Equal((3, 5), (beyond.Page, beyond.Items.Count));
+
+        var users = Assert.IsType<AuditPage>(Assert.IsType<OkObjectResult>(await controller.Paged(null, null, null, null, "User", 1, 20)).Value);
+        Assert.Equal((15, 1), (users.Total, users.PageCount));
     }
 
     private static AppDbContext Db() => new(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
