@@ -38,6 +38,16 @@ public sealed class RemoteConfigurationDispatcher(
             using var payload = JsonDocument.Parse(item.Payload);
             await mqtt.PublishRemoteConfigurationAsync(item.Node.Code, item.Id, item.CommandType, payload.RootElement.Clone(), ct);
         }
+        catch (MqttBrokerUnavailableException exception)
+        {
+            // El comando no llego a salir: se devuelve el intento y queda en cola. LastAttemptAtUtc
+            // se conserva para que el worker espere su ventana de reintento y no insista cada 5 s.
+            item.Attempts--;
+            item.Status = "Pendiente";
+            item.LastError = "Broker MQTT no disponible; el intento no se contabilizó.";
+            await db.SaveChangesAsync(ct);
+            logger.LogWarning("Configuración remota {CommandId} en espera: {Reason}", item.Id, exception.Message);
+        }
         catch (Exception exception)
         {
             item.Status = item.Attempts >= item.MaximumAttempts ? "Fallida" : "Pendiente";

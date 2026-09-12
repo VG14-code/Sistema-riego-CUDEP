@@ -30,6 +30,13 @@ public sealed class MqttOptions
     public Dictionary<string, string> AllowedClients { get; init; } = new(StringComparer.Ordinal);
 }
 
+/// <summary>
+/// El broker no acepto la publicacion porque la conexion no existe. Se distingue de
+/// otros fallos para no gastar intentos de un comando que ni siquiera salio.
+/// </summary>
+public sealed class MqttBrokerUnavailableException(Exception? inner = null)
+    : InvalidOperationException("El broker MQTT no está disponible.", inner);
+
 public interface IMqttCommandPublisher
 {
     Task PublishCommandAsync(string zone, Guid deviceId, object payload, CancellationToken cancellationToken);
@@ -159,7 +166,7 @@ public sealed class MqttWorker(
     }
     public async Task PublishCommandAsync(string zone, Guid deviceId, object payload, CancellationToken cancellationToken)
     {
-        if (!client.IsConnected) throw new InvalidOperationException("El broker MQTT no está disponible.");
+        if (!client.IsConnected) throw new MqttBrokerUnavailableException();
         var topic = options.CommandTopicTemplate
             .Replace("{zone}", Normalize(zone), StringComparison.Ordinal)
             .Replace("{device}", deviceId.ToString(), StringComparison.Ordinal);
@@ -175,17 +182,20 @@ public sealed class MqttWorker(
 
     public async Task PublishRemoteConfigurationAsync(string nodeCode, Guid commandId, string commandType, JsonElement payload, CancellationToken cancellationToken)
     {
-        if (!client.IsConnected) throw new InvalidOperationException("El broker MQTT no está disponible.");
+        if (!client.IsConnected) throw new MqttBrokerUnavailableException();
         var topic = options.RemoteConfigurationCommandTopicTemplate.Replace("{node}", Normalize(nodeCode), StringComparison.Ordinal);
         var message = new MqttApplicationMessageBuilder().WithTopic(topic)
             .WithPayload(JsonSerializer.Serialize(new { commandId, commandType, payload }, json))
             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce).Build();
-        await client.PublishAsync(message, cancellationToken);
+        // La conexion puede caer entre la comprobacion y el envio: si tras el fallo el
+        // cliente ya no esta conectado, fue el broker y no el comando.
+        try { await client.PublishAsync(message, cancellationToken); }
+        catch (Exception exception) when (exception is not OperationCanceledException && !client.IsConnected) { throw new MqttBrokerUnavailableException(exception); }
         logger.LogInformation("Configuración remota {CommandId} publicada en {Topic}", commandId, topic);
     }
     public async Task PublishPumpCommandAsync(Guid deviceId, object payload, CancellationToken cancellationToken)
     {
-        if (!client.IsConnected) throw new InvalidOperationException("El broker MQTT no está disponible.");
+        if (!client.IsConnected) throw new MqttBrokerUnavailableException();
         var topic = options.PumpCommandTopicTemplate.Replace("{device}", deviceId.ToString(), StringComparison.Ordinal);
         var message = new MqttApplicationMessageBuilder().WithTopic(topic).WithPayload(JsonSerializer.Serialize(payload, json)).WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce).Build();
         await client.PublishAsync(message, cancellationToken);
