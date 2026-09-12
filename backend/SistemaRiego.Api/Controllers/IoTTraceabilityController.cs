@@ -53,8 +53,15 @@ public sealed class IoTTraceabilityController(AppDbContext db, IRemoteConfigurat
         try { using var payload = JsonDocument.Parse(request.Payload); }
         catch (JsonException) { return BadRequest(new { message = "La carga de configuración debe ser un JSON válido." }); }
         var item = new RemoteConfigurationCommand { NodeId = request.NodeId, CommandType = type, Payload = request.Payload, MaximumAttempts = request.MaximumAttempts, RequestedByUserId = UserId() };
-        db.RemoteConfigurationCommands.Add(item); await Save("IOT_REMOTE_CONFIGURATION_QUEUED", type, ct); if (remoteDispatcher is not null) await remoteDispatcher.DispatchAsync(item.Id, ct); return Ok(item);
+        db.RemoteConfigurationCommands.Add(item); await Save("IOT_REMOTE_CONFIGURATION_QUEUED", type, ct); if (remoteDispatcher is not null) await remoteDispatcher.DispatchAsync(item.Id, ct);
+        // El despachador comparte el DbContext e incluye Node: la entidad cruda arrastraba
+        // Node -> Devices -> Node y la respuesta fallaba con el comando ya encolado.
+        return Ok(await RemoteConfigurationView(item.Id, ct));
     }
+
+    private Task<object> RemoteConfigurationView(Guid id, CancellationToken ct) => db.RemoteConfigurationCommands.AsNoTracking().Where(x => x.Id == id)
+        .Select(x => (object)new { x.Id, x.NodeId, Node = x.Node.Name, x.CommandType, x.Payload, x.Status, x.Attempts, x.MaximumAttempts, x.RequestedAtUtc, x.LastAttemptAtUtc, x.ConfirmedAtUtc, x.LastError })
+        .SingleAsync(ct);
 
     [HttpPost("remote-configurations/{id:guid}/ack"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<IActionResult> ConfirmRemoteConfiguration(Guid id, RemoteConfigurationAckRequest request, CancellationToken ct)
@@ -63,7 +70,7 @@ public sealed class IoTTraceabilityController(AppDbContext db, IRemoteConfigurat
         item.Attempts++; item.LastAttemptAtUtc = DateTime.UtcNow; item.LastError = request.Success ? null : request.Detail;
         item.Status = request.Success ? "Confirmada" : item.Attempts >= item.MaximumAttempts ? "Fallida" : "Pendiente";
         if (request.Success) item.ConfirmedAtUtc = DateTime.UtcNow;
-        await Save("IOT_REMOTE_CONFIGURATION_ACK", $"{id}:{item.Status}", ct); return Ok(item);
+        await Save("IOT_REMOTE_CONFIGURATION_ACK", $"{id}:{item.Status}", ct); return Ok(await RemoteConfigurationView(id, ct));
     }
 
     [HttpGet("firmware")]

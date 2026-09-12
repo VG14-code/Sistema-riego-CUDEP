@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -28,10 +29,27 @@ public sealed class ThesisTraceabilityTests
     {
         var setup = await Setup();
         var queued = Assert.IsType<OkObjectResult>(await setup.IoT.QueueRemoteConfiguration(new(setup.Node.Id, "REINICIAR", "{}", 2), default));
-        var command = Assert.IsType<RemoteConfigurationCommand>(queued.Value);
-        await setup.IoT.ConfirmRemoteConfiguration(command.Id, new(false, "Sin ACK"), default);
-        await setup.IoT.ConfirmRemoteConfiguration(command.Id, new(false, "Sin ACK"), default);
-        Assert.Equal("Fallida", (await setup.Db.RemoteConfigurationCommands.FindAsync(command.Id))!.Status);
+        var id = (Guid)queued.Value!.GetType().GetProperty("Id")!.GetValue(queued.Value)!;
+        await setup.IoT.ConfirmRemoteConfiguration(id, new(false, "Sin ACK"), default);
+        await setup.IoT.ConfirmRemoteConfiguration(id, new(false, "Sin ACK"), default);
+        Assert.Equal("Fallida", (await setup.Db.RemoteConfigurationCommands.FindAsync(id))!.Status);
+    }
+
+    [Fact]
+    public async Task QueueRemoteConfiguration_ResponseSerializesWithoutObjectCycle()
+    {
+        // Setup deja nodo y dispositivo rastreados, como hace el despachador con Include(Node):
+        // la entidad cruda quedaba enlazada Node -> Devices -> Node al serializar.
+        var setup = await Setup();
+        var queued = Assert.IsType<OkObjectResult>(await setup.IoT.QueueRemoteConfiguration(new(setup.Node.Id, "CAMBIAR_FRECUENCIA", "{\"telemetryIntervalSeconds\":30}", 3), default));
+        var json = JsonSerializer.Serialize(queued.Value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Contains($"\"node\":\"{setup.Node.Name}\"", json);
+        Assert.Contains("\"status\":\"Pendiente\"", json);
+        Assert.DoesNotContain("devices", json, StringComparison.OrdinalIgnoreCase);
+
+        var id = (Guid)queued.Value!.GetType().GetProperty("Id")!.GetValue(queued.Value)!;
+        var ack = Assert.IsType<OkObjectResult>(await setup.IoT.ConfirmRemoteConfiguration(id, new(true, null), default));
+        Assert.Contains("\"status\":\"Confirmada\"", JsonSerializer.Serialize(ack.Value, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
     }
 
     [Fact]
