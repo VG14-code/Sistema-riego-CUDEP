@@ -1,1 +1,6 @@
 .w2-app>aside>nav{min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#4b8277 transparent;padding-right:.2rem}.w2-app>aside>nav::-webkit-scrollbar{width:4px}.w2-app>aside>nav::-webkit-scrollbar-thumb{border-radius:99px;background:#4b8277}@media(max-width:900px){.w2-app>aside>nav{overflow-x:auto;overflow-y:hidden;padding-right:0}}
+
+/* Menu agrupado por modulos de la planificacion */
+.w2-nav-group { display: flex; flex-direction: column; }
+.w2-nav-group + .w2-nav-group { margin-top: 0.85rem; padding-top: 0.55rem; border-top: 1px solid rgba(255, 255, 255, 0.09); }
+.w2-nav-group-title { margin: 0 0 0.3rem 0.9rem; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: rgba(255, 255, 255, 0.42); }
