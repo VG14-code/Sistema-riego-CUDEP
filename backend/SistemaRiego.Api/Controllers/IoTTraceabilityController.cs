@@ -1,15 +1,17 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SistemaRiego.Api.Contracts;
 using SistemaRiego.Api.Data;
 using SistemaRiego.Api.Models;
+using SistemaRiego.Api.Services;
 
 namespace SistemaRiego.Api.Controllers;
 
 [ApiController, Route("api/iot/traceability"), Authorize(Policy = PermissionPolicies.IoTRead)]
-public sealed class IoTTraceabilityController(AppDbContext db) : ControllerBase
+public sealed class IoTTraceabilityController(AppDbContext db, IRemoteConfigurationDispatcher? remoteDispatcher = null) : ControllerBase
 {
     [HttpGet("installations")]
     public async Task<IActionResult> Installations(CancellationToken ct) => Ok(await db.DeviceInstallations.AsNoTracking()
@@ -48,8 +50,10 @@ public sealed class IoTTraceabilityController(AppDbContext db) : ControllerBase
         var type = request.CommandType.Trim().ToUpperInvariant();
         if (!allowed.Contains(type)) return BadRequest(new { message = "Comando remoto no permitido." });
         if (request.MaximumAttempts is < 1 or > 10) return BadRequest(new { message = "El máximo de intentos debe estar entre 1 y 10." });
+        try { using var payload = JsonDocument.Parse(request.Payload); }
+        catch (JsonException) { return BadRequest(new { message = "La carga de configuración debe ser un JSON válido." }); }
         var item = new RemoteConfigurationCommand { NodeId = request.NodeId, CommandType = type, Payload = request.Payload, MaximumAttempts = request.MaximumAttempts, RequestedByUserId = UserId() };
-        db.RemoteConfigurationCommands.Add(item); await Save("IOT_REMOTE_CONFIGURATION_QUEUED", type, ct); return Ok(item);
+        db.RemoteConfigurationCommands.Add(item); await Save("IOT_REMOTE_CONFIGURATION_QUEUED", type, ct); if (remoteDispatcher is not null) await remoteDispatcher.DispatchAsync(item.Id, ct); return Ok(item);
     }
 
     [HttpPost("remote-configurations/{id:guid}/ack"), Authorize(Policy = PermissionPolicies.DevicesManage)]

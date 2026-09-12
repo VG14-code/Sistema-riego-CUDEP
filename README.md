@@ -45,6 +45,8 @@ No se requiere Docker. Abre terminales separadas y conserva este orden.
 
 La telemetría sigue el flujo simulador → MQTT → servicio de ingestión → base de datos → SignalR (`telemetryReadingReceived`). Los comandos se publican en `granja/{zona}/valvula/{dispositivo}/comando`; el simulador responde en el tópico `/ack` y el backend marca el comando como confirmado.
 
+La configuración remota usa `granja/nodo/{nodo}/configuracion/comando` y `granja/nodo/{nodo}/configuracion/ack`. El backend despacha la cola, reintenta comandos sin confirmar y correlaciona el ACK con el nodo. El simulador del nodo A aplica frecuencia, límites y reinicio lógico; esta misma estructura define el contrato del firmware físico.
+
 ## Datos de demostración
 
 El seeder distingue dos capas y solo la segunda es sintética.

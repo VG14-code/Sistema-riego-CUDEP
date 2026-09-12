@@ -24,10 +24,53 @@ var pumpRunning = false;
 var configuredLevel = decimal.TryParse(Environment.GetEnvironmentVariable("SIMULATOR_TANK_LEVEL_LITERS"), out var levelOverride) ? levelOverride : pumpStation?.InitialLevelLiters ?? 0m;
 var tankLevelLiters = configuredLevel;
 var forceOvercurrent = bool.TryParse(Environment.GetEnvironmentVariable("SIMULATE_PUMP_OVERCURRENT"), out var configuredOvercurrent) && configuredOvercurrent;
+var telemetryIntervalSeconds = config.IntervalSeconds;
 
 client.ApplicationMessageReceivedAsync += async message =>
 {
     if (!message.ApplicationMessage.Topic.EndsWith("/comando", StringComparison.Ordinal)) return;
+    var isConfigurationCommand = message.ApplicationMessage.Topic.Contains("/configuracion/", StringComparison.Ordinal);
+    if (isConfigurationCommand)
+    {
+        if (string.IsNullOrWhiteSpace(config.RemoteConfigurationNodeCode)) return;
+        var raw = message.ApplicationMessage.ConvertPayloadToString();
+        using var configurationDocument = JsonDocument.Parse(raw);
+        var configuration = configurationDocument.RootElement;
+        var configurationCommandId = configuration.TryGetProperty("commandId", out var commandIdValue) && Guid.TryParse(commandIdValue.ToString(), out var parsedCommandId) ? parsedCommandId : Guid.Empty;
+        var configurationCommandType = configuration.TryGetProperty("commandType", out var commandTypeValue) ? commandTypeValue.GetString() ?? string.Empty : string.Empty;
+        var success = configurationCommandId != Guid.Empty;
+        var detail = "Configuración aplicada por el simulador.";
+        if (success && configurationCommandType.Equals("CAMBIAR_FRECUENCIA", StringComparison.OrdinalIgnoreCase))
+        {
+            var configurationPayload = configuration.GetProperty("payload");
+            var interval = 0;
+            success = configurationPayload.TryGetProperty("intervalSeconds", out var seconds) && seconds.TryGetInt32(out interval) && interval is >= 1 and <= 3600;
+            if (success) { telemetryIntervalSeconds = interval; detail = $"Intervalo actualizado a {interval} segundos."; }
+            else detail = "intervalSeconds debe estar entre 1 y 3600.";
+        }
+        else if (success && configurationCommandType.Equals("CAMBIAR_LIMITES", StringComparison.OrdinalIgnoreCase))
+        {
+            success = configuration.TryGetProperty("payload", out var limits) && limits.ValueKind == JsonValueKind.Object;
+            detail = success ? "Límites recibidos y validados." : "La configuración de límites debe ser un objeto JSON.";
+        }
+        else if (success && configurationCommandType.Equals("REINICIAR", StringComparison.OrdinalIgnoreCase))
+        {
+            valveStates.Clear();
+            pumpRunning = false;
+            detail = "Reinicio lógico completado.";
+        }
+        else if (success)
+        {
+            success = false;
+            detail = "Comando remoto no admitido.";
+        }
+        await Task.Delay(config.AckDelayMilliseconds);
+        var configurationAckTopic = message.ApplicationMessage.Topic[..^"/comando".Length] + "/ack";
+        var configurationAck = JsonSerializer.Serialize(new { commandId = configurationCommandId, success, detail, acknowledgedAtUtc = DateTime.UtcNow }, JsonOptions());
+        await client.PublishAsync(new MqttApplicationMessageBuilder().WithTopic(configurationAckTopic).WithPayload(configurationAck).WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce).Build());
+        Console.WriteLine($"ACK configuración {configurationAckTopic}: {configurationAck}");
+        return;
+    }
     var isPumpCommand = message.ApplicationMessage.Topic.Contains("/bomba/", StringComparison.Ordinal);
     if (isPumpCommand && pumpStation is null) return;
     var payload = message.ApplicationMessage.ConvertPayloadToString();
@@ -55,6 +98,8 @@ var subscriptionBuilder = factory.CreateSubscribeOptionsBuilder()
     .WithTopicFilter(filter => filter.WithTopic("granja/+/valvula/+/comando").WithAtLeastOnceQoS());
 if (pumpStation is not null)
     subscriptionBuilder.WithTopicFilter(filter => filter.WithTopic("granja/estacion/bomba/+/comando").WithAtLeastOnceQoS());
+if (!string.IsNullOrWhiteSpace(config.RemoteConfigurationNodeCode))
+    subscriptionBuilder.WithTopicFilter(filter => filter.WithTopic($"granja/nodo/{config.RemoteConfigurationNodeCode.Trim().ToLowerInvariant()}/configuracion/comando").WithAtLeastOnceQoS());
 await client.SubscribeAsync(subscriptionBuilder.Build());
 Console.WriteLine($"Simulador {config.ClientId} conectado a {config.BrokerHost}:{config.BrokerPort}. Bomba: {(pumpStation?.PumpCode ?? "no asignada")}. Ctrl+C para detener.");
 
@@ -92,7 +137,7 @@ try
         var daylight = DateTime.Now.Hour is >= 6 and <= 18; var generation = daylight ? 900 + random.Next(0, 500) : 0;
         var energyPayload = JsonSerializer.Serialize(new { capturedAtUtc = DateTime.UtcNow, generationWatts = generation, batteryPercent = 78 + random.Next(0, 8), consumptionWatts = 180 + (pumpRunning ? 650 : 0), batteryVoltage = 50.8m, messageId = $"ENERGY-{Guid.NewGuid():N}" }, JsonOptions());
         await client.PublishAsync(new MqttApplicationMessageBuilder().WithTopic("granja/energia/telemetria").WithPayload(energyPayload).WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce).Build(), shutdown.Token);
-        await Task.Delay(TimeSpan.FromSeconds(config.IntervalSeconds), shutdown.Token);
+        await Task.Delay(TimeSpan.FromSeconds(telemetryIntervalSeconds), shutdown.Token);
     }
 }
 catch (OperationCanceledException) when (shutdown.IsCancellationRequested) { }
@@ -103,7 +148,7 @@ finally
 
 static JsonSerializerOptions JsonOptions() => new(JsonSerializerDefaults.Web) { WriteIndented = false, PropertyNameCaseInsensitive = true };
 
-sealed record SimulatorConfig(string BrokerHost, int BrokerPort, string ClientId, string Username, string Password, int IntervalSeconds, int AckDelayMilliseconds, int RandomSeed, IReadOnlyList<ZoneConfig> Zones, PumpStationConfig? PumpStation = null);
+sealed record SimulatorConfig(string BrokerHost, int BrokerPort, string ClientId, string Username, string Password, int IntervalSeconds, int AckDelayMilliseconds, int RandomSeed, IReadOnlyList<ZoneConfig> Zones, PumpStationConfig? PumpStation = null, string? RemoteConfigurationNodeCode = null);
 sealed record PumpStationConfig(bool Enabled, string PumpCode, decimal CapacityLiters, decimal InitialLevelLiters, decimal FillLitersPerInterval, decimal IdleLossLitersPerInterval, decimal RunningPressureBar, decimal IdlePressureBar, decimal RunningCurrentAmps);
 sealed record ZoneConfig(string Code, string TopicKey, IReadOnlyList<SensorConfig> Sensors);
 sealed record SensorConfig(string Code, decimal Minimum, decimal Maximum, decimal MaximumVariation);

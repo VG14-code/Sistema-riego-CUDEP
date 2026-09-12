@@ -7,6 +7,7 @@
   "intervalSeconds": 5,
   "ackDelayMilliseconds": 750,
   "randomSeed": 1690,
+  "remoteConfigurationNodeCode": "RPI-CUDEP-01",
   "zones": [
     {
       "code": "ZONA-A1",

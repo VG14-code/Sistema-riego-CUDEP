@@ -22,6 +22,8 @@ public sealed class MqttOptions
     public string EnergyTelemetryTopic { get; init; } = "granja/energia/telemetria";
     public string FlowTelemetryTopic { get; init; } = "granja/+/caudal/lectura";
     public string PumpCommandTopicTemplate { get; init; } = "granja/estacion/bomba/{device}/comando";
+    public string RemoteConfigurationCommandTopicTemplate { get; init; } = "granja/nodo/{node}/configuracion/comando";
+    public string RemoteConfigurationAckTopic { get; init; } = "granja/nodo/+/configuracion/ack";
     public int ReconnectSeconds { get; init; } = 5;
     public string Username { get; init; } = string.Empty;
     public string Password { get; init; } = string.Empty;
@@ -32,6 +34,7 @@ public interface IMqttCommandPublisher
 {
     Task PublishCommandAsync(string zone, Guid deviceId, object payload, CancellationToken cancellationToken);
     Task PublishPumpCommandAsync(Guid deviceId, object payload, CancellationToken cancellationToken) => Task.CompletedTask;
+    Task PublishRemoteConfigurationAsync(string nodeCode, Guid commandId, string commandType, JsonElement payload, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 public sealed class MqttWorker(
@@ -69,6 +72,7 @@ public sealed class MqttWorker(
                         .WithTopicFilter(f => f.WithTopic(options.StationTelemetryTopic).WithAtLeastOnceQoS())
                         .WithTopicFilter(f => f.WithTopic(options.EnergyTelemetryTopic).WithAtLeastOnceQoS())
                         .WithTopicFilter(f => f.WithTopic(options.FlowTelemetryTopic).WithAtLeastOnceQoS())
+                        .WithTopicFilter(f => f.WithTopic(options.RemoteConfigurationAckTopic).WithAtLeastOnceQoS())
                         .Build();
                     await client.SubscribeAsync(subscribe, stoppingToken);
                     logger.LogInformation("MQTT conectado a {Host}:{Port}; suscrito a {TelemetryTopic} y {AckTopic}", options.Host, options.Port, options.TelemetryTopic, options.AckTopic);
@@ -90,6 +94,11 @@ public sealed class MqttWorker(
     {
         try
         {
+            if (args.ApplicationMessage.Topic.EndsWith("/configuracion/ack", StringComparison.Ordinal))
+            {
+                await OnRemoteConfigurationAckAsync(args);
+                return;
+            }
             if (args.ApplicationMessage.Topic.EndsWith("/ack", StringComparison.Ordinal))
             {
                 await OnAckAsync(args);
@@ -136,6 +145,18 @@ public sealed class MqttWorker(
         else logger.LogInformation("ACK MQTT confirmó el comando {CommandId} en {Topic}", commandId, args.ApplicationMessage.Topic);
     }
 
+    private async Task OnRemoteConfigurationAckAsync(MqttApplicationMessageReceivedEventArgs args)
+    {
+        var segments = args.ApplicationMessage.Topic.Split('/');
+        if (segments.Length != 5) throw new JsonException($"Tópico de configuración inválido: {args.ApplicationMessage.Topic}.");
+        var payload = JsonSerializer.Deserialize<RemoteConfigurationAckEnvelope>(args.ApplicationMessage.ConvertPayloadToString(), json)
+            ?? throw new JsonException("ACK de configuración vacío.");
+        using var scope = scopeFactory.CreateScope();
+        var accepted = await scope.ServiceProvider.GetRequiredService<IRemoteConfigurationDispatcher>()
+            .AcknowledgeAsync(payload.CommandId, segments[2], payload.Success, payload.Detail, CancellationToken.None);
+        if (!accepted) logger.LogWarning("ACK de configuración sin comando correlacionable en {Topic}", args.ApplicationMessage.Topic);
+        else logger.LogInformation("ACK MQTT confirmó la configuración remota {CommandId}", payload.CommandId);
+    }
     public async Task PublishCommandAsync(string zone, Guid deviceId, object payload, CancellationToken cancellationToken)
     {
         if (!client.IsConnected) throw new InvalidOperationException("El broker MQTT no está disponible.");
@@ -152,6 +173,16 @@ public sealed class MqttWorker(
     }
 
 
+    public async Task PublishRemoteConfigurationAsync(string nodeCode, Guid commandId, string commandType, JsonElement payload, CancellationToken cancellationToken)
+    {
+        if (!client.IsConnected) throw new InvalidOperationException("El broker MQTT no está disponible.");
+        var topic = options.RemoteConfigurationCommandTopicTemplate.Replace("{node}", Normalize(nodeCode), StringComparison.Ordinal);
+        var message = new MqttApplicationMessageBuilder().WithTopic(topic)
+            .WithPayload(JsonSerializer.Serialize(new { commandId, commandType, payload }, json))
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce).Build();
+        await client.PublishAsync(message, cancellationToken);
+        logger.LogInformation("Configuración remota {CommandId} publicada en {Topic}", commandId, topic);
+    }
     public async Task PublishPumpCommandAsync(Guid deviceId, object payload, CancellationToken cancellationToken)
     {
         if (!client.IsConnected) throw new InvalidOperationException("El broker MQTT no está disponible.");
@@ -161,7 +192,8 @@ public sealed class MqttWorker(
         logger.LogInformation("Comando de bomba MQTT publicado en {Topic}", topic);
     }
 
-public sealed record MqttTelemetryEnvelope(Guid? SensorId, string? SensorCode, Guid? IrrigationZoneId,
+    public sealed record RemoteConfigurationAckEnvelope(Guid CommandId, bool Success, string? Detail);
+    public sealed record MqttTelemetryEnvelope(Guid? SensorId, string? SensorCode, Guid? IrrigationZoneId,
     string? IrrigationZoneCode, DateTime? CapturedAtUtc, decimal Value, decimal? BatteryPercent, int? SignalStrength, string MessageId, bool IsSimulated = false);
     private static string Normalize(string value) => string.Concat(value.Trim().ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '-'));
 }

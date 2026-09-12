@@ -28,6 +28,8 @@ builder.Services.AddScoped<IIrrigationRecommendationCalculator, IrrigationRecomm
 builder.Services.AddSingleton<SpatialGeometryValidator>();
 builder.Services.AddScoped<TerritoryIntegrityService>();
 builder.Services.AddScoped<IrrigationAckService>();
+builder.Services.AddScoped<IRemoteConfigurationDispatcher, RemoteConfigurationDispatcher>();
+builder.Services.AddHostedService<RemoteConfigurationWorker>();
 builder.Services.AddScoped<PumpAckService>();
 builder.Services.AddScoped<IPumpCommandService, PumpCommandService>();
 builder.Services.AddScoped<ISprint4TelemetryService, Sprint4TelemetryService>();

@@ -14,6 +14,8 @@ El archivo `simulator-settings.node-a.json` asigna al nodo A la estación de bom
 
 Los códigos de sensor y zona deben existir en los datos maestros de la API. Para una demo estable, conserva los códigos sembrados incluidos en el archivo de ejemplo.
 
+Cuando `remoteConfigurationNodeCode` está configurado, el simulador escucha `granja/nodo/{nodo}/configuracion/comando`, aplica `CAMBIAR_FRECUENCIA`, `CAMBIAR_LIMITES` o `REINICIAR`, y publica el resultado correlacionado en `granja/nodo/{nodo}/configuracion/ack`.
+
 ## Escenarios de seguridad
 
 Usa `SIMULATOR_TANK_LEVEL_LITERS` para iniciar con un nivel específico y `SIMULATE_PUMP_OVERCURRENT=true` para que una bomba encendida reporte 18 A, dispare la parada automática y deje una falla pendiente de reconocimiento.
