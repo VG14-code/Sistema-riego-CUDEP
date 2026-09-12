@@ -24,7 +24,8 @@ function contentSecurityPolicy(apiUrl) {
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https://*.tile.openstreetmap.org",
+    // Los mosaicos se sirven desde tile.openstreetmap.org; el comodin *. no cubre el dominio sin subdominio.
+    "img-src 'self' data: https://tile.openstreetmap.org https://*.tile.openstreetmap.org",
     `connect-src 'self' ${api.join(' ')}`.trim(),
     // Hay dependencias que crean su worker desde un blob; sin esto caia al fallback de script-src y se bloqueaba.
     "worker-src 'self' blob:",

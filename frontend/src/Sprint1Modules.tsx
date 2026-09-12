@@ -50,7 +50,8 @@ function FarmMap({ hierarchy }: { hierarchy: Center[] }) {
   }, [hierarchy])
   const center: [number, number] = mapData.zones[0]?.polygon[0] ?? mapData.zones[0]?.position ?? [16.91916, -89.88578]
   return <div className="s1-map"><MapContainer center={center} zoom={17} scrollWheelZoom className="s1-map-canvas">
-    <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+    {/* OSM bloquea (403 "Access blocked") los mosaicos pedidos sin Referer y ya no recomienda los subdominios a/b/c. */}
+    <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" referrerPolicy="strict-origin-when-cross-origin" />
     {mapData.sectors.filter(item => item.polygon.length > 2).map(item => <Polygon key={`sector-${item.id}`} positions={item.polygon} pathOptions={{ color: '#426e87', weight: 2, dashArray: '7 5', fillColor: '#76a9c2', fillOpacity: .1 }}><Popup><strong>{sectorName(item.name)}</strong></Popup></Polygon>)}
     {mapData.zones.map(({ zone, center: centerName, farm, sector, position, polygon }) => {
       const online = /activo|online|disponible/i.test(zone.status)
