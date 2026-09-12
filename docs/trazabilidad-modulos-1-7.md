@@ -1,13 +1,13 @@
 # Matriz de trazabilidad — módulos 1 a 7
 
-Fecha de corte: 12 de septiembre de 2026 (segunda revisión). El corte original fue el 22 de agosto y el primero el 29 de agosto de 2026; cada sección de revisión detalla qué cambió y por qué. Esta matriz separa existencia técnica, acceso real desde la interfaz y cobertura automatizada. Las capturas fueron generadas con Playwright contra la aplicación local; una captura puede respaldar varios submódulos que comparten pantalla.
+Fecha de corte: 12 de septiembre de 2026 (cierre de software). El corte original fue el 22 de agosto y el primero el 29 de agosto de 2026; cada sección de revisión detalla qué cambió y por qué. Esta matriz separa existencia técnica, acceso real desde la interfaz y cobertura automatizada. Las capturas fueron generadas con Playwright contra la aplicación local; una captura puede respaldar varios submódulos que comparten pantalla.
 
 ## Resultado de la auditoría inicial
 
 - **Completos al iniciar:** 45 de 56.
 - **Parciales al iniciar:** 1 Resumen operativo; 31 Sesiones activas; 34 Instalación; 35 Comunicación; 38 Firmware; 39 Inventario IoT; 43 Historial; 45 Calibración; 50 Condiciones ambientales.
 - **No implementados al iniciar:** 37 Configuración remota; 55 Rotación de cultivos.
-- **Cierre realizado:** se completaron los vacíos puramente software. El submódulo 37 queda **Parcial** porque la cola, confirmación y límite de intentos existen, pero el firmware/simulador todavía no aplica físicamente el cambio remoto ni produce el ACK de configuración de forma autónoma.
+- **Cierre realizado:** se completaron los vacíos de software. Los 56 submódulos quedan completos y la configuración remota ya recorre cola → MQTT → simulador/dispositivo → ACK correlacionado, con reintentos y límite de intentos.
 
 ## Revisión del 29 de agosto de 2026
 
@@ -37,6 +37,11 @@ Cambios transversales que afectan a todas las pantallas de la matriz:
 - **El menú lateral se agrupó en siete secciones** siguiendo los módulos de este documento. Las diecinueve entradas planas explicaban por qué submódulos existentes —unidades de medida, tipos de cultivo, firmware, inventario— figuraban como no encontrados.
 
 La cobertura automatizada pasó de 138 pruebas en la revisión anterior a 165.
+
+## Cierre funcional del 12 de septiembre de 2026
+
+Se cerró la configuración remota con despacho y reintentos MQTT, aplicación autónoma en el simulador y ACK correlacionado. La renovación de sesión usa cookie HttpOnly y el frontend rota el acceso automáticamente. Además, las pruebas de integración arrancan el pipeline HTTP real y la carga diferida redujo el paquete inicial de JavaScript de 1,359 kB a 407 kB. La cobertura final es de **170 pruebas .NET superadas**, más typecheck, lint y build de producción del frontend.
+
 
 ## Matriz de 56 submódulos
 
@@ -78,7 +83,7 @@ La cobertura automatizada pasó de 138 pruebas en la revisión anterior a 165.
 | 34 | Infraestructura IoT | Instalación | Completo | `GET/POST/PUT /api/iot/traceability/installations` — `IoTTraceabilityController.cs` | Red IoT → Trazabilidad — `IoTTraceabilityPanel.tsx` | `Installation_PreservesWhoWhenAndTerritorialAssociation` | `artifacts/trazabilidad/m04-s34-s39-trazabilidad-iot.png` |
 | 35 | Infraestructura IoT | Comunicación | Completo | `GET /api/iot/communication`; CRUD de nodos — `IoTCommunicationController.cs`, `IoTController.cs`; operación en `MqttWorker.cs` | Red IoT → Nodos/Trazabilidad — `Week3IoT.tsx`, `IoTTraceabilityPanel.tsx` | `Device_Create_AssignsItToExistingNode`; autenticación MQTT verificada por pruebas E2E previas, sin test unitario específico | `artifacts/trazabilidad/m04-s35-s36-comunicacion-heartbeat.png`, `artifacts/trazabilidad/m04-s34-s39-trazabilidad-iot.png` |
 | 36 | Infraestructura IoT | Estado de conexión | Completo | heartbeat procesado por `TelemetryIngestionService.cs` y `IoTHealthWorker.cs`; consulta `/api/iot/nodes` y `/api/iot/devices` | Red IoT — `Week3IoT.tsx` | `TelemetryRecovery_ResolvesOfflineAlertsAndEmitsSignalR` | `artifacts/trazabilidad/m04-s35-s36-comunicacion-heartbeat.png` |
-| 37 | Infraestructura IoT | Configuración remota | **Parcial** | `GET/POST /api/iot/traceability/remote-configurations`, `POST .../{id}/ack` — `IoTTraceabilityController.cs` | Red IoT → Trazabilidad — formulario y cola en `IoTTraceabilityPanel.tsx` | `RemoteConfiguration_StopsAfterConfiguredAttempts` | `artifacts/trazabilidad/m04-s34-s39-trazabilidad-iot.png` |
+| 37 | Infraestructura IoT | Configuración remota | Completo (cerrado el 12/09) | cola `GET/POST /api/iot/traceability/remote-configurations`; despacho/reintentos MQTT y ACK correlacionado — `IoTTraceabilityController.cs`, `RemoteConfigurationService.cs`, `MqttWorker.cs` | Red IoT → Trazabilidad — formulario, cola y estado en `IoTTraceabilityPanel.tsx`; aplicación autónoma en el simulador | `RemoteConfiguration_StopsAfterConfiguredAttempts`; `Dispatch_PublishesPendingCommandAndMarksItSent`; `Acknowledge_CorrelatesCommandAndNode` | `artifacts/trazabilidad/m04-s34-s39-trazabilidad-iot.png` |
 | 38 | Infraestructura IoT | Firmware | Completo | `GET/POST /api/iot/traceability/firmware` — `IoTTraceabilityController.cs` | Red IoT → Trazabilidad — registro de versiones | `Firmware_RegistryUpdatesNodeOnlyWhenApplicationIsConfirmed` | `artifacts/trazabilidad/m04-s34-s39-trazabilidad-iot.png` |
 | 39 | Infraestructura IoT | Inventario IoT | Completo (corregido el 12/09) | `GET/PATCH /api/iot/traceability/inventory` y `GET .../inventory/statuses` — `IoTTraceabilityController.cs` | Red IoT → Trazabilidad — inventario con selector de estado | `UpdateInventory_RejectsAStatusOutsideTheAllowedSet`; `UpdateInventory_NormalisesTheCaseOfAnAllowedStatus`; `InventoryStatuses_AreExposedForTheInterface` | `artifacts/trazabilidad/m04-s34-s39-trazabilidad-iot.png` |
 | 40 | Sensores y Lecturas | Configuración de sensores | Completo | CRUD `/api/iot/sensors` — `IoTController.cs` | Red IoT → Sensores — `Week3IoT.tsx` | `Sensor_Create_RejectsInvalidMeasurementRange`; `Sensor_Deactivate_PreservesRecordAndMarksInactive` | `artifacts/trazabilidad/m05-s40-configuracion-sensores.png` |
@@ -101,11 +106,11 @@ La cobertura automatizada pasó de 138 pruebas en la revisión anterior a 165.
 
 ## Limitaciones conocidas
 
-1. **Submódulo 37 — configuración remota (Parcial):** existe la cola persistente, los comandos permitidos, el máximo de intentos, los estados Pendiente/Confirmada/Fallida, el endpoint de ACK y la interfaz. Falta integrar un tópico MQTT específico de configuración con el firmware ESP32/simulador para que frecuencia, límites y reinicio se apliquen y confirmen automáticamente. No se declara como completo porque hoy el ACK puede ejercerse por API, no por el dispositivo.
+1. **Configuración remota cerrada en software:** el worker despacha y reintenta la cola por MQTT; el simulador aplica frecuencia, límites y reinicio lógico y devuelve un ACK correlacionado por comando y nodo. La comprobación con hardware real queda dentro del despliegue.
 2. **Submódulo 38 — OTA:** el registro e historial de versiones está completo y solo actualiza la versión vigente cuando se confirma “Aplicada”. La actualización OTA era opcional en la planificación y no se implementó sin hardware/bootloader compatible; por eso se conserva como limitación física, sin simular una instalación inexistente.
 3. **Hardware físico:** telemetría, heartbeat, válvulas y estación de bombeo están validados con los simuladores MQTT. La instalación eléctrica, radioenlace y comportamiento de sensores/actuadores reales pertenecen a la fase de despliegue y no pueden acreditarse con capturas de software.
 4. **Cobertura:** varias operaciones CRUD sencillas comparten controladores y pruebas genéricas, pero algunas filas están marcadas “sin cobertura específica”. El estado Completo en esas filas se sostiene por endpoint, lógica y acceso UI verificados; no se atribuyó un test inexistente.
-5. **Límite de las pruebas unitarias:** el caso del submódulo 9 mostró que invocar el método de un controlador y comprobar el tipo del resultado no ejercita la serialización de la respuesta, donde el endpoint fallaba. Las filas cuya prueba solo verifica `OkObjectResult` acreditan la lógica, no el contrato HTTP completo; para eso hace falta ejercer el endpoint contra la aplicación en ejecución.
+5. **Pipeline HTTP cubierto:** además de las pruebas de controlador, `ApiPipelineTests` arranca la aplicación real con base aislada y comprueba autenticación, middleware y serialización; los E2E de Playwright conservan la validación de la interfaz completa.
 6. **Datos maestros de dispositivos vacíos:** la limpieza del 12 de septiembre eliminó las marcas y el único modelo registrados, porque todos eran de prueba —códigos `Q` y `PRUEBA2`, nombres «a» y «Operador»—. Los catálogos de marcas y modelos quedan vacíos hasta que se registren los equipos reales; el formulario nuevo exige elegir marca, de modo que hay que crear una antes de dar de alta modelos. Cuatro dispositivos siguen sin estado de inventario, que es distinto de un dato inválido: significa que nunca se inventariaron.
 
 ## Evidencia y reproducción
