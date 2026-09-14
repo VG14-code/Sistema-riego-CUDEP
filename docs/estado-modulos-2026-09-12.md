@@ -1,12 +1,12 @@
 # Estado de módulos — cierre funcional
 
-Fecha de corte: 12 de septiembre de 2026.
+Fecha de corte: 12 de septiembre de 2026. Estado por módulo revisado el 14 de septiembre de 2026.
 
 ## Resultado ejecutivo
 
-Los módulos funcionales 1 a 10 están implementados y validados en el entorno local. El Módulo 11 queda parcial: los reportes PDF/Excel, las vistas SQL y el dashboard web funcionan, pero el modelo de Power BI no se ha construido y el dashboard carece de indicadores de humedad y temperatura, de la tendencia semanal en pantalla y de la comparación entre periodos. El Módulo 12 queda pendiente por decisión del proyecto, porque reúne publicación en Azure, secretos y certificados de producción, instalación física y puesta en marcha. El Módulo 13 no presenta una brecha de software: su ejecución presencial, entrega de credenciales institucionales y firma de aceptación dependen de que el despliegue haya concluido.
+La referencia funcional es la hoja «Módulos detallados» de `Planificacion final Victor Gabriel Madrid .xlsx`, con 18 módulos. Los módulos 1 a 7 están completos y validados; su evidencia submódulo por submódulo está en `docs/trazabilidad-modulos-1-7.md`. Los módulos 8 a 17 tienen pantalla, API y lógica, pero todos conservan submódulos sin implementar; la tabla de abajo indica dónde está cada uno y qué falta. El módulo 18, Implementación y capacitación, queda pendiente porque reúne la publicación en producción, la instalación física en campo y la capacitación presencial.
 
-El cronograma oficial registra 111 actividades al 100 %, 6 al 50 % y 13 al 0 %. El avance ponderado por horas es 83.9 %.
+El cronograma (`Planificacion Victor Madrid Final.xlsx`) agrupa el trabajo en 13 módulos y registra 111 actividades al 100 %, 6 al 50 % y 13 al 0 %, con un avance ponderado por horas de 83.9 %. Ese porcentaje mide las tareas del cronograma: varios submódulos de la hoja detallada (por ejemplo n8n, simulación de reglas o ahorro de agua) no tienen una tarea propia en él, así que un 100 % en el cronograma no implica que el módulo de la hoja esté completo.
 
 - **Al 0 %:** seis actividades de despliegue y tres de capacitación/cierre, que dependen del despliegue; dos de montaje físico en campo, la fila 28 (protecciones, cajas y alimentación) y la fila 81 (sensores de nivel, relés y conexiones de la bomba), cuyo software está validado con el simulador MQTT; y las filas 113 y 114, conexión y modelo de Power BI, que no se han construido.
 - **Al 50 %:** las filas 86 y 88, cuyas protecciones por software están probadas pero las eléctricas son físicas; la 115, que tiene las vistas probadas pero no el modelo de Power BI; y las filas 116, 117 y 119, a cuyo dashboard le faltan humedad, temperatura, tendencia semanal en pantalla y comparación entre periodos.
@@ -14,21 +14,28 @@ El cronograma oficial registra 111 actividades al 100 %, 6 al 50 % y 13 al 0 %. 
 
 ## Estado por módulo
 
-| Módulo | Estado | Evidencia principal |
-|---|---|---|
-| 1. Autenticación y roles | Completo | JWT, 2FA, recuperación, RBAC, sesiones y renovación segura mediante cookie HttpOnly. |
-| 2. Datos maestros | Completo | Catálogos, parámetros globales, validaciones y administración desde la interfaz. |
-| 3. Sensores y dispositivos IoT | Completo en software | Inventario, nodos, sensores, calibración, firmware, mantenimiento y trazabilidad. La instalación real se ejecuta en M12. |
-| 4. Captura y registro de lecturas | Completo | REST/MQTT, validación, deduplicación, historial, agregaciones, calidad y SignalR. |
-| 5. Cultivos y requerimientos hídricos | Completo | Cultivos, etapas, suelos, requerimientos, evaluación ambiental y recomendaciones explicables. |
-| 6. Sectores y zonas de riego | Completo | Jerarquía territorial, asignaciones, mapas y resumen operativo. |
-| 7. Automatización y reglas de riego | Completo | Reglas, ventanas, histéresis, seguridad, comandos MQTT, ACK y reconciliación. |
-| 8. Bomba y abastecimiento del tanque | Completo en software | Control, protecciones, telemetría e historial validados con simulador. Montaje físico en M12. |
-| 9. Riegos manuales y operación asistida | Completo | Autorización, TOTP, trazabilidad, pausa y reanudación del modo automático. |
-| 10. Consumo e historial operativo | Completo | Cálculo medido/estimado, consolidados, bitácora, filtros y exportación. |
-| 11. Reportes, dashboards y análisis | Parcial | PDF/Excel, dashboard web, vistas SQL y procedimiento de origen. Pendiente: modelo Power BI (.pbix y DAX), indicadores de humedad y temperatura, tendencia semanal en pantalla y comparación entre periodos. |
-| 12. Despliegue e implementación | Pendiente | Azure, CI/CD, certificados, secretos, instalación física, migración y publicación. |
-| 13. Capacitación y entrega | Dependiente de M12 | Material y documentación disponibles; capacitación, entrega institucional y aceptación se realizan después del despliegue. |
+Numeración de la hoja «Módulos detallados». El menú lateral de la aplicación usa estos mismos números y nombres de grupo.
+
+| Módulo | Estado | Dónde está en el sistema | Pendiente |
+|---|---|---|---|
+| 1. Inicio | Completo | Inicio: resumen operativo, mapa de la granja, telemetría en vivo y actividad reciente. | — |
+| 2. Datos maestros | Completo | Centros, fincas y zonas (centros, fincas, bloques, sectores, zonas); Catálogos; tipos de suelo y cultivos en Agronomía. | — |
+| 3. Seguridad | Completo | Usuarios, roles y sesiones; Doble autenticación; login con JWT, 2FA y renovación por cookie HttpOnly. | — |
+| 4. Infraestructura IoT | Completo | Red IoT: dispositivos, nodos y la pestaña Trazabilidad (instalación, configuración remota, firmware e inventario). | — |
+| 5. Sensores y lecturas | Completo | Red IoT → Sensores y Calibración; Lecturas (tiempo real, historial paginado, validación y calidad de datos). | — |
+| 6. Gestión agronómica | Completo | Agronomía: requerimientos generales y por etapa, suelos, condiciones ambientales y recomendaciones. | — |
+| 7. Planificación de cultivos | Completo | Ciclos y calendario: ciclos, asignación, etapa actual, rotación y calendario agrícola. | — |
+| 8. Sectores y zonas de riego | Parcial | Zonas de riego (jerarquía y dispositivos por zona); capacidad simultánea con `MAX_SIMULTANEOUS_VALVES` y cálculo hidráulico en el API. | Pantalla de configuración hidráulica (fuente, tanque, bomba, tubería, caudal, presión) y gestión del estado de zona. |
+| 9. Automatización | Parcial | Reglas automáticas: prioridad, ventana horaria, histéresis, duración máxima, activación y última decisión con motivo. | Alta de reglas desde la interfaz, simulación sin activar equipos («Evaluar ahora» ejecuta de verdad) e historial de todas las evaluaciones. |
+| 10. Operación de riego | Parcial | Riego manual con 2FA, motivo y duración; paro total; riego automático por reglas; control de válvulas por MQTT/ACK. | Riego asistido (recomendación con aprobación humana) y programación de riegos futuros o recurrentes. |
+| 11. Tanque y bombeo | Parcial | Bomba y tanque: tanques, nivel, encendido y apagado, protección por marcha en seco y sobrecorriente, historial de abastecimiento. | Llenado automático por niveles y gestión de fuentes de abastecimiento (hoy solo catálogo). |
+| 12. Energía solar | Parcial | Monitoreo energético: generación, batería y consumo; protección con `MIN_AUTOMATION_BATTERY_PERCENT`. | Registro de paneles, baterías y controladores de carga desde la interfaz (hoy sembrados) e historial de autonomía. |
+| 13. Consumo y eficiencia | Parcial | Consumo de agua: registro, consumo por zona, sector y cultivo, estimado frente a medido y costo. | Ahorro de agua frente a línea base y detección de consumo anormal. |
+| 14. Mantenimiento | Parcial | Planes e incidencias: planes por equipo registrado, incidencias manuales y desde alertas, historial de actividades. | Separación preventivo/correctivo, órdenes de trabajo con técnico y fecha compromiso, historial por dispositivo en pantalla. |
+| 15. Notificaciones y alertas | Parcial | Centro de alertas y campana de notificaciones: bandeja, reconocer y resolver, escalamiento y webhook. | Reglas de notificación, canales (correo, Telegram, Teams), resúmenes diario y semanal, historial de n8n. |
+| 16. Reportería y analítica | Parcial | Reportes y exportación: PDF de consumo, riegos y mantenimiento; Excel, CSV y JSON; vistas SQL `vw_PowerBI_*`; exportación Excel/PDF en las listas. | Power BI (conexión, modelo y DAX) y PDF de lecturas, alertas, IoT y energía. |
+| 17. Auditoría y configuración | Parcial | Auditoría paginada (accesos, dispositivos, riegos y operaciones críticas con antes/después e IP); Parámetros globales; Centro de control. | Versionado de reglas, configuración general (nombre, zona horaria, formato) y configuración de n8n y Power BI. |
+| 18. Implementación y capacitación | Pendiente | Fuera del sistema: publicación, instalación física, carga inicial, documentación y capacitación. | Todo el módulo. |
 
 ## Cambios que cerraron la auditoría
 
@@ -40,7 +47,7 @@ El cronograma oficial registra 111 actividades al 100 %, 6 al 50 % y 13 al 0 %. 
 
 ## Validación final
 
-- Backend: 173 de 173 pruebas .NET superadas.
+- Backend: 179 de 179 pruebas .NET superadas.
 - Frontend: typecheck, ESLint y build de producción superados.
 - Simulador MQTT: compilación .NET 10 superada sin errores ni advertencias.
 - Cronograma XLSX: reabierto después de exportar, fórmula ponderada recalculada y cero errores de fórmula.

@@ -16,6 +16,10 @@
 .w2-nav-group.has-active .w2-nav-module { background: rgba(19, 171, 193, 0.32); color: #fff; }
 .w2-app nav .w2-nav-group.has-active .w2-nav-group-toggle { color: rgba(255, 255, 255, 0.92); }
 .w2-nav-group-name { flex: 1; min-width: 0; line-height: 1.25; }
+/* Inicio es la portada: su grupo no se pliega y su titulo no es un boton. */
+.w2-app nav .w2-nav-group-toggle.static { cursor: default; }
+.w2-app nav .w2-nav-group-toggle.static:hover { background: transparent; color: rgba(255, 255, 255, 0.55); }
+.w2-app nav .w2-nav-group.has-active .w2-nav-group-toggle.static:hover { color: rgba(255, 255, 255, 0.92); }
 .w2-nav-chevron { flex: 0 0 auto; font-size: 1rem; line-height: 1; transform: rotate(90deg); transition: transform 0.18s ease; }
 .w2-nav-group.collapsed .w2-nav-chevron { transform: rotate(0deg); }
 /* En pantallas angostas el menu es una franja horizontal: los grupos van siempre abiertos. */

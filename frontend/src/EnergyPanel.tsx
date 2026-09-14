@@ -32,7 +32,7 @@ export default function EnergyPanel({ session, notify }: Props) {
   if (!status) return <section className="energy-empty">Esperando la primera lectura energética…</section>
   const current = status.reading
   return <div className="energy-page">
-    <header><p>MÓDULO 8 · ENERGÍA SOLAR</p><h1>Autonomía energética</h1><span>Generación, batería y demanda de la infraestructura IoT.</span></header>
+    <header><p>MÓDULO 12 · ENERGÍA SOLAR</p><h1>Autonomía energética</h1><span>Generación, batería y demanda de la infraestructura IoT.</span></header>
     <section className="energy-kpis">
       <article><small>GENERACIÓN</small><b>{watts(current?.generationWatts)}</b><span>{status.array.panelCount} paneles · {watts(status.array.ratedPowerWatts)} nominales</span></article>
       <article><small>BATERÍA</small><b>{Number(status.battery.currentChargePercent).toFixed(1)}%</b><span>{status.battery.status} · mínimo {status.battery.minimumSafeChargePercent}%</span></article>
