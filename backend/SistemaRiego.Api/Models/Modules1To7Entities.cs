@@ -15,7 +15,7 @@ public sealed class Farm
 public sealed class SoilType
 {
     public Guid Id { get; set; } = Guid.NewGuid(); public required string Code { get; set; } public required string Name { get; set; }
-    public decimal FieldCapacityPercent { get; set; } public decimal SaturationPercent { get; set; } public decimal InfiltrationMillimetersHour { get; set; }
+    public decimal FieldCapacityPercent { get; set; } public decimal SaturationPercent { get; set; } public decimal InfiltrationMillimetersHour { get; set; } public decimal IrrigationCorrectionFactor { get; set; } = 1;
     public string? Description { get; set; } public bool IsActive { get; set; } = true;
 }
 public sealed class FarmBlock

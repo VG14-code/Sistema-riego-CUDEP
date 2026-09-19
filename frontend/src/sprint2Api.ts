@@ -3,10 +3,10 @@ import type { AuthSession } from './week2Api'
 const baseUrl = import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:5080/api`
 type Body = Record<string, unknown>
 
-async function call<T>(session: AuthSession, path: string, method = 'GET', body?: Body): Promise<T> {
+async function call<T>(session: AuthSession, path: string, method = 'GET', body?: Body, totp?: string): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
     method,
-    headers: { Authorization: `Bearer ${session.accessToken}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${session.accessToken}`, 'Content-Type': 'application/json', ...(totp ? { 'X-TOTP-Code': totp } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   })
   const data: unknown = response.status === 204 ? null : await response.json().catch(() => null)
@@ -17,7 +17,7 @@ async function call<T>(session: AuthSession, path: string, method = 'GET', body?
   return data as T
 }
 
-export interface Soil { id:string; code:string; name:string; fieldCapacityPercent:number; saturationPercent:number; infiltrationMillimetersHour:number; description?:string; isActive:boolean }
+export interface Soil { id:string; code:string; name:string; fieldCapacityPercent:number; saturationPercent:number; infiltrationMillimetersHour:number; irrigationCorrectionFactor:number; description?:string; isActive:boolean }
 export interface Stage { id:string; name:string; sequence:number; estimatedDays:number; description?:string }
 export interface CropType { id:string; code:string; name:string; isActive:boolean }
 export interface Crop { id:string; cropTypeId:string; cropType:string; code:string; name:string; scientificName?:string; description?:string; isActive:boolean; stages:Stage[] }
@@ -27,7 +27,7 @@ export interface CalendarEvent { id:string; title:string; start:string; end:stri
 export interface Rotation { id:string; irrigationZoneId:string; zone:string; cropId:string; crop:string; previousCycleId?:string; previousCrop?:string; plannedStartDate:string; plannedEndDate:string; status:string; compatibilityNotes?:string }
 export interface EnvironmentalEvaluation { cycleId:string; cycle:string; zone:string; temperatureCelsius?:number; ambientHumidityPercent?:number; insideAllowedSchedule:boolean; temperatureAllowed:boolean; ambientHumidityAllowed:boolean; irrigationAllowed:boolean; reasons:string[] }
 export interface Requirement { id:string; cropId:string; crop:string; phenologicalStageId?:string; stage:string; soilTypeId?:string; soil:string; minimumMoisturePercent:number; targetMoisturePercent:number; maximumMoisturePercent:number; baseVolumeLiters:number; frequencyHours:number; baseDurationMinutes:number; minimumTemperatureCelsius?:number; maximumTemperatureCelsius?:number; minimumAmbientHumidityPercent?:number; maximumAmbientHumidityPercent?:number; allowedFrom?:string; allowedUntil?:string; isActive:boolean }
-export interface Recommendation { cycleId:string; crop:string; zone:string; decision:string; currentMoisture?:number; suggestedMinutes:number; suggestedLiters:number; explanation:string }
+export interface Recommendation { cycleId:string; cycleName:string; crop:string; zone:string; decision:string; currentMoisture?:number; suggestedMinutes:number; suggestedLiters:number; explanation:string; soil:string; soilCorrectionFactor:number }
 export interface PlanningAlert { id:string; name:string; crop:string; zone:string; expectedHarvestDate:string; daysRemaining:number; severity:string }
 
 export const sprint2Api = {
@@ -49,6 +49,7 @@ export const sprint2Api = {
   saveRequirement: (s:AuthSession, body:Body, id?:string) => call<Requirement|void>(s, `/agronomy/requirements${id?`/${id}`:''}`, id?'PUT':'POST', body),
   deleteRequirement: (s:AuthSession, id:string) => call<void>(s, `/agronomy/requirements/${id}`, 'DELETE'),
   recommendations: (s:AuthSession) => call<Recommendation[]>(s, '/agronomy/recommendations'),
+  approveRecommendation: (s:AuthSession, cycleId:string, observations:string|null, totp:string) => call<{id:number;message:string}>(s, '/agronomy/recommendations/'+cycleId+'/approve', 'POST', { observations }, totp),
   rotations: (s:AuthSession) => call<Rotation[]>(s,"/crop-planning/rotations"),
   saveRotation: (s:AuthSession,body:Body,id?:string) => call<Rotation|void>(s,"/crop-planning/rotations"+(id?"/"+id:""),id?"PUT":"POST",body),
   deleteRotation: (s:AuthSession,id:string) => call<void>(s,"/crop-planning/rotations/"+id,"DELETE"),

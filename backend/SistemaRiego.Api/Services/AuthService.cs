@@ -239,7 +239,7 @@ public sealed class AuthService(
         db.AccessAudits.Add(new AccessAudit { UserId = user.Id, EventType = "LOGIN_SUCCESS", Detail = user.MustChangePassword ? "Sesión restringida: cambio de contraseña requerido" : "Sesión iniciada", IpAddress = context.IpAddress });
         if (save) await db.SaveChangesAsync(ct);
 
-        var roles = user.UserRoles.Select(x => x.Role.Name ?? string.Empty).Where(x => x.Length > 0).ToArray();
+        var roles = user.UserRoles.Where(x => x.Role.IsActive).Select(x => x.Role.Name ?? string.Empty).Where(x => x.Length > 0).ToArray();
         var permissions = await permissionResolver.GetEffectivePermissionsAsync(user.Id, ct);
         var address = user.Email ?? throw new InvalidOperationException("La cuenta no tiene correo.");
         var claims = new List<Claim>
@@ -262,8 +262,8 @@ public sealed class AuthService(
         foreach (var session in await db.Sessions.Where(x => x.UserId == userId && x.RevokedAtUtc == null).ToListAsync(ct)) session.RevokedAtUtc = now;
     }
 
-    private Task<User?> LoadUser(string normalized, CancellationToken ct) => db.Users.Include(x => x.Credential).Include(x => x.UserRoles).ThenInclude(x => x.Role).SingleOrDefaultAsync(x => x.NormalizedEmail == normalized, ct);
-    private Task<User?> LoadUser(Guid id, CancellationToken ct) => db.Users.Include(x => x.Credential).Include(x => x.UserRoles).ThenInclude(x => x.Role).SingleOrDefaultAsync(x => x.Id == id, ct);
+    private Task<User?> LoadUser(string normalized, CancellationToken ct) => db.Users.Include(x => x.Credential).Include(x => x.UserRoles).ThenInclude(x => x.Role).Include(x => x.UniversityCenter).Include(x => x.Farm).SingleOrDefaultAsync(x => x.NormalizedEmail == normalized, ct);
+    private Task<User?> LoadUser(Guid id, CancellationToken ct) => db.Users.Include(x => x.Credential).Include(x => x.UserRoles).ThenInclude(x => x.Role).Include(x => x.UniversityCenter).Include(x => x.Farm).SingleOrDefaultAsync(x => x.Id == id, ct);
 
     // Identity bloquea con su propio MaxFailedAccessAttempts, fijo en el arranque.
     // MAX_LOGIN_ATTEMPTS permite endurecer ese limite sin reiniciar: si el parametro
@@ -284,7 +284,7 @@ public sealed class AuthService(
         await db.SaveChangesAsync(ct);
     }
 
-    private static UserSummary Summary(User user) => new(user.Id, user.Email ?? string.Empty, user.FullName, user.Status.ToString(), user.UserRoles.Select(x => x.Role.Name ?? string.Empty).Where(x => x.Length > 0).Order().ToArray(), user.MustChangePassword);
+    private static UserSummary Summary(User user) => new(user.Id, user.Email ?? string.Empty, user.FullName, user.Status.ToString(), user.UserRoles.Where(x => x.Role.IsActive).Select(x => x.Role.Name ?? string.Empty).Where(x => x.Length > 0).Order().ToArray(), user.MustChangePassword, user.PersonnelCode, user.UniversityCenterId, user.UniversityCenter?.Name, user.FarmId, user.Farm?.Name);
     private static string RandomToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)).Replace("+", "-").Replace("/", "_").TrimEnd('=');
     private static string TemporaryPassword() => $"Tmp!7a{Convert.ToHexString(RandomNumberGenerator.GetBytes(8))}";
     private static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));

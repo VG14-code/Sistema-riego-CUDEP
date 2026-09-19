@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SistemaRiego.Api.Data;
 
@@ -11,9 +12,11 @@ using SistemaRiego.Api.Data;
 namespace SistemaRiego.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260914181116_AddRoleLifecycle")]
+    partial class AddRoleLifecycle
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -560,10 +563,6 @@ namespace SistemaRiego.Api.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<string>("CommunicationProtocol")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
@@ -580,14 +579,6 @@ namespace SistemaRiego.Api.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
-
-                    b.Property<string>("Precision")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Voltage")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
 
@@ -896,54 +887,6 @@ namespace SistemaRiego.Api.Data.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SistemaRiego.Api.Models.InventoryMovement", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("DeviceId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("MovementType")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<string>("NewOwner")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<string>("NewStatus")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime>("OccurredAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("PerformedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("PreviousOwner")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<string>("PreviousStatus")
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DeviceId", "OccurredAtUtc");
-
-                    b.ToTable("InventoryMovements");
-                });
-
             modelBuilder.Entity("SistemaRiego.Api.Models.IoTCommand", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1191,9 +1134,6 @@ namespace SistemaRiego.Api.Data.Migrations
                     b.Property<Guid?>("DeviceId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("IrrigationZoneId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -1223,9 +1163,6 @@ namespace SistemaRiego.Api.Data.Migrations
                     b.Property<Guid>("OperationalStatusId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("ReadingFrequencyId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<Guid>("SensorTypeId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1244,13 +1181,9 @@ namespace SistemaRiego.Api.Data.Migrations
 
                     b.HasIndex("DeviceId");
 
-                    b.HasIndex("IrrigationZoneId");
-
                     b.HasIndex("MeasurementUnitId");
 
                     b.HasIndex("OperationalStatusId");
-
-                    b.HasIndex("ReadingFrequencyId");
 
                     b.HasIndex("SensorTypeId");
 
@@ -1703,18 +1636,10 @@ namespace SistemaRiego.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("BaseUnitCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
-
-                    b.Property<decimal?>("ConversionFactorToBase")
-                        .HasPrecision(18, 8)
-                        .HasColumnType("decimal(18,8)");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
@@ -1818,9 +1743,7 @@ namespace SistemaRiego.Api.Data.Migrations
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000001"),
-                            BaseUnitCode = "PERCENT",
                             Code = "PERCENT",
-                            ConversionFactorToBase = 1m,
                             CreatedAtUtc = new DateTime(2026, 8, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Kind = 3,
@@ -1831,9 +1754,7 @@ namespace SistemaRiego.Api.Data.Migrations
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000002"),
-                            BaseUnitCode = "CELSIUS",
                             Code = "CELSIUS",
-                            ConversionFactorToBase = 1m,
                             CreatedAtUtc = new DateTime(2026, 8, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Kind = 3,
@@ -1844,9 +1765,7 @@ namespace SistemaRiego.Api.Data.Migrations
                         new
                         {
                             Id = new Guid("30000000-0000-0000-0000-000000000003"),
-                            BaseUnitCode = "LITER",
                             Code = "LITER",
-                            ConversionFactorToBase = 1m,
                             CreatedAtUtc = new DateTime(2026, 8, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Kind = 3,
@@ -2421,12 +2340,6 @@ namespace SistemaRiego.Api.Data.Migrations
                         .HasPrecision(8, 2)
                         .HasColumnType("decimal(8,2)");
 
-                    b.Property<decimal>("IrrigationCorrectionFactor")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(8, 4)
-                        .HasColumnType("decimal(8,4)")
-                        .HasDefaultValue(1m);
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -2694,9 +2607,6 @@ namespace SistemaRiego.Api.Data.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
 
-                    b.Property<Guid?>("FarmId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -2722,10 +2632,6 @@ namespace SistemaRiego.Api.Data.Migrations
                     b.Property<string>("PasswordHash")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("PersonnelCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("nvarchar(max)");
 
@@ -2741,9 +2647,6 @@ namespace SistemaRiego.Api.Data.Migrations
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("bit");
 
-                    b.Property<Guid?>("UniversityCenterId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -2752,8 +2655,6 @@ namespace SistemaRiego.Api.Data.Migrations
                         .HasColumnType("nvarchar(256)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("FarmId");
 
                     b.HasIndex("NormalizedEmail")
                         .IsUnique()
@@ -2764,8 +2665,6 @@ namespace SistemaRiego.Api.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex")
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
-
-                    b.HasIndex("UniversityCenterId");
 
                     b.ToTable("AspNetUsers", (string)null);
                 });
@@ -3333,17 +3232,6 @@ namespace SistemaRiego.Api.Data.Migrations
                     b.Navigation("IrrigationZone");
                 });
 
-            modelBuilder.Entity("SistemaRiego.Api.Models.InventoryMovement", b =>
-                {
-                    b.HasOne("SistemaRiego.Api.Models.IoTDevice", "Device")
-                        .WithMany()
-                        .HasForeignKey("DeviceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Device");
-                });
-
             modelBuilder.Entity("SistemaRiego.Api.Models.IoTCommand", b =>
                 {
                     b.HasOne("SistemaRiego.Api.Models.IoTDevice", "Device")
@@ -3416,11 +3304,6 @@ namespace SistemaRiego.Api.Data.Migrations
                         .HasForeignKey("DeviceId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("SistemaRiego.Api.Models.IrrigationZone", "IrrigationZone")
-                        .WithMany()
-                        .HasForeignKey("IrrigationZoneId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("SistemaRiego.Api.Models.MasterCatalogItem", "MeasurementUnit")
                         .WithMany()
                         .HasForeignKey("MeasurementUnitId")
@@ -3433,11 +3316,6 @@ namespace SistemaRiego.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("SistemaRiego.Api.Models.MasterCatalogItem", "ReadingFrequency")
-                        .WithMany()
-                        .HasForeignKey("ReadingFrequencyId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("SistemaRiego.Api.Models.MasterCatalogItem", "SensorType")
                         .WithMany()
                         .HasForeignKey("SensorTypeId")
@@ -3446,13 +3324,9 @@ namespace SistemaRiego.Api.Data.Migrations
 
                     b.Navigation("Device");
 
-                    b.Navigation("IrrigationZone");
-
                     b.Navigation("MeasurementUnit");
 
                     b.Navigation("OperationalStatus");
-
-                    b.Navigation("ReadingFrequency");
 
                     b.Navigation("SensorType");
                 });
@@ -3754,23 +3628,6 @@ namespace SistemaRiego.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("SistemaRiego.Api.Models.User", b =>
-                {
-                    b.HasOne("SistemaRiego.Api.Models.Farm", "Farm")
-                        .WithMany()
-                        .HasForeignKey("FarmId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("SistemaRiego.Api.Models.UniversityCenter", "UniversityCenter")
-                        .WithMany()
-                        .HasForeignKey("UniversityCenterId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Farm");
-
-                    b.Navigation("UniversityCenter");
                 });
 
             modelBuilder.Entity("SistemaRiego.Api.Models.UserPermission", b =>

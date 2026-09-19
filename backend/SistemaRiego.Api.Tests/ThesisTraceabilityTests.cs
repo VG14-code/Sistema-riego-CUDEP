@@ -142,6 +142,47 @@ public sealed class ThesisTraceabilityTests
         Assert.Equal(["Instalado", "Disponible", "Dañado", "En mantenimiento"], Assert.IsType<string[]>(ok.Value));
     }
 
+
+    [Fact]
+    public async Task UpdateInventory_CreatesAnAuditableMovement()
+    {
+        var setup = await Setup();
+
+        var result = await setup.IoT.UpdateInventory(setup.Device.Id, new InventoryUpdateRequest("Ana", "En mantenimiento", null, null, 100, "GTQ", "Mantenimiento", "Cambio de sello"), default);
+
+        Assert.IsType<NoContentResult>(result);
+        var movement = await setup.Db.InventoryMovements.SingleAsync();
+        Assert.Equal("Mantenimiento", movement.MovementType);
+        Assert.Equal("Instalado", movement.PreviousStatus);
+        Assert.Equal("En mantenimiento", movement.NewStatus);
+        Assert.Equal("Cambio de sello", movement.Notes);
+    }
+
+    [Fact]
+    public async Task Recommendation_UsesTheZoneSoilRequirementAndCorrectionFactor()
+    {
+        var setup = await Setup();
+        var soil = new SoilType { Code = "ARC", Name = "Arcilloso", FieldCapacityPercent = 35, SaturationPercent = 60, InfiltrationMillimetersHour = 5, IrrigationCorrectionFactor = 1.5m };
+        setup.Zone.IrrigationSector.FarmBlock.SoilType = soil;
+        var moistureType = new MasterCatalogItem { Kind = CatalogKind.SensorType, Code = "SOIL_MOISTURE", Name = "Humedad de suelo" };
+        var sensor = new IoTSensor { Code = "H1", Name = "Humedad", SerialNumber = "H-1", SensorType = moistureType, MeasurementUnit = setup.Unit, OperationalStatus = setup.Active };
+        setup.Zone.PrimarySensor = sensor;
+        var cycle = new CropCycle { Crop = setup.Crop, IrrigationZone = setup.Zone, Name = "Ciclo suelo", SowingDate = new(2026, 1, 1), ExpectedHarvestDate = new(2026, 12, 1), AreaHectares = 1, Status = "Activo" };
+        setup.Db.AddRange(soil, moistureType, sensor, cycle);
+        setup.Db.CropWaterRequirements.AddRange(
+            new CropWaterRequirement { Crop = setup.Crop, MinimumMoisturePercent = 30, TargetMoisturePercent = 50, MaximumMoisturePercent = 70, BaseVolumeLiters = 100, BaseDurationMinutes = 10, FrequencyHours = 12 },
+            new CropWaterRequirement { Crop = setup.Crop, SoilType = soil, MinimumMoisturePercent = 30, TargetMoisturePercent = 50, MaximumMoisturePercent = 70, BaseVolumeLiters = 200, BaseDurationMinutes = 20, FrequencyHours = 12 });
+        setup.Db.SensorReadings.Add(new SensorReading { Sensor = sensor, IrrigationZone = setup.Zone, CapturedAtUtc = DateTime.UtcNow, Value = 20, MessageId = Guid.NewGuid().ToString() });
+        await setup.Db.SaveChangesAsync();
+
+        var result = Assert.IsType<OkObjectResult>(await new AgronomyController(setup.Db).Recommendations(default));
+        var recommendation = Assert.Single(Assert.IsAssignableFrom<IEnumerable<IrrigationRecommendationResponse>>(result.Value));
+
+        Assert.Equal("Arcilloso", recommendation.Soil);
+        Assert.Equal(1.5m, recommendation.SoilCorrectionFactor);
+        Assert.Equal(45, recommendation.SuggestedMinutes);
+        Assert.Equal(450m, recommendation.SuggestedLiters);
+    }
     private static async Task<SetupData> Setup()
     {
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

@@ -1,6 +1,6 @@
 # Estado de módulos — cierre funcional
 
-Fecha de corte: 12 de septiembre de 2026. Estado por módulo revisado el 14 de septiembre de 2026.
+Fecha de corte original: 12 de septiembre de 2026. Estado por módulo revisado el 19 de septiembre de 2026.
 
 ## Resultado ejecutivo
 
@@ -19,15 +19,15 @@ Numeración de la hoja «Módulos detallados». El menú lateral de la aplicaci�
 | Módulo | Estado | Dónde está en el sistema | Pendiente |
 |---|---|---|---|
 | 1. Inicio | Completo | Inicio: resumen operativo, mapa de la granja, telemetría en vivo y actividad reciente. | — |
-| 2. Datos maestros | Completo | Centros, fincas y zonas (centros, fincas, bloques, sectores, zonas); Catálogos; tipos de suelo y cultivos en Agronomía. | — |
-| 3. Seguridad | Completo | Usuarios, roles y sesiones; Doble autenticación; login con JWT, 2FA y renovación por cookie HttpOnly. | — |
-| 4. Infraestructura IoT | Completo | Red IoT: dispositivos, nodos y la pestaña Trazabilidad (instalación, configuración remota, firmware e inventario). | — |
-| 5. Sensores y lecturas | Completo | Red IoT → Sensores y Calibración; Lecturas (tiempo real, historial paginado, validación y calidad de datos). | — |
-| 6. Gestión agronómica | Completo | Agronomía: requerimientos generales y por etapa, suelos, condiciones ambientales y recomendaciones. | — |
+| 2. Datos maestros | Completo | Centros, fincas y zonas; catálogos; unidades con factor y conversión; modelos IoT con precisión, voltaje y protocolo; tipos de suelo y cultivos. | — |
+| 3. Seguridad | Completo | Usuarios con código de personal, centro y finca; CRUD de roles, matriz de permisos y sesiones; JWT, 2FA y renovación por cookie HttpOnly. | — |
+| 4. Infraestructura IoT | Completo | Red IoT: dispositivos, nodos y trazabilidad de instalación, configuración remota, firmware, inventario y movimientos auditables desde el alta del equipo. | — |
+| 5. Sensores y lecturas | Completo | Sensores con frecuencia y zona configurables (las lecturas sin zona se asocian a la del sensor), calibración y lecturas en tiempo real, historial paginado, validación y calidad. | — |
+| 6. Gestión agronómica | Completo | Requerimientos por cultivo, etapa y suelo; factor corrector aplicado; condiciones ambientales; recomendación explicable y aprobación como riego asistido. | — |
 | 7. Planificación de cultivos | Completo | Ciclos y calendario: ciclos, asignación, etapa actual, rotación y calendario agrícola. | — |
 | 8. Sectores y zonas de riego | Parcial | Zonas de riego (jerarquía y dispositivos por zona); capacidad simultánea con `MAX_SIMULTANEOUS_VALVES` y cálculo hidráulico en el API. | Pantalla de configuración hidráulica (fuente, tanque, bomba, tubería, caudal, presión) y gestión del estado de zona. |
 | 9. Automatización | Parcial | Reglas automáticas: prioridad, ventana horaria, histéresis, duración máxima, activación y última decisión con motivo. | Alta de reglas desde la interfaz, simulación sin activar equipos («Evaluar ahora» ejecuta de verdad) e historial de todas las evaluaciones. |
-| 10. Operación de riego | Parcial | Riego manual con 2FA, motivo y duración; paro total; riego automático por reglas; control de válvulas por MQTT/ACK. | Riego asistido (recomendación con aprobación humana) y programación de riegos futuros o recurrentes. |
+| 10. Operación de riego | Parcial | Riego manual con 2FA, motivo y duración; paro total; riego automático por reglas; control de válvulas por MQTT/ACK. | Programación de riegos futuros o recurrentes. |
 | 11. Tanque y bombeo | Parcial | Bomba y tanque: tanques, nivel, encendido y apagado, protección por marcha en seco y sobrecorriente, historial de abastecimiento. | Llenado automático por niveles y gestión de fuentes de abastecimiento (hoy solo catálogo). |
 | 12. Energía solar | Parcial | Monitoreo energético: generación, batería y consumo; protección con `MIN_AUTOMATION_BATTERY_PERCENT`. | Registro de paneles, baterías y controladores de carga desde la interfaz (hoy sembrados) e historial de autonomía. |
 | 13. Consumo y eficiencia | Parcial | Consumo de agua: registro, consumo por zona, sector y cultivo, estimado frente a medido y costo. | Ahorro de agua frente a línea base y detección de consumo anormal. |
@@ -47,7 +47,7 @@ Numeración de la hoja «Módulos detallados». El menú lateral de la aplicaci�
 
 ## Validación final
 
-- Backend: 179 de 179 pruebas .NET superadas.
+- Backend: 191 de 191 pruebas .NET superadas.
 - Frontend: typecheck, ESLint y build de producción superados.
 - Simulador MQTT: compilación .NET 10 superada sin errores ni advertencias.
 - Cronograma XLSX: reabierto después de exportar, fórmula ponderada recalculada y cero errores de fórmula.

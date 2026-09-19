@@ -16,8 +16,8 @@ public sealed class UsersController(AppDbContext db, IAuthService auth, ITotpSer
     [HttpGet]
     public async Task<ActionResult<IReadOnlyCollection<UserSummary>>> GetAll(CancellationToken ct)
     {
-        var users = await db.Users.AsNoTracking().Include(x => x.UserRoles).ThenInclude(x => x.Role).OrderBy(x => x.FullName).ToListAsync(ct);
-        return Ok(users.Select(x => new UserSummary(x.Id, x.Email ?? string.Empty, x.FullName, x.Status.ToString(), x.UserRoles.Select(y => y.Role.Name ?? string.Empty).Where(y => y.Length > 0).Order().ToArray(), x.MustChangePassword)));
+        var users = await db.Users.AsNoTracking().Include(x => x.UserRoles).ThenInclude(x => x.Role).Include(x => x.UniversityCenter).Include(x => x.Farm).OrderBy(x => x.FullName).ToListAsync(ct);
+        return Ok(users.Select(x => new UserSummary(x.Id, x.Email ?? string.Empty, x.FullName, x.Status.ToString(), x.UserRoles.Select(y => y.Role.Name ?? string.Empty).Where(y => y.Length > 0).Order().ToArray(), x.MustChangePassword, x.PersonnelCode, x.UniversityCenterId, x.UniversityCenter?.Name, x.FarmId, x.Farm?.Name)));
     }
 
     // Sin este endpoint no habia forma de corregir un nombre mal escrito ni un
@@ -38,6 +38,16 @@ public sealed class UsersController(AppDbContext db, IAuthService auth, ITotpSer
         if (await db.Users.AnyAsync(x => x.Id != id && x.NormalizedEmail == normalized, ct))
             return Conflict(new { message = "Ya existe otra cuenta con ese correo." });
 
+        var centerId = request.UniversityCenterId;
+        if (centerId is not null && !await db.UniversityCenters.AnyAsync(x => x.Id == centerId && x.IsActive, ct))
+            return BadRequest(new { message = "El centro universitario no existe o está inactivo." });
+        if (request.FarmId is not null)
+        {
+            var farm = await db.Farms.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.FarmId && x.IsActive, ct);
+            if (farm is null || (centerId is not null && farm.UniversityCenterId != centerId))
+                return BadRequest(new { message = "La finca no existe, está inactiva o no pertenece al centro seleccionado." });
+            centerId ??= farm.UniversityCenterId;
+        }
         var previous = $"{user.FullName} <{user.Email}>";
         var emailChanged = !string.Equals(user.NormalizedEmail, normalized, StringComparison.Ordinal);
         user.FullName = fullName;
@@ -45,6 +55,9 @@ public sealed class UsersController(AppDbContext db, IAuthService auth, ITotpSer
         user.NormalizedEmail = normalized;
         user.UserName = email;
         user.NormalizedUserName = normalized;
+        user.PersonnelCode = string.IsNullOrWhiteSpace(request.PersonnelCode) ? null : request.PersonnelCode.Trim();
+        user.UniversityCenterId = centerId;
+        user.FarmId = request.FarmId;
         user.UpdatedAtUtc = DateTime.UtcNow;
 
         // Cambiar el correo cambia el identificador con el que se inicia sesion, asi
@@ -82,8 +95,8 @@ public sealed class UsersController(AppDbContext db, IAuthService auth, ITotpSer
         var user = await db.Users.Include(x => x.UserRoles).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (user is null) return NotFound();
         var names = request.Roles.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        var roles = await db.Roles.Where(x => names.Contains(x.Name)).ToListAsync(ct);
-        if (roles.Count != names.Length || roles.Count == 0) return BadRequest(new { message = "Debe indicar uno o más roles válidos." });
+        var roles = await db.Roles.Where(x => names.Contains(x.Name) && x.IsActive).ToListAsync(ct);
+        if (roles.Count != names.Length || roles.Count == 0) return BadRequest(new { message = "Debe indicar uno o más roles válidos y activos." });
         db.UserRoles.RemoveRange(user.UserRoles);
         user.UserRoles = roles.Select(role => new UserRole { UserId = id, RoleId = role.Id }).ToList();
         db.AccessAudits.Add(new AccessAudit { UserId = id, EventType = "USER_ROLES_CHANGED", Detail = $"Roles: {string.Join(", ", roles.Select(x => x.Name))}" });
@@ -96,7 +109,7 @@ public sealed class UsersController(AppDbContext db, IAuthService auth, ITotpSer
     {
         var user = await db.Users.Include(x => x.UserRoles).ThenInclude(x => x.Role).ThenInclude(x => x.RolePermissions).ThenInclude(x => x.Permission).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (user is null) return NotFound();
-        var fromRoles = user.UserRoles.SelectMany(x => x.Role.RolePermissions.Select(y => y.Permission.Code)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var fromRoles = user.UserRoles.Where(x => x.Role.IsActive).SelectMany(x => x.Role.RolePermissions.Select(y => y.Permission.Code)).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var overrides = await db.UserPermissions.Include(x => x.Permission).Where(x => x.UserId == id)
             .ToDictionaryAsync(x => x.Permission.Code, x => x.IsGranted, StringComparer.OrdinalIgnoreCase, ct);
         var all = await db.Permissions.AsNoTracking().OrderBy(x => x.Code).ToListAsync(ct);

@@ -95,6 +95,29 @@ public sealed class UsersControllerProfileTests
         Assert.IsType<NotFoundResult>(await controller.UpdateProfile(Guid.NewGuid(), new UpdateUserProfileRequest("Alguien", "nuevo@correo.gt"), default));
     }
 
+
+    [Fact]
+    public async Task UpdateProfile_AssignsPersonnelCenterAndFarm()
+    {
+        var (controller, user, databaseName) = await Seed();
+        Guid farmId;
+        await using (var setup = OpenDb(databaseName))
+        {
+            var center = new UniversityCenter { Code = "CU", Name = "Centro Universitario" };
+            var farm = new Farm { UniversityCenter = center, Code = "FIN", Name = "Finca Experimental" };
+            setup.AddRange(center, farm); await setup.SaveChangesAsync(); farmId = farm.Id;
+        }
+
+        var result = await controller.UpdateProfile(user.Id, new UpdateUserProfileRequest("Operador", "op@correo.gt", "P-104", null, farmId), default);
+
+        Assert.IsType<NoContentResult>(result);
+        await using var fresh = OpenDb(databaseName);
+        var stored = await fresh.Users.SingleAsync(x => x.Id == user.Id);
+        var farmStored = await fresh.Farms.SingleAsync(x => x.Id == farmId);
+        Assert.Equal("P-104", stored.PersonnelCode);
+        Assert.Equal(farmId, stored.FarmId);
+        Assert.Equal(farmStored.UniversityCenterId, stored.UniversityCenterId);
+    }
     private static AppDbContext OpenDb(string name) => new(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(name).Options);
 
     private static async Task<(UsersController Controller, User User, string DatabaseName)> Seed()

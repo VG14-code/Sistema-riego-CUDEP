@@ -32,7 +32,9 @@ public sealed record InventoryUpdateRequest(
     DateOnly? PurchaseDate,
     DateOnly? WarrantyUntil,
     decimal? AcquisitionCost,
-    [Required, MaxLength(3)] string Currency);
+    [Required, MaxLength(3)] string Currency,
+    [MaxLength(40)] string MovementType = "Actualización",
+    [MaxLength(500)] string? Notes = null);
 
 public sealed record CropRotationRequest(
     Guid IrrigationZoneId,

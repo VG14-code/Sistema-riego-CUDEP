@@ -58,7 +58,7 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
         var validation = await ValidateDeviceRequest(request, null, ct); if (validation is not null) return BadRequest(new { message = validation });
         var code = NormalizeCode(request.Code); if (await db.IoTDevices.AnyAsync(x => x.Code == code || x.SerialNumber == request.SerialNumber.Trim(), ct)) return Conflict(new { message = "El código o número de serie ya está registrado." });
         var item = new IoTDevice { Code = code, Name = request.Name.Trim(), SerialNumber = request.SerialNumber.Trim(), Manufacturer = Trim(request.Manufacturer), Model = Trim(request.Model), InstallationLocation = Trim(request.InstallationLocation), InstallationDate = request.InstallationDate, DeviceTypeId = request.DeviceTypeId, OperationalStatusId = request.OperationalStatusId, NodeId = request.NodeId, DeviceModelId = request.DeviceModelId, Owner = Trim(request.Owner), InventoryStatus = request.InventoryStatus.Trim(), PurchaseDate = request.PurchaseDate, WarrantyUntil = request.WarrantyUntil, AcquisitionCost = request.AcquisitionCost, Currency = request.Currency.Trim().ToUpperInvariant(), IsActive = request.IsActive };
-        db.IoTDevices.Add(item); Audit("IOT_DEVICE_CREATED", item.Code); await db.SaveChangesAsync(ct); return CreatedAtAction(nameof(Devices), await LoadDeviceResponse(item.Id, ct));
+        db.IoTDevices.Add(item); db.InventoryMovements.Add(new InventoryMovement { DeviceId = item.Id, MovementType = "Alta", NewStatus = item.InventoryStatus, NewOwner = item.Owner, Notes = "Registro inicial del dispositivo.", PerformedByUserId = CurrentUserId() }); Audit("IOT_DEVICE_CREATED", item.Code); await db.SaveChangesAsync(ct); return CreatedAtAction(nameof(Devices), await LoadDeviceResponse(item.Id, ct));
     }
 
     [HttpPut("devices/{id:guid}"), Authorize(Policy = PermissionPolicies.DevicesManage)]
@@ -82,7 +82,7 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
     {
         var validation = await ValidateSensorRequest(request, null, ct); if (validation is not null) return BadRequest(new { message = validation });
         var code = NormalizeCode(request.Code); if (await db.IoTSensors.AnyAsync(x => x.Code == code || x.SerialNumber == request.SerialNumber.Trim(), ct)) return Conflict(new { message = "El código o número de serie ya está registrado." });
-        var item = new IoTSensor { Code = code, Name = request.Name.Trim(), SerialNumber = request.SerialNumber.Trim(), Model = Trim(request.Model), Channel = Trim(request.Channel), MinimumValue = request.MinimumValue, MaximumValue = request.MaximumValue, CalibrationOffset = request.CalibrationOffset, SensorTypeId = request.SensorTypeId, MeasurementUnitId = request.MeasurementUnitId, OperationalStatusId = request.OperationalStatusId, DeviceId = request.DeviceId, IsActive = request.IsActive };
+        var item = new IoTSensor { Code = code, Name = request.Name.Trim(), SerialNumber = request.SerialNumber.Trim(), Model = Trim(request.Model), Channel = Trim(request.Channel), MinimumValue = request.MinimumValue, MaximumValue = request.MaximumValue, CalibrationOffset = request.CalibrationOffset, SensorTypeId = request.SensorTypeId, MeasurementUnitId = request.MeasurementUnitId, OperationalStatusId = request.OperationalStatusId, DeviceId = request.DeviceId, ReadingFrequencyId = request.ReadingFrequencyId, IrrigationZoneId = request.IrrigationZoneId, IsActive = request.IsActive };
         db.IoTSensors.Add(item); Audit("IOT_SENSOR_CREATED", item.Code); await db.SaveChangesAsync(ct); return CreatedAtAction(nameof(Sensors), await LoadSensorResponse(item.Id, ct));
     }
 
@@ -92,7 +92,7 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
         var item = await db.IoTSensors.SingleOrDefaultAsync(x => x.Id == id, ct); if (item is null) return NotFound();
         var validation = await ValidateSensorRequest(request, id, ct); if (validation is not null) return BadRequest(new { message = validation });
         var code = NormalizeCode(request.Code); if (await db.IoTSensors.AnyAsync(x => x.Id != id && (x.Code == code || x.SerialNumber == request.SerialNumber.Trim()), ct)) return Conflict(new { message = "El código o número de serie ya está registrado." });
-        item.Code = code; item.Name = request.Name.Trim(); item.SerialNumber = request.SerialNumber.Trim(); item.Model = Trim(request.Model); item.Channel = Trim(request.Channel); item.MinimumValue = request.MinimumValue; item.MaximumValue = request.MaximumValue; item.CalibrationOffset = request.CalibrationOffset; item.SensorTypeId = request.SensorTypeId; item.MeasurementUnitId = request.MeasurementUnitId; item.OperationalStatusId = request.OperationalStatusId; item.DeviceId = request.DeviceId; item.IsActive = request.IsActive; item.UpdatedAtUtc = DateTime.UtcNow;
+        item.Code = code; item.Name = request.Name.Trim(); item.SerialNumber = request.SerialNumber.Trim(); item.Model = Trim(request.Model); item.Channel = Trim(request.Channel); item.MinimumValue = request.MinimumValue; item.MaximumValue = request.MaximumValue; item.CalibrationOffset = request.CalibrationOffset; item.SensorTypeId = request.SensorTypeId; item.MeasurementUnitId = request.MeasurementUnitId; item.OperationalStatusId = request.OperationalStatusId; item.DeviceId = request.DeviceId; item.ReadingFrequencyId = request.ReadingFrequencyId; item.IrrigationZoneId = request.IrrigationZoneId; item.IsActive = request.IsActive; item.UpdatedAtUtc = DateTime.UtcNow;
         Audit("IOT_SENSOR_UPDATED", item.Code); await db.SaveChangesAsync(ct); return Ok(await LoadSensorResponse(id, ct));
     }
 
@@ -111,7 +111,7 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
         return CreatedAtAction(nameof(Calibrations), new SensorCalibrationResponse(item.Id, sensor.Id, sensor.Name, item.CalibratedAtUtc, item.ReferenceValue, item.MeasuredValue, item.AppliedOffset, item.Notes, item.CalibrationPattern, item.TechnicianName, item.NextCalibrationDate));
     }
 
-    private IQueryable<IoTSensor> SensorQuery() => db.IoTSensors.AsNoTracking().Include(x => x.SensorType).Include(x => x.MeasurementUnit).Include(x => x.OperationalStatus).Include(x => x.Device).Include(x => x.Calibrations);
+    private IQueryable<IoTSensor> SensorQuery() => db.IoTSensors.AsNoTracking().Include(x => x.SensorType).Include(x => x.MeasurementUnit).Include(x => x.OperationalStatus).Include(x => x.Device).Include(x => x.ReadingFrequency).Include(x => x.IrrigationZone).Include(x => x.Calibrations);
     private async Task<IoTSensorResponse> LoadSensorResponse(Guid id, CancellationToken ct) => SensorResponse(await SensorQuery().SingleAsync(x => x.Id == id, ct));
     private async Task<IoTDeviceResponse> LoadDeviceResponse(Guid id, CancellationToken ct) => DeviceResponse(await db.IoTDevices.AsNoTracking().Include(x => x.DeviceType).Include(x => x.OperationalStatus).Include(x => x.Node).Include(x => x.DeviceModel).Include(x => x.Sensors).SingleAsync(x => x.Id == id, ct));
     private async Task<string?> ValidateDeviceRequest(IoTDeviceRequest r, Guid? id, CancellationToken ct)
@@ -131,6 +131,8 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
         var unitError = await ValidateCatalog(r.MeasurementUnitId, CatalogKind.MeasurementUnit, ct); if (unitError is not null) return unitError;
         var statusError = await ValidateCatalog(r.OperationalStatusId, CatalogKind.OperationalStatus, ct); if (statusError is not null) return statusError;
         if (r.DeviceId is not null && !await db.IoTDevices.AnyAsync(x => x.Id == r.DeviceId && x.IsActive, ct)) return "El dispositivo seleccionado no existe o está inactivo.";
+        if (r.ReadingFrequencyId is not null && await ValidateCatalog(r.ReadingFrequencyId.Value, CatalogKind.ReadingFrequency, ct) is not null) return "La frecuencia de lectura no existe o está inactiva.";
+        if (r.IrrigationZoneId is not null && !await db.IrrigationZones.AnyAsync(x => x.Id == r.IrrigationZoneId && x.IsActive, ct)) return "La zona de riego no existe o está inactiva.";
         return null;
     }
     private async Task<string?> ValidateCatalog(Guid id, CatalogKind kind, CancellationToken ct) => await db.MasterCatalogItems.AnyAsync(x => x.Id == id && x.Kind == kind && x.IsActive, ct) ? null : $"El catálogo {kind} seleccionado no existe o está inactivo.";
@@ -146,6 +148,6 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static IoTNodeResponse NodeResponse(IoTNode x) => new(x.Id, x.Code, x.Name, x.Location, x.IpAddress, x.MacAddress, x.CommunicationProtocol, x.FirmwareVersion, x.OperationalStatusId, x.OperationalStatus.Name, x.IsActive, x.LastCommunicationUtc, x.Devices.Count);
     private static IoTDeviceResponse DeviceResponse(IoTDevice x) => new(x.Id, x.Code, x.Name, x.SerialNumber, x.Manufacturer, x.Model, x.InstallationLocation, x.InstallationDate, x.DeviceTypeId, x.DeviceType.Name, x.OperationalStatusId, x.OperationalStatus.Name, x.NodeId, x.Node?.Name, x.IsActive, x.LastCommunicationUtc, x.Sensors.Count, x.DeviceModelId, x.DeviceModel?.Name, x.Owner, x.InventoryStatus, x.PurchaseDate, x.WarrantyUntil, x.AcquisitionCost, x.Currency);
-    private static IoTSensorResponse SensorResponse(IoTSensor x) => new(x.Id, x.Code, x.Name, x.SerialNumber, x.Model, x.Channel, x.MinimumValue, x.MaximumValue, x.CalibrationOffset, x.SensorTypeId, x.SensorType.Name, x.MeasurementUnitId, x.MeasurementUnit.Name, x.MeasurementUnit.Symbol, x.OperationalStatusId, x.OperationalStatus.Name, x.DeviceId, x.Device?.Name, x.IsActive, x.LastReadingUtc, x.Calibrations.OrderByDescending(c => c.CalibratedAtUtc).Select(c => (DateTime?)c.CalibratedAtUtc).FirstOrDefault());
+    private static IoTSensorResponse SensorResponse(IoTSensor x) => new(x.Id, x.Code, x.Name, x.SerialNumber, x.Model, x.Channel, x.MinimumValue, x.MaximumValue, x.CalibrationOffset, x.SensorTypeId, x.SensorType.Name, x.MeasurementUnitId, x.MeasurementUnit.Name, x.MeasurementUnit.Symbol, x.OperationalStatusId, x.OperationalStatus.Name, x.DeviceId, x.Device?.Name, x.IsActive, x.LastReadingUtc, x.Calibrations.OrderByDescending(c => c.CalibratedAtUtc).Select(c => (DateTime?)c.CalibratedAtUtc).FirstOrDefault(), x.ReadingFrequencyId, x.ReadingFrequency?.Name, x.IrrigationZoneId, x.IrrigationZone?.Name);
 }
 

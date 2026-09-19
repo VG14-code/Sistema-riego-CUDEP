@@ -35,6 +35,8 @@ public sealed class IoTSensor
     public Guid MeasurementUnitId { get; set; } public MasterCatalogItem MeasurementUnit { get; set; } = null!;
     public Guid OperationalStatusId { get; set; } public MasterCatalogItem OperationalStatus { get; set; } = null!;
     public Guid? DeviceId { get; set; } public IoTDevice? Device { get; set; }
+    public Guid? ReadingFrequencyId { get; set; } public MasterCatalogItem? ReadingFrequency { get; set; }
+    public Guid? IrrigationZoneId { get; set; } public IrrigationZone? IrrigationZone { get; set; }
     public bool IsActive { get; set; } = true; public DateTime? LastReadingUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow; public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
     public ICollection<SensorCalibration> Calibrations { get; set; } = [];

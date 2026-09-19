@@ -7,7 +7,7 @@ public sealed class PermissionResolver(AppDbContext db) : IPermissionResolver
 {
     public async Task<IReadOnlyCollection<string>> GetEffectivePermissionsAsync(Guid userId, CancellationToken ct)
     {
-        var fromRoles = await db.UserRoles.Where(x => x.UserId == userId)
+        var fromRoles = await db.UserRoles.Where(x => x.UserId == userId && x.Role.IsActive)
             .SelectMany(x => x.Role.RolePermissions.Select(y => y.Permission.Code))
             .ToListAsync(ct);
         var overrides = await db.UserPermissions.Where(x => x.UserId == userId)

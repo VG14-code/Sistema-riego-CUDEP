@@ -12,6 +12,11 @@ public sealed class User : IdentityUser<Guid>
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
     public bool MustChangePassword { get; set; }
+    public string? PersonnelCode { get; set; }
+    public Guid? UniversityCenterId { get; set; }
+    public UniversityCenter? UniversityCenter { get; set; }
+    public Guid? FarmId { get; set; }
+    public Farm? Farm { get; set; }
     public PasswordCredential? Credential { get; set; }
     public ICollection<UserRole> UserRoles { get; set; } = [];
     public ICollection<UserPermission> UserPermissions { get; set; } = [];
@@ -32,6 +37,7 @@ public sealed class PasswordCredential
 public sealed class Role : IdentityRole<Guid>
 {
     public string Description { get; set; } = string.Empty;
+    public bool IsActive { get; set; } = true;
     public ICollection<UserRole> UserRoles { get; set; } = [];
     public ICollection<RolePermission> RolePermissions { get; set; } = [];
 }

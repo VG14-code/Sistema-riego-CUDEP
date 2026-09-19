@@ -72,3 +72,5 @@
 .lt-export button:disabled { opacity: 0.45; cursor: default; }
 .s2-form .s2-check { flex-direction: row; align-items: center; gap: 0.45rem; white-space: nowrap; }
 .s2-form .s2-check input { width: auto; }
+
+.s2-section-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem}.s2-section-heading h2,.s2-section-heading p{margin-top:0}.s2-role-admin .s2-table{margin-bottom:0}.s2-table button:disabled{opacity:.45;cursor:not-allowed}@media(max-width:720px){.s2-section-heading{flex-direction:column}}

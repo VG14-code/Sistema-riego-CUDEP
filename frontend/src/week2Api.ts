@@ -1,15 +1,17 @@
 const baseUrl = import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:5080/api`
 
-export interface UserSummary { id: string; email: string; fullName: string; status: string; roles: string[]; mustChangePassword: boolean }
+export interface UserSummary { id: string; email: string; fullName: string; status: string; roles: string[]; mustChangePassword: boolean; personnelCode?: string; universityCenterId?: string; universityCenter?: string; farmId?: string; farm?: string }
 export interface AuthSession { accessToken: string; refreshToken?: string; accessTokenExpiresAtUtc: string; user: UserSummary }
 export interface ActiveSession { id:string; userId:string; user:string; email:string; createdAtUtc:string; expiresAtUtc:string; revokedAtUtc?:string; isActive:boolean; ipAddress?:string; userAgent?:string }
-export interface Role { name: string; description: string; permissions: string[] }
+export interface Role { id: string; name: string; description: string; isActive: boolean; userCount: number; permissions: string[] }
 export interface Permission { id: string; code: string; description: string }
 export interface EffectivePermission { code: string; description: string; grantedByRole: boolean; overrideIsGranted: boolean | null; effectiveGranted: boolean }
-export interface CatalogItem { id: string; kind: string; code: string; name: string; description: string | null; symbol: string | null; isActive: boolean }
-export interface CatalogForm { code: string; name: string; description?: string | null; symbol?: string | null; isActive: boolean }
+export interface CatalogItem { id: string; kind: string; code: string; name: string; description: string | null; symbol: string | null; isActive: boolean; baseUnitCode?: string | null; conversionFactorToBase?: number | null }
+export interface CatalogForm { code: string; name: string; description?: string | null; symbol?: string | null; isActive: boolean; baseUnitCode?: string | null; conversionFactorToBase?: number | null }
 export interface DeviceBrand { id: string; code: string; name: string; description: string | null; isActive: boolean; modelCount: number }
-export interface DeviceModel { id: string; deviceBrandId: string; brand: string; deviceTypeId: string; deviceType: string; code: string; name: string; description: string | null; isActive: boolean; deviceCount: number }
+export interface DeviceModel { id: string; deviceBrandId: string; brand: string; deviceTypeId: string; deviceType: string; code: string; name: string; description: string | null; isActive: boolean; deviceCount: number; precision?: string | null; voltage?: string | null; communicationProtocol?: string | null }
+export interface TerritoryCenter { id:string; code:string; name:string; isActive:boolean }
+export interface TerritoryFarm { id:string; code:string; name:string; isActive:boolean; universityCenterId:string; center:string }
 export interface TotpStatus { enabled: boolean; hasAuthenticator: boolean }
 export interface TotpSetup { sharedKey: string; authenticatorUri: string }
 export interface GlobalParameter { id: string; key: string; value: string; dataType: string; category: string; description: string; isEditable: boolean }
@@ -57,10 +59,14 @@ export const week2Api = {
   revokeSession: (token: string, id: string) => request<void>("/sessions/"+id, { method: "DELETE" }, token),
   roles: (token: string) => request<Role[]>('/roles', {}, token),
   permissions: (token: string) => request<Permission[]>('/roles/permissions', {}, token),
-  updateUserProfile: (token: string, id: string, body: { fullName: string; email: string }, totp: string) => request<void>(`/users/${id}`, { method: 'PUT', ...json(body) }, token, totp),
+  updateUserProfile: (token: string, id: string, body: { fullName: string; email: string; personnelCode?: string | null; universityCenterId?: string | null; farmId?: string | null }, totp: string) => request<void>(`/users/${id}`, { method: 'PUT', ...json(body) }, token, totp),
   setUserStatus: (token: string, id: string, status: string, totp: string) => request<void>(`/users/${id}/status`, { method: 'PATCH', ...json({ status }) }, token, totp),
   setUserRoles: (token: string, id: string, roles: string[], totp: string) => request<void>(`/users/${id}/roles`, { method: 'PUT', ...json({ roles }) }, token, totp),
   resetUserPassword: (token: string, id: string, totp: string) => request<{ temporaryPassword: string }>(`/users/${id}/reset-password`, { method: 'POST' }, token, totp),
+  createRole: (token: string, body: { name: string; description: string; isActive: boolean }, totp: string) => request<Role>('/roles', { method: 'POST', ...json(body) }, token, totp),
+  updateRole: (token: string, id: string, body: { name: string; description: string; isActive: boolean }, totp: string) => request<Role>(`/roles/${id}`, { method: 'PUT', ...json(body) }, token, totp),
+  setRoleStatus: (token: string, id: string, isActive: boolean, totp: string) => request<void>(`/roles/${id}/status`, { method: 'PATCH', ...json({ isActive }) }, token, totp),
+  deleteRole: (token: string, id: string, totp: string) => request<void>(`/roles/${id}`, { method: 'DELETE' }, token, totp),
   setRolePermissions: (token: string, role: string, permissions: string[], totp: string) => request<void>(`/roles/${encodeURIComponent(role)}/permissions`, { method: 'PUT', ...json({ permissions }) }, token, totp),
   userPermissions: (token: string, id: string) => request<EffectivePermission[]>(`/users/${id}/permissions`, {}, token),
   setUserPermissions: (token: string, id: string, overrides: { code: string; isGranted: boolean }[], totp: string) => request<void>(`/users/${id}/permissions`, { method: 'PUT', ...json({ overrides }) }, token, totp),
@@ -69,6 +75,9 @@ export const week2Api = {
   totpEnable: (token: string, code: string) => request<{ enabled: boolean; recoveryCodes: string[] }>('/security/2fa/enable', { method: 'POST', ...json({ code }) }, token),
   totpDisable: (token: string, code: string) => request<void>('/security/2fa/disable', { method: 'POST', ...json({ code }) }, token),
   catalogs: (token: string, kind: string) => request<CatalogItem[]>(`/catalogs/${kind}`, {}, token),
+  convertUnits: (token: string, fromUnitId: string, toUnitId: string, value: number) => request<{ originalValue:number; fromUnit:string; convertedValue:number; toUnit:string }>('/catalogs/measurement-units/convert', { method: 'POST', ...json({ fromUnitId, toUnitId, value }) }, token),
+  centers: (token: string) => request<TerritoryCenter[]>('/territory/centers', {}, token),
+  farms: (token: string) => request<TerritoryFarm[]>('/territory/farms', {}, token),
   createCatalog: (token: string, kind: string, item: CatalogForm) => request<CatalogItem>(`/catalogs/${kind}`, { method: 'POST', ...json(item as unknown as JsonBody) }, token),
   updateCatalog: (token: string, kind: string, id: string, item: CatalogForm) => request<CatalogItem>(`/catalogs/${kind}/${id}`, { method: 'PUT', ...json(item as unknown as JsonBody) }, token),
   deleteCatalog: (token: string, kind: string, id: string) => request<void>(`/catalogs/${kind}/${id}`, { method: 'DELETE' }, token),

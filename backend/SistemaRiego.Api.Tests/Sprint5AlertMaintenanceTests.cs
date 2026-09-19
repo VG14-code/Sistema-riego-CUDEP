@@ -44,6 +44,26 @@ public sealed class Sprint5AlertMaintenanceTests
     }
 
     [Fact]
+    public async Task TelemetryWithoutZone_UsesTheZoneAssignedToTheSensor()
+    {
+        await using var db = Db();
+        var active = new MasterCatalogItem { Kind = CatalogKind.OperationalStatus, Code = "ACTIVE", Name = "Activo" };
+        var unit = new MasterCatalogItem { Kind = CatalogKind.MeasurementUnit, Code = "PERCENT", Name = "Porcentaje", Symbol = "%" };
+        var sensorType = new MasterCatalogItem { Kind = CatalogKind.SensorType, Code = "MOISTURE", Name = "Humedad" };
+        var assignedZone = Guid.NewGuid(); var reportedZone = Guid.NewGuid();
+        var sensor = new IoTSensor { Code = "SENSOR-Z", Name = "Sensor Z", SerialNumber = "SENSOR-Z-001", MinimumValue = 0, MaximumValue = 100, SensorTypeId = sensorType.Id, SensorType = sensorType, MeasurementUnitId = unit.Id, MeasurementUnit = unit, OperationalStatusId = active.Id, OperationalStatus = active, IrrigationZoneId = assignedZone };
+        db.AddRange(active, unit, sensorType, sensor);
+        await db.SaveChangesAsync();
+        var service = new TelemetryIngestionService(db, new FakeHubContext());
+
+        await service.IngestAsync(new TelemetryRequest(sensor.Id, null, DateTime.UtcNow.AddSeconds(-1), 40, 90, -50, "ZONE-1", "HTTP"), "HTTP", default);
+        await service.IngestAsync(new TelemetryRequest(sensor.Id, reportedZone, DateTime.UtcNow, 41, 90, -50, "ZONE-2", "HTTP"), "HTTP", default);
+
+        Assert.Equal(assignedZone, db.SensorReadings.Single(x => x.MessageId == "ZONE-1").IrrigationZoneId);
+        Assert.Equal(reportedZone, db.SensorReadings.Single(x => x.MessageId == "ZONE-2").IrrigationZoneId);
+    }
+
+    [Fact]
     public async Task TelemetryRecovery_ResolvesOfflineAlertsAndEmitsSignalR()
     {
         await using var db = Db();

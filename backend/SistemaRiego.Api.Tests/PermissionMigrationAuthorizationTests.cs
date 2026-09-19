@@ -14,7 +14,7 @@ public sealed class PermissionMigrationAuthorizationTests
 {
     public static IEnumerable<object[]> Cases()
     {
-        yield return Case<AgronomyController>(PermissionPolicies.AgronomyRead, PermissionPolicies.AgronomyManage, PermissionPolicies.AgronomyDelete);
+        yield return Case<AgronomyController>(PermissionPolicies.AgronomyRead, PermissionPolicies.AgronomyManage, PermissionPolicies.AgronomyDelete, PermissionPolicies.IrrigationOperate);
         yield return Case<AlertsController>(PermissionPolicies.AlertsRead, PermissionPolicies.AlertsManage);
         yield return Case<AuditController>(PermissionPolicies.AuditRead);
         yield return Case<AuditTrailController>(PermissionPolicies.AuditRead);

@@ -45,6 +45,20 @@ public sealed class FirmwareHistory
     public string? Notes { get; set; }
 }
 
+public sealed class InventoryMovement
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid DeviceId { get; set; }
+    public IoTDevice Device { get; set; } = null!;
+    public string MovementType { get; set; } = "Actualización";
+    public string? PreviousStatus { get; set; }
+    public string NewStatus { get; set; } = string.Empty;
+    public string? PreviousOwner { get; set; }
+    public string? NewOwner { get; set; }
+    public string? Notes { get; set; }
+    public Guid? PerformedByUserId { get; set; }
+    public DateTime OccurredAtUtc { get; set; } = DateTime.UtcNow;
+}
 public sealed class CropRotationPlan
 {
     public Guid Id { get; set; } = Guid.NewGuid();

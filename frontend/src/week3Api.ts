@@ -40,6 +40,7 @@ export const week3Api = {
   remoteConfigurations: (token: string) => request<IoTRecord[]>("/iot/traceability/remote-configurations", {}, token),
   firmwareHistory: (token: string) => request<IoTRecord[]>("/iot/traceability/firmware", {}, token),
   inventory: (token: string) => request<IoTRecord[]>("/iot/traceability/inventory", {}, token),
+  inventoryMovements: (token: string) => request<IoTRecord[]>("/iot/traceability/inventory/movements", {}, token),
   zones: (token: string) => request<IoTRecord[]>("/manual-irrigation/zones", {}, token),
   calibrations: (token: string) => request<IoTRecord[]>('/iot/calibrations', {}, token),
   catalogs: (token: string, kind: string) => request<IoTRecord[]>(`/catalogs/${kind}`, {}, token),

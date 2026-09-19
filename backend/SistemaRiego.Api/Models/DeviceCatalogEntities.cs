@@ -20,6 +20,9 @@ public sealed class DeviceModel
     public required string Code { get; set; }
     public required string Name { get; set; }
     public string? Description { get; set; }
+    public string? Precision { get; set; }
+    public string? Voltage { get; set; }
+    public string? CommunicationProtocol { get; set; }
     public bool IsActive { get; set; } = true;
     public ICollection<IoTDevice> Devices { get; set; } = [];
 }

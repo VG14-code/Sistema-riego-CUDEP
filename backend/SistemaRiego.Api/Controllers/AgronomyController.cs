@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,7 @@ using SistemaRiego.Api.Services;
 namespace SistemaRiego.Api.Controllers;
 
 [ApiController, Route("api/agronomy"), Authorize(Policy = PermissionPolicies.AgronomyRead)]
-public sealed class AgronomyController(AppDbContext db, IIrrigationRecommendationCalculator? recommendationCalculator = null) : ControllerBase
+public sealed class AgronomyController(AppDbContext db, IIrrigationRecommendationCalculator? recommendationCalculator = null, ITotpService? totp = null, IIrrigationCommandService? commands = null) : ControllerBase
 {
     private readonly IIrrigationRecommendationCalculator calculator = recommendationCalculator ?? new IrrigationRecommendationCalculator();
 
@@ -40,11 +41,11 @@ public sealed class AgronomyController(AppDbContext db, IIrrigationRecommendatio
     [HttpGet("environmental-evaluations")]
     public async Task<IActionResult> EnvironmentalEvaluations(CancellationToken ct)
     {
-        var cycles = await db.CropCycles.AsNoTracking().Include(x => x.IrrigationZone).Where(x => x.Status == "Activo" || x.Status == "Planificado").ToListAsync(ct);
+        var cycles = await CycleQuery().Where(x => x.Status == "Activo" || x.Status == "Planificado").ToListAsync(ct);
         var result = new List<EnvironmentalEvaluationResponse>();
         foreach (var cycle in cycles)
         {
-            var requirement = await db.CropWaterRequirements.AsNoTracking().Where(x => x.CropId == cycle.CropId && x.IsActive && (x.PhenologicalStageId == cycle.CurrentStageId || x.PhenologicalStageId == null)).OrderByDescending(x => x.PhenologicalStageId != null).FirstOrDefaultAsync(ct);
+            var requirement = await FindRequirement(cycle, ct);
             if (requirement is not null) result.Add(await EvaluateEnvironment(cycle, requirement, ct));
         }
         return Ok(result);
@@ -53,20 +54,76 @@ public sealed class AgronomyController(AppDbContext db, IIrrigationRecommendatio
     [HttpGet("recommendations")]
     public async Task<IActionResult> Recommendations(CancellationToken ct)
     {
-        var cycles = await db.CropCycles.AsNoTracking().Include(x => x.Crop).Include(x => x.IrrigationZone).Where(x => x.Status == "Activo" || x.Status == "Planificado").ToListAsync(ct);
+        var cycles = await CycleQuery().Where(x => x.Status == "Activo" || x.Status == "Planificado").ToListAsync(ct);
         var result = new List<IrrigationRecommendationResponse>();
         foreach (var cycle in cycles)
         {
-            var requirement = await db.CropWaterRequirements.AsNoTracking().Where(x => x.CropId == cycle.CropId && x.IsActive && (x.PhenologicalStageId == cycle.CurrentStageId || x.PhenologicalStageId == null)).OrderByDescending(x => x.PhenologicalStageId != null).FirstOrDefaultAsync(ct);
-            if (requirement is null) continue;
-            var sensorId = cycle.IrrigationZone.PrimarySensorId;
-            var moisture = sensorId is null ? null : await db.SensorReadings.AsNoTracking().Where(x => x.SensorId == sensorId && x.IsValid).OrderByDescending(x => x.CapturedAtUtc).Select(x => (decimal?)x.Value).FirstOrDefaultAsync(ct);
-            var decision = calculator.Calculate(new(moisture, requirement.MinimumMoisturePercent, requirement.TargetMoisturePercent, requirement.MaximumMoisturePercent, requirement.BaseDurationMinutes, requirement.BaseVolumeLiters));
-            var environment = await EvaluateEnvironment(cycle, requirement, ct);
-            var blocked = !environment.IrrigationAllowed;
-            result.Add(new(cycle.Id, cycle.Name, cycle.Crop.Name, cycle.IrrigationZone.Name, moisture, requirement.MinimumMoisturePercent, requirement.TargetMoisturePercent, blocked ? "ESPERAR" : decision.Decision, blocked ? 0 : decision.Minutes, blocked ? 0 : decision.Liters, blocked ? "Riego bloqueado por validación ambiental: " + string.Join("; ", environment.Reasons) : decision.Explanation));
+            var recommendation = await BuildRecommendation(cycle, ct);
+            if (recommendation is not null) result.Add(recommendation);
         }
         return Ok(result);
+    }
+
+    [HttpPost("recommendations/{cycleId:guid}/approve"), Authorize(Policy = PermissionPolicies.IrrigationOperate)]
+    public async Task<IActionResult> ApproveRecommendation(Guid cycleId, ApproveIrrigationRecommendationRequest request, CancellationToken ct)
+    {
+        if (totp is not null)
+        {
+            var verification = await totp.VerifyCriticalOperationAsync(HttpContext, ct);
+            if (!verification.Allowed) return StatusCode(StatusCodes.Status403Forbidden, new { message = verification.Error });
+        }
+        var cycle = await CycleQuery(false).SingleOrDefaultAsync(x => x.Id == cycleId, ct);
+        if (cycle is null || !cycle.IrrigationZone.IsActive) return NotFound(new { message = "El ciclo o su zona no están disponibles." });
+        var recommendation = await BuildRecommendation(cycle, ct);
+        if (recommendation is null) return Conflict(new { message = "No existe un requerimiento aplicable al cultivo, etapa y suelo." });
+        if (!string.Equals(recommendation.Decision, "Regar", StringComparison.OrdinalIgnoreCase) || recommendation.SuggestedMinutes <= 0)
+            return Conflict(new { message = $"La recomendación actual es '{recommendation.Decision}' y no puede aprobarse como riego." });
+        if (await db.IrrigationRuns.AnyAsync(x => x.IrrigationZoneId == cycle.IrrigationZoneId && (x.Status == "En curso" || x.Status == "Esperando ACK" || x.Status == "Cierre pendiente"), ct))
+            return Conflict(new { message = "La zona ya tiene un riego en curso." });
+        var tanks = await db.WaterTanks.Where(x => x.Status != "Inactivo").ToListAsync(ct);
+        var available = tanks.Sum(x => Math.Max(0, x.CurrentLevelLiters - x.CapacityLiters * x.MinimumSafePercent / 100));
+        if (available < recommendation.SuggestedLiters) return Conflict(new { message = "Las reservas activas no tienen nivel seguro suficiente para esta recomendación." });
+        var now = DateTime.UtcNow; var userId = CurrentUserId(); var email = User.FindFirstValue(ClaimTypes.Email) ?? User.Identity?.Name;
+        var flow = recommendation.SuggestedMinutes == 0 ? 0 : decimal.Round(recommendation.SuggestedLiters / recommendation.SuggestedMinutes, 2);
+        var run = new IrrigationRun { IrrigationZoneId = cycle.IrrigationZoneId, Mode = "Asistido", Status = commands is null ? "En curso" : "Esperando ACK", PlannedDurationMinutes = recommendation.SuggestedMinutes, FlowRateLitersMinute = flow, RequestedAtUtc = now, StartedAtUtc = commands is null ? now : null, RequestedByUserId = userId, RequestedByEmail = email, Reason = recommendation.Explanation, Observations = Trim(request.Observations) };
+        db.IrrigationRuns.Add(run);
+        db.OperationalEvents.Add(new OperationalEvent { Category = "Riego asistido", EventType = commands is null ? "RECOMMENDATION_APPROVED_STARTED" : "RECOMMENDATION_APPROVED_REQUESTED", IrrigationZoneId = cycle.IrrigationZoneId, UserId = userId, UserEmail = email, Detail = $"{cycle.Name}: {recommendation.SuggestedMinutes} min, {recommendation.SuggestedLiters:0.##} L, suelo {recommendation.Soil} (factor {recommendation.SoilCorrectionFactor:0.####})." });
+        await db.SaveChangesAsync(ct);
+        if (commands is not null)
+        {
+            try { await commands.SendAsync(cycle.IrrigationZoneId, run, "ABRIR_VALVULA", userId, ct); }
+            catch (Exception exception) { run.Status = "Fallido"; run.EndedAtUtc = DateTime.UtcNow; await db.SaveChangesAsync(ct); return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = exception.Message }); }
+        }
+        return Ok(new { run.Id, run.Mode, run.Status, recommendation.SuggestedMinutes, recommendation.SuggestedLiters, message = commands is null ? "Recomendación aprobada y riego asistido iniciado." : "Recomendación aprobada; orden enviada y pendiente de ACK MQTT." });
+    }
+
+    private IQueryable<CropCycle> CycleQuery(bool tracking = false)
+    {
+        var query = tracking ? db.CropCycles.AsQueryable() : db.CropCycles.AsNoTracking();
+        return query.Include(x => x.Crop).Include(x => x.IrrigationZone).ThenInclude(x => x.IrrigationSector).ThenInclude(x => x.FarmBlock).ThenInclude(x => x.SoilType);
+    }
+
+    private async Task<CropWaterRequirement?> FindRequirement(CropCycle cycle, CancellationToken ct)
+    {
+        var soilId = cycle.IrrigationZone.IrrigationSector.FarmBlock.SoilTypeId;
+        return await db.CropWaterRequirements.AsNoTracking()
+            .Where(x => x.CropId == cycle.CropId && x.IsActive && (x.PhenologicalStageId == cycle.CurrentStageId || x.PhenologicalStageId == null) && (x.SoilTypeId == soilId || x.SoilTypeId == null))
+            .OrderByDescending(x => x.PhenologicalStageId == cycle.CurrentStageId).ThenByDescending(x => x.SoilTypeId == soilId)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    private async Task<IrrigationRecommendationResponse?> BuildRecommendation(CropCycle cycle, CancellationToken ct)
+    {
+        var requirement = await FindRequirement(cycle, ct); if (requirement is null) return null;
+        var sensorId = cycle.IrrigationZone.PrimarySensorId;
+        var moisture = sensorId is null ? null : await db.SensorReadings.AsNoTracking().Where(x => x.SensorId == sensorId && x.IsValid).OrderByDescending(x => x.CapturedAtUtc).Select(x => (decimal?)x.Value).FirstOrDefaultAsync(ct);
+        var decision = calculator.Calculate(new(moisture, requirement.MinimumMoisturePercent, requirement.TargetMoisturePercent, requirement.MaximumMoisturePercent, requirement.BaseDurationMinutes, requirement.BaseVolumeLiters));
+        var soil = cycle.IrrigationZone.IrrigationSector.FarmBlock.SoilType; var factor = soil?.IrrigationCorrectionFactor ?? 1m;
+        var minutes = decision.Minutes <= 0 ? 0 : Math.Max(1, (int)Math.Ceiling(decision.Minutes * factor));
+        var liters = decision.Liters <= 0 ? 0 : decimal.Round(decision.Liters * factor, 2, MidpointRounding.AwayFromZero);
+        var environment = await EvaluateEnvironment(cycle, requirement, ct); var blocked = !environment.IrrigationAllowed;
+        var explanation = blocked ? "Riego bloqueado por validación ambiental: " + string.Join("; ", environment.Reasons) : $"{decision.Explanation} Ajuste por suelo {soil?.Name ?? "no asignado"}: factor {factor:0.####}.";
+        return new(cycle.Id, cycle.Name, cycle.Crop.Name, cycle.IrrigationZone.Name, moisture, requirement.MinimumMoisturePercent, requirement.TargetMoisturePercent, blocked ? "ESPERAR" : decision.Decision, blocked ? 0 : minutes, blocked ? 0 : liters, explanation, soil?.Name ?? "Sin suelo asignado", factor);
     }
 
     private async Task<EnvironmentalEvaluationResponse> EvaluateEnvironment(CropCycle cycle, CropWaterRequirement requirement, CancellationToken ct)
@@ -86,15 +143,16 @@ public sealed class AgronomyController(AppDbContext db, IIrrigationRecommendatio
         return new(cycle.Id, cycle.Name, cycle.IrrigationZone.Name, temperature, humidity, schedule, temperatureAllowed, humidityAllowed, schedule && temperatureAllowed && humidityAllowed, reasons);
     }
 
-    private static string? ValidateSoil(SoilTypeRequest r) => r.FieldCapacityPercent <= 0 || r.SaturationPercent <= r.FieldCapacityPercent || r.SaturationPercent > 100 || r.InfiltrationMillimetersHour <= 0 ? "Debe cumplirse 0 < capacidad de campo < saturación ≤ 100 e infiltración positiva." : null;
+    private static string? ValidateSoil(SoilTypeRequest r) => r.FieldCapacityPercent <= 0 || r.SaturationPercent <= r.FieldCapacityPercent || r.SaturationPercent > 100 || r.InfiltrationMillimetersHour <= 0 || r.IrrigationCorrectionFactor is < 0.25m or > 4m ? "Debe cumplirse 0 < capacidad de campo < saturación ≤ 100 e infiltración positiva; el factor de riego debe estar entre 0.25 y 4." : null;
     private async Task<string?> ValidateCrop(CropRequest r, Guid? id, string code, CancellationToken ct) { if (!await db.CropTypes.AnyAsync(x => x.Id == r.CropTypeId && x.IsActive, ct)) return "Tipo de cultivo inválido."; return await db.Crops.AnyAsync(x => x.Id != id && x.Code == code, ct) ? "El código de cultivo ya existe." : null; }
     private async Task<string?> ValidateStage(StageRequest r, Guid? id, CancellationToken ct) { if (r.Sequence < 1 || r.EstimatedDays < 1) return "Secuencia y duración deben ser positivas."; if (!await db.Crops.AnyAsync(x => x.Id == r.CropId, ct)) return "Cultivo inválido."; return await db.PhenologicalStages.AnyAsync(x => x.Id != id && x.CropId == r.CropId && x.Sequence == r.Sequence, ct) ? "La secuencia ya existe para este cultivo." : null; }
     private async Task<string?> ValidateRequirement(RequirementRequest r, CancellationToken ct) { if (r.MinimumMoisturePercent < 0 || r.TargetMoisturePercent <= r.MinimumMoisturePercent || r.MaximumMoisturePercent <= r.TargetMoisturePercent || r.MaximumMoisturePercent > 100 || r.BaseDurationMinutes <= 0 || r.BaseVolumeLiters < 0 || r.FrequencyHours < 1 || r.MinimumAmbientHumidityPercent is < 0 || r.MaximumAmbientHumidityPercent is > 100 || (r.MinimumAmbientHumidityPercent.HasValue && r.MaximumAmbientHumidityPercent.HasValue && r.MinimumAmbientHumidityPercent >= r.MaximumAmbientHumidityPercent)) return "Los umbrales deben cumplir mínimo < objetivo < máximo ≤ 100, con volumen, frecuencia y duración válidos."; if (!await db.Crops.AnyAsync(x => x.Id == r.CropId, ct)) return "Cultivo inválido."; return null; }
-    private static SoilType Map(SoilTypeRequest r, SoilType x) { x.Name = r.Name.Trim(); x.FieldCapacityPercent = r.FieldCapacityPercent; x.SaturationPercent = r.SaturationPercent; x.InfiltrationMillimetersHour = r.InfiltrationMillimetersHour; x.Description = Trim(r.Description); x.IsActive = r.IsActive; return x; }
+    private static SoilType Map(SoilTypeRequest r, SoilType x) { x.Name = r.Name.Trim(); x.FieldCapacityPercent = r.FieldCapacityPercent; x.SaturationPercent = r.SaturationPercent; x.InfiltrationMillimetersHour = r.InfiltrationMillimetersHour; x.IrrigationCorrectionFactor = r.IrrigationCorrectionFactor; x.Description = Trim(r.Description); x.IsActive = r.IsActive; return x; }
     private static Crop Map(CropRequest r, Crop x, string code) { x.CropTypeId = r.CropTypeId; x.Code = code; x.Name = r.Name.Trim(); x.ScientificName = Trim(r.ScientificName); x.Description = Trim(r.Description); x.IsActive = r.IsActive; return x; }
     private static PhenologicalStage Map(StageRequest r, PhenologicalStage x) { x.CropId = r.CropId; x.Name = r.Name.Trim(); x.Sequence = r.Sequence; x.EstimatedDays = r.EstimatedDays; x.Description = Trim(r.Description); return x; }
     private static CropWaterRequirement Map(RequirementRequest r, CropWaterRequirement x) { x.CropId = r.CropId; x.PhenologicalStageId = r.PhenologicalStageId; x.SoilTypeId = r.SoilTypeId; x.MinimumMoisturePercent = r.MinimumMoisturePercent; x.TargetMoisturePercent = r.TargetMoisturePercent; x.MaximumMoisturePercent = r.MaximumMoisturePercent; x.BaseVolumeLiters = r.BaseVolumeLiters; x.FrequencyHours = r.FrequencyHours; x.BaseDurationMinutes = r.BaseDurationMinutes; x.MinimumTemperatureCelsius = r.MinimumTemperatureCelsius; x.MaximumTemperatureCelsius = r.MaximumTemperatureCelsius; x.MinimumAmbientHumidityPercent = r.MinimumAmbientHumidityPercent; x.MaximumAmbientHumidityPercent = r.MaximumAmbientHumidityPercent; x.AllowedFrom = r.AllowedFrom; x.AllowedUntil = r.AllowedUntil; x.IsActive = r.IsActive; return x; }
     private async Task Save(string type, string detail, CancellationToken ct) { db.AccessAudits.Add(new AccessAudit { EventType = type, Detail = detail }); await db.SaveChangesAsync(ct); }
+    private Guid? CurrentUserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
     private static object Message(string value) => new { message = value };
     // Los codigos se asignan solos cuando el formulario no envia uno. Escribirlos a
     // mano produjo duplicados y valores numericos sueltos: la limpieza del 29 de

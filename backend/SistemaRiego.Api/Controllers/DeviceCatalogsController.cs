@@ -43,13 +43,13 @@ public sealed class DeviceCatalogsController(AppDbContext db) : ControllerBase
 
     [HttpGet("models"), Authorize(Policy = PermissionPolicies.DeviceCatalogsRead)]
     public async Task<IActionResult> Models(CancellationToken ct) => Ok(await db.DeviceModels.AsNoTracking().OrderBy(x => x.DeviceBrand.Name).ThenBy(x => x.Name)
-        .Select(x => new DeviceModelResponse(x.Id, x.DeviceBrandId, x.DeviceBrand.Name, x.DeviceTypeId, x.DeviceType.Name, x.Code, x.Name, x.Description, x.IsActive, x.Devices.Count)).ToListAsync(ct));
+        .Select(x => new DeviceModelResponse(x.Id, x.DeviceBrandId, x.DeviceBrand.Name, x.DeviceTypeId, x.DeviceType.Name, x.Code, x.Name, x.Description, x.IsActive, x.Devices.Count, x.Precision, x.Voltage, x.CommunicationProtocol)).ToListAsync(ct));
 
     [HttpPost("models"), Authorize(Policy = PermissionPolicies.DeviceCatalogsManage)]
     public async Task<IActionResult> CreateModel(DeviceModelRequest request, CancellationToken ct)
     {
         var error = await ValidateModel(request, null, ct); if (error is not null) return BadRequest(Message(error));
-        var item = new DeviceModel { DeviceBrandId = request.DeviceBrandId, DeviceTypeId = request.DeviceTypeId, Code = Code(request.Code), Name = request.Name.Trim(), Description = Trim(request.Description), IsActive = request.IsActive };
+        var item = new DeviceModel { DeviceBrandId = request.DeviceBrandId, DeviceTypeId = request.DeviceTypeId, Code = Code(request.Code), Name = request.Name.Trim(), Description = Trim(request.Description), IsActive = request.IsActive, Precision = Trim(request.Precision), Voltage = Trim(request.Voltage), CommunicationProtocol = Trim(request.CommunicationProtocol) };
         db.Add(item); await Save("DEVICE_MODEL_CREATED", item.Code, ct); return Ok(item);
     }
 
@@ -58,7 +58,7 @@ public sealed class DeviceCatalogsController(AppDbContext db) : ControllerBase
     {
         var item = await db.DeviceModels.FindAsync([id], ct); if (item is null) return NotFound();
         var error = await ValidateModel(request, id, ct); if (error is not null) return BadRequest(Message(error));
-        item.DeviceBrandId = request.DeviceBrandId; item.DeviceTypeId = request.DeviceTypeId; item.Code = Code(request.Code); item.Name = request.Name.Trim(); item.Description = Trim(request.Description); item.IsActive = request.IsActive;
+        item.DeviceBrandId = request.DeviceBrandId; item.DeviceTypeId = request.DeviceTypeId; item.Code = Code(request.Code); item.Name = request.Name.Trim(); item.Description = Trim(request.Description); item.IsActive = request.IsActive; item.Precision = Trim(request.Precision); item.Voltage = Trim(request.Voltage); item.CommunicationProtocol = Trim(request.CommunicationProtocol);
         await Save("DEVICE_MODEL_UPDATED", item.Code, ct); return NoContent();
     }
 

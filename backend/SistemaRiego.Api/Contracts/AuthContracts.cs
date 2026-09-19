@@ -6,7 +6,7 @@ public sealed record RefreshRequest(string? RefreshToken = null); public sealed 
 public sealed record ForgotPasswordRequest([Required, EmailAddress] string Email); public sealed record ResetPasswordRequest([Required] string Token, [Required, MinLength(8)] string NewPassword);
 public sealed record RequiredPasswordChangeRequest([Required] string CurrentPassword, [Required, MinLength(8)] string NewPassword);
 public sealed record AuthResponse(string AccessToken, string RefreshToken, DateTime AccessTokenExpiresAtUtc, UserSummary User);
-public sealed record UserSummary(Guid Id, string Email, string FullName, string Status, IReadOnlyCollection<string> Roles, bool MustChangePassword = false);
+public sealed record UserSummary(Guid Id, string Email, string FullName, string Status, IReadOnlyCollection<string> Roles, bool MustChangePassword = false, string? PersonnelCode = null, Guid? UniversityCenterId = null, string? UniversityCenter = null, Guid? FarmId = null, string? Farm = null);
 public sealed record ForgotPasswordResponse(string Message); public sealed record AuthContext(string? IpAddress, string? UserAgent);
 public sealed record TwoFactorLoginRequest([Required, EmailAddress] string Email, [Required] string ChallengeToken, [Required] string Code);
 public sealed record TwoFactorChallengeResponse(string ChallengeToken, DateTime ExpiresAtUtc, bool RequiresTwoFactor = true);

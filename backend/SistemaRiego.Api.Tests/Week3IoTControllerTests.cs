@@ -23,6 +23,9 @@ public sealed class Week3IoTControllerTests
         var response = Assert.IsType<IoTDeviceResponse>(created.Value);
         Assert.Equal(setup.Node.Name, response.NodeName);
         Assert.Contains(await setup.Db.AccessAudits.ToListAsync(), x => x.EventType == "IOT_DEVICE_CREATED");
+        var movement = Assert.Single(await setup.Db.InventoryMovements.ToListAsync());
+        Assert.Equal(("Alta", response.Id, "Instalado", (string?)null), (movement.MovementType, movement.DeviceId, movement.NewStatus, movement.PreviousStatus));
+        Assert.NotNull(movement.PerformedByUserId);
     }
 
     [Fact]
@@ -66,6 +69,27 @@ public sealed class Week3IoTControllerTests
         Assert.False((await setup.Db.IoTSensors.FindAsync(sensor.Id))!.IsActive);
     }
 
+
+    [Fact]
+    public async Task Sensor_Create_AssignsReadingFrequencyAndZone()
+    {
+        var setup = await CreateSetup();
+        var frequency = new MasterCatalogItem { Kind = CatalogKind.ReadingFrequency, Code = "FIVE_MIN", Name = "Cada cinco minutos" };
+        var center = new UniversityCenter { Code = "C", Name = "Centro" };
+        var farm = new Farm { UniversityCenter = center, Code = "F", Name = "Finca" };
+        var block = new FarmBlock { Farm = farm, Code = "B", Name = "Bloque" };
+        var sector = new IrrigationSector { FarmBlock = block, Code = "S", Name = "Sector" };
+        var zone = new IrrigationZone { IrrigationSector = sector, OperationalStatus = setup.Active, Code = "Z", Name = "Zona", AreaHectares = 1 };
+        setup.Db.AddRange(frequency, center, farm, block, sector, zone); await setup.Db.SaveChangesAsync();
+        var request = new IoTSensorRequest("HUM-Z1", "Humedad zona", "SER-Z1", "RK520", "RS485", 0, 100, 0, setup.SensorType.Id, setup.Unit.Id, setup.Active.Id, null, true, frequency.Id, zone.Id);
+
+        var result = await setup.Controller.CreateSensor(request, default);
+
+        var created = Assert.IsType<CreatedAtActionResult>(result.Result);
+        var response = Assert.IsType<IoTSensorResponse>(created.Value);
+        Assert.Equal(frequency.Id, response.ReadingFrequencyId);
+        Assert.Equal(zone.Id, response.IrrigationZoneId);
+    }
     private static async Task<Setup> CreateSetup()
     {
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);

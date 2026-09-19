@@ -46,7 +46,7 @@ export function DialogHost() {
                   value={values[field.name] ?? ''}
                   onChange={event => setValues({ ...values, [field.name]: event.target.value })}
                 >
-                  {(field.options ?? []).map(option => <option key={option} value={option}>{option}</option>)}
+                  {(field.options ?? []).map(option => { const value = typeof option === 'string' ? option : option.value; const label = typeof option === 'string' ? option : option.label; return <option key={value} value={value}>{label}</option> })}
                 </select>
               ) : (
               <input

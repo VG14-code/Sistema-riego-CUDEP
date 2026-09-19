@@ -7,7 +7,7 @@ export interface DialogField {
   label: string
   type?: 'text' | 'number' | 'password' | 'time' | 'otp' | 'select'
   /** Opciones cuando el tipo es 'select'. */
-  options?: string[]
+  options?: Array<string | { value: string; label: string }>
   value?: string
   placeholder?: string
   required?: boolean

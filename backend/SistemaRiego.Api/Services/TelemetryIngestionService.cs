@@ -47,7 +47,7 @@ public sealed class TelemetryIngestionService(AppDbContext db, IHubContext<Telem
         if (isLate) status += " · Atrasada";
         var reading = new SensorReading
         {
-            SensorId = sensor.Id, IrrigationZoneId = request.IrrigationZoneId,
+            SensorId = sensor.Id, IrrigationZoneId = request.IrrigationZoneId ?? sensor.IrrigationZoneId,
             CapturedAtUtc = capturedAt, Value = request.Value,
             BatteryPercent = request.BatteryPercent, SignalStrength = request.SignalStrength,
             MessageId = messageId, IsValid = valid, ValidationStatus = status,

@@ -95,7 +95,14 @@ public sealed class IoTTraceabilityController(AppDbContext db, IRemoteConfigurat
         .Select(x => new { x.Id, x.Code, x.Name, x.SerialNumber, Type = x.DeviceType.Name, x.Owner, x.InventoryStatus, x.PurchaseDate, x.WarrantyUntil, x.AcquisitionCost, x.Currency, x.IsActive, WarrantyExpired = x.WarrantyUntil.HasValue && x.WarrantyUntil < DateOnly.FromDateTime(DateTime.UtcNow) })
         .ToListAsync(ct));
 
+    [HttpGet("inventory/movements")]
+    public async Task<IActionResult> InventoryMovements(CancellationToken ct) => Ok(await db.InventoryMovements.AsNoTracking()
+        .OrderByDescending(x => x.OccurredAtUtc)
+        .Select(x => new { x.Id, x.DeviceId, Device = x.Device.Name, DeviceCode = x.Device.Code, x.MovementType, x.PreviousStatus, x.NewStatus, x.PreviousOwner, x.NewOwner, x.Notes, x.PerformedByUserId, x.OccurredAtUtc })
+        .ToListAsync(ct));
+
     public static readonly string[] InventoryStatuses = ["Instalado", "Disponible", "Dañado", "En mantenimiento"];
+    public static readonly string[] InventoryMovementTypes = ["Alta", "Asignación", "Traslado", "Cambio de estado", "Mantenimiento", "Baja", "Actualización"];
 
     [HttpGet("inventory/statuses")]
     public IActionResult Statuses() => Ok(InventoryStatuses);
@@ -110,6 +117,9 @@ public sealed class IoTTraceabilityController(AppDbContext db, IRemoteConfigurat
         var status = InventoryStatuses.FirstOrDefault(x => string.Equals(x, request.InventoryStatus?.Trim(), StringComparison.OrdinalIgnoreCase));
         if (status is null) return BadRequest(new { message = $"El estado de inventario debe ser uno de: {string.Join(", ", InventoryStatuses)}." });
         if (request.WarrantyUntil.HasValue && request.PurchaseDate.HasValue && request.WarrantyUntil < request.PurchaseDate) return BadRequest(new { message = "La garantía no puede vencer antes de la compra." });
+        var movementType = InventoryMovementTypes.FirstOrDefault(x => string.Equals(x, request.MovementType?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (movementType is null) return BadRequest(new { message = $"El tipo de movimiento debe ser uno de: {string.Join(", ", InventoryMovementTypes)}." });
+        db.InventoryMovements.Add(new InventoryMovement { DeviceId = item.Id, MovementType = movementType, PreviousStatus = item.InventoryStatus, NewStatus = status, PreviousOwner = item.Owner, NewOwner = request.Owner?.Trim(), Notes = request.Notes?.Trim(), PerformedByUserId = UserId() });
         item.Owner = request.Owner?.Trim(); item.InventoryStatus = status; item.PurchaseDate = request.PurchaseDate; item.WarrantyUntil = request.WarrantyUntil; item.AcquisitionCost = request.AcquisitionCost; item.Currency = request.Currency.Trim().ToUpperInvariant(); item.UpdatedAtUtc = DateTime.UtcNow;
         await Save("IOT_INVENTORY_UPDATED", item.Code, ct); return NoContent();
     }

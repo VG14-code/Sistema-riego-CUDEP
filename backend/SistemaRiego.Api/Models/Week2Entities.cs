@@ -22,6 +22,8 @@ public sealed class MasterCatalogItem
     public required string Name { get; set; }
     public string? Description { get; set; }
     public string? Symbol { get; set; }
+    public string? BaseUnitCode { get; set; }
+    public decimal? ConversionFactorToBase { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
