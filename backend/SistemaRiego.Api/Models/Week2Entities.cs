@@ -24,6 +24,7 @@ public sealed class MasterCatalogItem
     public string? Symbol { get; set; }
     public string? BaseUnitCode { get; set; }
     public decimal? ConversionFactorToBase { get; set; }
+    public int? IntervalSeconds { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;

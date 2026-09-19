@@ -22,7 +22,7 @@ Numeración de la hoja «Módulos detallados». El menú lateral de la aplicaci�
 | 2. Datos maestros | Completo | Centros, fincas y zonas; catálogos; unidades con factor y conversión; modelos IoT con precisión, voltaje y protocolo; tipos de suelo y cultivos. | — |
 | 3. Seguridad | Completo | Usuarios con código de personal, centro y finca; CRUD de roles, matriz de permisos y sesiones; JWT, 2FA y renovación por cookie HttpOnly. | — |
 | 4. Infraestructura IoT | Completo | Red IoT: dispositivos, nodos y trazabilidad de instalación, configuración remota, firmware, inventario y movimientos auditables desde el alta del equipo. | — |
-| 5. Sensores y lecturas | Completo | Sensores con frecuencia y zona configurables (las lecturas sin zona se asocian a la del sensor), calibración y lecturas en tiempo real, historial paginado, validación y calidad. | — |
+| 5. Sensores y lecturas | Completo | Sensores con frecuencia y zona configurables (la frecuencia, en segundos, se envía al nodo con CAMBIAR_FRECUENCIA; las lecturas sin zona se asocian a la del sensor), calibración y lecturas en tiempo real, historial paginado, validación y calidad. | — |
 | 6. Gestión agronómica | Completo | Requerimientos por cultivo, etapa y suelo; factor corrector aplicado; condiciones ambientales; recomendación explicable y aprobación como riego asistido. | — |
 | 7. Planificación de cultivos | Completo | Ciclos y calendario: ciclos, asignación, etapa actual, rotación y calendario agrícola. | — |
 | 8. Sectores y zonas de riego | Parcial | Zonas de riego (jerarquía y dispositivos por zona); capacidad simultánea con `MAX_SIMULTANEOUS_VALVES` y cálculo hidráulico en el API. | Pantalla de configuración hidráulica (fuente, tanque, bomba, tubería, caudal, presión) y gestión del estado de zona. |
@@ -47,7 +47,7 @@ Numeración de la hoja «Módulos detallados». El menú lateral de la aplicaci�
 
 ## Validación final
 
-- Backend: 191 de 191 pruebas .NET superadas.
+- Backend: 202 de 202 pruebas .NET superadas.
 - Frontend: typecheck, ESLint y build de producción superados.
 - Simulador MQTT: compilación .NET 10 superada sin errores ni advertencias.
 - Cronograma XLSX: reabierto después de exportar, fórmula ponderada recalculada y cero errores de fórmula.

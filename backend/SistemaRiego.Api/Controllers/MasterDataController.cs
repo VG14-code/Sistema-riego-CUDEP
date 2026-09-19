@@ -25,7 +25,7 @@ public sealed class MasterDataController(AppDbContext db) : ControllerBase
         var code = request.Code.Trim().ToUpperInvariant();
         if (await db.MasterCatalogItems.AnyAsync(x => x.Kind == parsed && x.Code == code, ct)) return Conflict(new { message = "El código ya existe en este catálogo." });
         var conversionError = ValidateConversion(parsed, request); if (conversionError is not null) return BadRequest(new { message = conversionError });
-        var item = new MasterCatalogItem { Kind = parsed, Code = code, Name = request.Name.Trim(), Description = request.Description?.Trim(), Symbol = request.Symbol?.Trim(), IsActive = request.IsActive, BaseUnitCode = parsed == CatalogKind.MeasurementUnit ? NormalizeOptionalCode(request.BaseUnitCode ?? code) : null, ConversionFactorToBase = parsed == CatalogKind.MeasurementUnit ? request.ConversionFactorToBase ?? 1 : null };
+        var item = new MasterCatalogItem { Kind = parsed, Code = code, Name = request.Name.Trim(), Description = request.Description?.Trim(), Symbol = request.Symbol?.Trim(), IsActive = request.IsActive, BaseUnitCode = parsed == CatalogKind.MeasurementUnit ? NormalizeOptionalCode(request.BaseUnitCode ?? code) : null, ConversionFactorToBase = parsed == CatalogKind.MeasurementUnit ? request.ConversionFactorToBase ?? 1 : null, IntervalSeconds = parsed == CatalogKind.ReadingFrequency ? request.IntervalSeconds : null };
         db.MasterCatalogItems.Add(item);
         db.AccessAudits.Add(new AccessAudit { UserId = CurrentUserId(), EventType = "CATALOG_CREATED", Detail = $"{parsed}: {code}" });
         await db.SaveChangesAsync(ct);
@@ -41,7 +41,7 @@ public sealed class MasterDataController(AppDbContext db) : ControllerBase
         var code = request.Code.Trim().ToUpperInvariant();
         if (await db.MasterCatalogItems.AnyAsync(x => x.Kind == parsed && x.Code == code && x.Id != id, ct)) return Conflict(new { message = "El código ya existe en este catálogo." });
         var conversionError = ValidateConversion(parsed, request); if (conversionError is not null) return BadRequest(new { message = conversionError });
-        item.Code = code; item.Name = request.Name.Trim(); item.Description = request.Description?.Trim(); item.Symbol = request.Symbol?.Trim(); item.IsActive = request.IsActive; item.BaseUnitCode = parsed == CatalogKind.MeasurementUnit ? NormalizeOptionalCode(request.BaseUnitCode ?? code) : null; item.ConversionFactorToBase = parsed == CatalogKind.MeasurementUnit ? request.ConversionFactorToBase ?? 1 : null; item.UpdatedAtUtc = DateTime.UtcNow;
+        item.Code = code; item.Name = request.Name.Trim(); item.Description = request.Description?.Trim(); item.Symbol = request.Symbol?.Trim(); item.IsActive = request.IsActive; item.BaseUnitCode = parsed == CatalogKind.MeasurementUnit ? NormalizeOptionalCode(request.BaseUnitCode ?? code) : null; item.ConversionFactorToBase = parsed == CatalogKind.MeasurementUnit ? request.ConversionFactorToBase ?? 1 : null; item.IntervalSeconds = parsed == CatalogKind.ReadingFrequency ? request.IntervalSeconds : null; item.UpdatedAtUtc = DateTime.UtcNow;
         db.AccessAudits.Add(new AccessAudit { UserId = CurrentUserId(), EventType = "CATALOG_UPDATED", Detail = $"{parsed}: {code}" });
         await db.SaveChangesAsync(ct);
         return Ok(ToResponse(item));
@@ -71,9 +71,15 @@ public sealed class MasterDataController(AppDbContext db) : ControllerBase
         return Ok(new UnitConversionResponse(request.Value, from.Symbol ?? from.Name, converted, to.Symbol ?? to.Name));
     }
 
-    private static string? ValidateConversion(CatalogKind kind, CatalogItemRequest request) => kind == CatalogKind.MeasurementUnit && request.ConversionFactorToBase is <= 0 ? "El factor de conversión debe ser mayor que cero." : null;
+    private static string? ValidateConversion(CatalogKind kind, CatalogItemRequest request) => kind switch
+    {
+        CatalogKind.MeasurementUnit when request.ConversionFactorToBase is <= 0 => "El factor de conversión debe ser mayor que cero.",
+        // El intervalo viaja al nodo en CAMBIAR_FRECUENCIA, que acepta de 1 a 3600 segundos.
+        CatalogKind.ReadingFrequency when request.IntervalSeconds is not (>= 1 and <= 3600) => "El intervalo de lectura debe estar entre 1 y 3600 segundos.",
+        _ => null
+    };
     private static string? NormalizeOptionalCode(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant().Replace(' ', '_');
     private Guid? CurrentUserId() => Guid.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null;
     private static bool TryKind(string value, out CatalogKind kind) => Enum.TryParse(value, true, out kind) && Enum.IsDefined(kind);
-    private static CatalogItemResponse ToResponse(MasterCatalogItem x) => new(x.Id, x.Kind, x.Code, x.Name, x.Description, x.Symbol, x.IsActive, x.BaseUnitCode, x.ConversionFactorToBase);
+    private static CatalogItemResponse ToResponse(MasterCatalogItem x) => new(x.Id, x.Kind, x.Code, x.Name, x.Description, x.Symbol, x.IsActive, x.BaseUnitCode, x.ConversionFactorToBase, x.IntervalSeconds);
 }

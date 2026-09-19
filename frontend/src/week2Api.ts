@@ -6,8 +6,8 @@ export interface ActiveSession { id:string; userId:string; user:string; email:st
 export interface Role { id: string; name: string; description: string; isActive: boolean; userCount: number; permissions: string[] }
 export interface Permission { id: string; code: string; description: string }
 export interface EffectivePermission { code: string; description: string; grantedByRole: boolean; overrideIsGranted: boolean | null; effectiveGranted: boolean }
-export interface CatalogItem { id: string; kind: string; code: string; name: string; description: string | null; symbol: string | null; isActive: boolean; baseUnitCode?: string | null; conversionFactorToBase?: number | null }
-export interface CatalogForm { code: string; name: string; description?: string | null; symbol?: string | null; isActive: boolean; baseUnitCode?: string | null; conversionFactorToBase?: number | null }
+export interface CatalogItem { id: string; kind: string; code: string; name: string; description: string | null; symbol: string | null; isActive: boolean; baseUnitCode?: string | null; conversionFactorToBase?: number | null; intervalSeconds?: number | null }
+export interface CatalogForm { code: string; name: string; description?: string | null; symbol?: string | null; isActive: boolean; baseUnitCode?: string | null; conversionFactorToBase?: number | null; intervalSeconds?: number | null }
 export interface DeviceBrand { id: string; code: string; name: string; description: string | null; isActive: boolean; modelCount: number }
 export interface DeviceModel { id: string; deviceBrandId: string; brand: string; deviceTypeId: string; deviceType: string; code: string; name: string; description: string | null; isActive: boolean; deviceCount: number; precision?: string | null; voltage?: string | null; communicationProtocol?: string | null }
 export interface TerritoryCenter { id:string; code:string; name:string; isActive:boolean }

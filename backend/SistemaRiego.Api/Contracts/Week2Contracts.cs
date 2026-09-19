@@ -10,9 +10,10 @@ public sealed record CatalogItemRequest(
     [MaxLength(20)] string? Symbol,
     bool IsActive = true,
     [MaxLength(50)] string? BaseUnitCode = null,
-    decimal? ConversionFactorToBase = null);
+    decimal? ConversionFactorToBase = null,
+    int? IntervalSeconds = null);
 
-public sealed record CatalogItemResponse(Guid Id, CatalogKind Kind, string Code, string Name, string? Description, string? Symbol, bool IsActive, string? BaseUnitCode, decimal? ConversionFactorToBase);
+public sealed record CatalogItemResponse(Guid Id, CatalogKind Kind, string Code, string Name, string? Description, string? Symbol, bool IsActive, string? BaseUnitCode, decimal? ConversionFactorToBase, int? IntervalSeconds);
 
 public sealed record ParameterRequest(
     [Required, MaxLength(500)] string Value,

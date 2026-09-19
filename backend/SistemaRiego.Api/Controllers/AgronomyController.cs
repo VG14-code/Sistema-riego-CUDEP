@@ -80,6 +80,10 @@ public sealed class AgronomyController(AppDbContext db, IIrrigationRecommendatio
             return Conflict(new { message = $"La recomendación actual es '{recommendation.Decision}' y no puede aprobarse como riego." });
         if (await db.IrrigationRuns.AnyAsync(x => x.IrrigationZoneId == cycle.IrrigationZoneId && (x.Status == "En curso" || x.Status == "Esperando ACK" || x.Status == "Cierre pendiente"), ct))
             return Conflict(new { message = "La zona ya tiene un riego en curso." });
+        // La válvula se valida antes de crear el riego: sin ella la orden MQTT fallaba
+        // después de guardar, y quedaban un riego «Fallido» y un evento de solicitud.
+        if (cycle.IrrigationZone.ValveDeviceId is null && !await db.IrrigationZoneValves.AnyAsync(x => x.IrrigationZoneId == cycle.IrrigationZoneId, ct))
+            return Conflict(new { message = $"La zona {cycle.IrrigationZone.Name} no tiene válvulas asignadas; asigne una antes de aprobar el riego." });
         var tanks = await db.WaterTanks.Where(x => x.Status != "Inactivo").ToListAsync(ct);
         var available = tanks.Sum(x => Math.Max(0, x.CurrentLevelLiters - x.CapacityLiters * x.MinimumSafePercent / 100));
         if (available < recommendation.SuggestedLiters) return Conflict(new { message = "Las reservas activas no tienen nivel seguro suficiente para esta recomendación." });

@@ -45,7 +45,6 @@ public sealed class RolesController(AppDbContext db, ITotpService? totp = null) 
         var previousName = role.Name;
         role.Name = name; role.NormalizedName = normalized; role.Description = request.Description.Trim(); role.IsActive = request.IsActive; role.ConcurrencyStamp = Guid.NewGuid().ToString();
         if (!role.IsActive) foreach (var session in await db.Sessions.Where(x => role.UserRoles.Select(y => y.UserId).Contains(x.UserId) && x.RevokedAtUtc == null).ToListAsync(ct)) session.RevokedAtUtc = DateTime.UtcNow;
-        if (!role.IsActive) foreach (var session in await db.Sessions.Where(x => role.UserRoles.Select(y => y.UserId).Contains(x.UserId) && x.RevokedAtUtc == null).ToListAsync(ct)) session.RevokedAtUtc = DateTime.UtcNow;
         db.AccessAudits.Add(new AccessAudit { EventType = "ROLE_UPDATED", Detail = $"{previousName} → {name}; estado: {(role.IsActive ? "activo" : "inactivo")}" });
         await db.SaveChangesAsync(ct);
         return Ok(ToResponse(role));

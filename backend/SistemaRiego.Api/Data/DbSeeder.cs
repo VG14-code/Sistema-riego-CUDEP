@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SistemaRiego.Api.Models;
+using SistemaRiego.Api.Services;
 namespace SistemaRiego.Api.Data;
 public static class DbSeeder
 {
@@ -23,6 +24,10 @@ public static class DbSeeder
         foreach (var item in catalogDefinitions)
             if (!await db.MasterCatalogItems.AnyAsync(x => x.Kind == item.Kind && x.Code == item.Code))
                 db.MasterCatalogItems.Add(new MasterCatalogItem { Kind = item.Kind, Code = item.Code, Name = item.Name, Symbol = item.Symbol });
+        await db.SaveChangesAsync();
+        // Las frecuencias anteriores solo tenían el intervalo como texto («60 s»).
+        foreach (var frequency in await db.MasterCatalogItems.Where(x => x.Kind == CatalogKind.ReadingFrequency && x.IntervalSeconds == null).ToListAsync())
+            frequency.IntervalSeconds = ReadingFrequencyInterval.Parse(frequency.Symbol) ?? ReadingFrequencyInterval.Parse(frequency.Name);
         await db.SaveChangesAsync();
         var definitions = new[]
         {

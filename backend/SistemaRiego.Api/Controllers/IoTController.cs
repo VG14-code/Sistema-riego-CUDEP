@@ -4,11 +4,12 @@ using Microsoft.EntityFrameworkCore;
 using SistemaRiego.Api.Contracts;
 using SistemaRiego.Api.Data;
 using SistemaRiego.Api.Models;
+using SistemaRiego.Api.Services;
 
 namespace SistemaRiego.Api.Controllers;
 
 [ApiController, Route("api/iot"), Authorize(Policy = PermissionPolicies.IoTRead)]
-public sealed class IoTController(AppDbContext db) : ControllerBase
+public sealed class IoTController(AppDbContext db, IRemoteConfigurationDispatcher? remoteDispatcher = null) : ControllerBase
 {
     [HttpGet("summary")]
     public async Task<ActionResult<IoTSummaryResponse>> Summary(CancellationToken ct)
@@ -83,17 +84,18 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
         var validation = await ValidateSensorRequest(request, null, ct); if (validation is not null) return BadRequest(new { message = validation });
         var code = NormalizeCode(request.Code); if (await db.IoTSensors.AnyAsync(x => x.Code == code || x.SerialNumber == request.SerialNumber.Trim(), ct)) return Conflict(new { message = "El código o número de serie ya está registrado." });
         var item = new IoTSensor { Code = code, Name = request.Name.Trim(), SerialNumber = request.SerialNumber.Trim(), Model = Trim(request.Model), Channel = Trim(request.Channel), MinimumValue = request.MinimumValue, MaximumValue = request.MaximumValue, CalibrationOffset = request.CalibrationOffset, SensorTypeId = request.SensorTypeId, MeasurementUnitId = request.MeasurementUnitId, OperationalStatusId = request.OperationalStatusId, DeviceId = request.DeviceId, ReadingFrequencyId = request.ReadingFrequencyId, IrrigationZoneId = request.IrrigationZoneId, IsActive = request.IsActive };
-        db.IoTSensors.Add(item); Audit("IOT_SENSOR_CREATED", item.Code); await db.SaveChangesAsync(ct); return CreatedAtAction(nameof(Sensors), await LoadSensorResponse(item.Id, ct));
+        db.IoTSensors.Add(item); Audit("IOT_SENSOR_CREATED", item.Code); var frequencyCommand = await QueueReadingFrequency(item, null, null, ct); await db.SaveChangesAsync(ct); await Dispatch(frequencyCommand, ct); return CreatedAtAction(nameof(Sensors), await LoadSensorResponse(item.Id, ct));
     }
 
     [HttpPut("sensors/{id:guid}"), Authorize(Policy = PermissionPolicies.DevicesManage)]
     public async Task<ActionResult<IoTSensorResponse>> UpdateSensor(Guid id, IoTSensorRequest request, CancellationToken ct)
     {
         var item = await db.IoTSensors.SingleOrDefaultAsync(x => x.Id == id, ct); if (item is null) return NotFound();
+        var previousFrequencyId = item.ReadingFrequencyId; var previousDeviceId = item.DeviceId;
         var validation = await ValidateSensorRequest(request, id, ct); if (validation is not null) return BadRequest(new { message = validation });
         var code = NormalizeCode(request.Code); if (await db.IoTSensors.AnyAsync(x => x.Id != id && (x.Code == code || x.SerialNumber == request.SerialNumber.Trim()), ct)) return Conflict(new { message = "El código o número de serie ya está registrado." });
         item.Code = code; item.Name = request.Name.Trim(); item.SerialNumber = request.SerialNumber.Trim(); item.Model = Trim(request.Model); item.Channel = Trim(request.Channel); item.MinimumValue = request.MinimumValue; item.MaximumValue = request.MaximumValue; item.CalibrationOffset = request.CalibrationOffset; item.SensorTypeId = request.SensorTypeId; item.MeasurementUnitId = request.MeasurementUnitId; item.OperationalStatusId = request.OperationalStatusId; item.DeviceId = request.DeviceId; item.ReadingFrequencyId = request.ReadingFrequencyId; item.IrrigationZoneId = request.IrrigationZoneId; item.IsActive = request.IsActive; item.UpdatedAtUtc = DateTime.UtcNow;
-        Audit("IOT_SENSOR_UPDATED", item.Code); await db.SaveChangesAsync(ct); return Ok(await LoadSensorResponse(id, ct));
+        Audit("IOT_SENSOR_UPDATED", item.Code); var frequencyCommand = await QueueReadingFrequency(item, previousFrequencyId, previousDeviceId, ct); await db.SaveChangesAsync(ct); await Dispatch(frequencyCommand, ct); return Ok(await LoadSensorResponse(id, ct));
     }
 
     [HttpPatch("sensors/{id:guid}/deactivate"), Authorize(Policy = PermissionPolicies.DevicesManage)]
@@ -142,6 +144,20 @@ public sealed class IoTController(AppDbContext db) : ControllerBase
         var active = item.GetType().GetProperty(nameof(IoTNode.IsActive))!; active.SetValue(item, false); item.GetType().GetProperty(nameof(IoTNode.UpdatedAtUtc))!.SetValue(item, DateTime.UtcNow);
         var code = item.GetType().GetProperty(nameof(IoTNode.Code))!.GetValue(item)?.ToString() ?? id.ToString(); Audit(eventType, code); await db.SaveChangesAsync(ct); return NoContent();
     }
+    // La frecuencia elegida se envía al nodo del sensor con el mismo comando remoto
+    // CAMBIAR_FRECUENCIA de la configuración remota, así que queda en su cola con
+    // reintentos y ACK. Sin nodo activo o sin intervalo numérico no hay a quién enviarla.
+    private async Task<RemoteConfigurationCommand?> QueueReadingFrequency(IoTSensor sensor, Guid? previousFrequencyId, Guid? previousDeviceId, CancellationToken ct)
+    {
+        if (sensor.ReadingFrequencyId is null || sensor.DeviceId is null || (sensor.ReadingFrequencyId == previousFrequencyId && sensor.DeviceId == previousDeviceId)) return null;
+        var nodeId = await db.IoTDevices.Where(x => x.Id == sensor.DeviceId && x.Node != null && x.Node.IsActive).Select(x => x.NodeId).SingleOrDefaultAsync(ct);
+        var seconds = await db.MasterCatalogItems.Where(x => x.Id == sensor.ReadingFrequencyId).Select(x => x.IntervalSeconds).SingleOrDefaultAsync(ct);
+        if (nodeId is null || seconds is null) return null;
+        var command = new RemoteConfigurationCommand { NodeId = nodeId.Value, CommandType = "CAMBIAR_FRECUENCIA", Payload = System.Text.Json.JsonSerializer.Serialize(new { intervalSeconds = seconds, sensorCode = sensor.Code }), RequestedByUserId = CurrentUserId() };
+        db.RemoteConfigurationCommands.Add(command); Audit("IOT_REMOTE_CONFIGURATION_QUEUED", $"CAMBIAR_FRECUENCIA: {sensor.Code} {seconds} s");
+        return command;
+    }
+    private async Task Dispatch(RemoteConfigurationCommand? command, CancellationToken ct) { if (command is not null && remoteDispatcher is not null) await remoteDispatcher.DispatchAsync(command.Id, ct); }
     private void Audit(string eventType, string code) => db.AccessAudits.Add(new AccessAudit { UserId = CurrentUserId(), EventType = eventType, Detail = code });
     private Guid? CurrentUserId() => Guid.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null;
     private static string NormalizeCode(string value) => value.Trim().ToUpperInvariant().Replace(' ', '_');
