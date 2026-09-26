@@ -46,7 +46,7 @@ Cierre del módulo el 26 de septiembre de 2026. La referencia es la hoja «Módu
 | Primera pantalla | [modulo-01-inicio-vista.png](img/modulo-01-inicio-vista.png) |
 | Teléfono (375 px) | [modulo-01-inicio-movil.png](img/modulo-01-inicio-movil.png) |
 
-Se regeneran con `node scripts/module-evidence.mjs "Resumen operativo" modulo-01-inicio` desde `frontend`.
+Se regeneran con `node scripts/module-evidence.mjs "Inicio" "Resumen operativo" modulo-01-inicio` desde `frontend`.
 
 ## Correcciones previas relacionadas
 

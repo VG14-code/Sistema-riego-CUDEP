@@ -1,12 +1,12 @@
 // Captura la evidencia visual de un módulo: entra con la cuenta indicada, abre la
 // pantalla del menú lateral y guarda las capturas en docs/evidencia/img.
-// Uso: node scripts/module-evidence.mjs <nombre-del-menu> <prefijo> [ancho] [alto]
+// Uso: node scripts/module-evidence.mjs <grupo-del-menu> <pantalla> <prefijo> [ancho] [alto]
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium } from 'playwright'
 import { signIn } from './login.mjs'
 
-const [menu = 'Resumen operativo', prefijo = 'modulo', anchoArg, altoArg] = process.argv.slice(2)
+const [grupo = 'Inicio', menu = 'Resumen operativo', prefijo = 'modulo', anchoArg, altoArg] = process.argv.slice(2)
 const baseUrl = process.env.VISUAL_BASE_URL ?? 'http://localhost:5173'
 const email = process.env.VISUAL_EMAIL
 const password = process.env.VISUAL_PASSWORD
@@ -24,6 +24,9 @@ const page = await contexto.newPage()
 try {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' })
   await signIn(page, { email, password, totpSecret })
+  // El menu agrupa por modulo: primero se abre el grupo y luego la pantalla.
+  const encabezado = page.getByRole('button', { name: new RegExp(grupo, 'i') }).first()
+  if (await encabezado.count()) { await encabezado.click(); await page.waitForTimeout(600) }
   await page.getByRole('button', { name: menu, exact: false }).first().click()
   await page.waitForTimeout(4000)
   const completa = path.join(salida, `${prefijo}-completo.png`)

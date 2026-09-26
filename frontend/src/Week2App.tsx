@@ -160,7 +160,7 @@ function Shell({ session, onLogout }) {
   // y aparecen en ambos con su propia entrada: el territorio (2 y 8) y la analitica (13 y 16).
   const nav=useMemo(()=>[
     {id:'m1',module:'1',group:'Inicio',alwaysOpen:true,items:[{id:'inicio',label:'Resumen operativo',icon:'⌂'}]},
-    {id:'m2',module:'2',group:'Datos maestros',items:[{id:'territory',label:'Centros, fincas y zonas',icon:'⌖'},...(canCatalog?[{id:'catalogs',label:'Catálogos',icon:'◉'}]:[])]},
+    {id:'m2',module:'2',group:'Datos maestros',items:[{id:'territory',label:'Centros, fincas y zonas',icon:'⌖'},{id:'agronomyCatalogs',view:'agronomy',label:'Suelos, cultivos y etapas',icon:'♧'},...(canCatalog?[{id:'catalogs',label:'Catálogos',icon:'◉'}]:[])]},
     {id:'m3',module:'3',group:'Seguridad',items:isAdmin?[{id:'users',label:'Usuarios, roles y sesiones',icon:'♙'},{id:'security',label:'Doble autenticación',icon:'◆'}]:[]},
     {id:'m4',module:'4',group:'Infraestructura IoT',items:canCatalog?[{id:'iot',label:'Red IoT',icon:'⌁'}]:[]},
     {id:'m5',module:'5',group:'Sensores y lecturas',items:[{id:'telemetry',label:'Lecturas',icon:'≈'}]},
