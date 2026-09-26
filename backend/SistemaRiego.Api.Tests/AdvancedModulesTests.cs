@@ -35,6 +35,35 @@ public sealed class AdvancedModulesTests
         var saved = await setup.Db.IrrigationSchedules.SingleAsync(); Assert.Equal(2, saved.IntervalDays); Assert.Equal("admin@test.local", saved.CreatedByEmail);
     }
 
+    // La API aceptaba texto libre en estos catalogos: una recurrencia, un tipo de orden,
+    // un canal o una severidad inventados se guardaban y despues nadie los interpretaba.
+    [Fact]
+    public async Task CatalogValues_AreRejectedWhenTheyAreNotPartOfTheAllowedList()
+    {
+        var setup = await Setup();
+        var manana = DateTime.UtcNow.AddDays(1);
+
+        Assert.IsType<BadRequestObjectResult>(await setup.Controller.CreateSchedule(new ScheduleRequest("Eclipse", setup.Zone.Id, manana, "Cada eclipse", null, 10, 12, true), default));
+        Assert.IsType<BadRequestObjectResult>(await setup.Controller.WorkOrder(new WorkOrderRequest("Mantenimiento espacial", "Revisión", "Bomba", "EQ-1", null, null, manana, "Pendiente", null), default));
+        Assert.IsType<BadRequestObjectResult>(await setup.Controller.WorkOrder(new WorkOrderRequest("Preventivo", "Revisión", "Bomba", "EQ-1", null, null, manana, "Archivada", null), default));
+        Assert.IsType<BadRequestObjectResult>(await setup.Controller.WorkOrder(new WorkOrderRequest("Preventivo", "   ", "Bomba", "EQ-1", null, null, manana, "Pendiente", null), default));
+        Assert.IsType<BadRequestObjectResult>(await setup.Controller.NotificationRule(new NotificationRuleRequest("Palomas", "Todos", "Advertencia", "Paloma mensajera", "ops@test.local", false, false, true), default));
+        Assert.IsType<BadRequestObjectResult>(await setup.Controller.NotificationRule(new NotificationRuleRequest("Severa", "Todos", "Altísima", "Correo", "ops@test.local", false, false, true), default));
+        Assert.IsType<BadRequestObjectResult>(await setup.Controller.NotificationRule(new NotificationRuleRequest("Sin destinatario", "Todos", "Advertencia", "Correo", "  ", false, false, true), default));
+        Assert.IsType<BadRequestObjectResult>(await setup.Controller.Baseline(new BaselineRequest(setup.Zone.Id, "Negativa", -5, 50, DateTime.UtcNow, true), default));
+        Assert.IsType<BadRequestObjectResult>(await setup.Controller.Baseline(new BaselineRequest(setup.Zone.Id, "Umbral", 100, 900, DateTime.UtcNow, true), default));
+        Assert.IsType<BadRequestObjectResult>(await setup.Controller.CreateSource(new WaterSourceRequest("POZO", "Pozo", "Pozo", 0, true, null), default));
+
+        Assert.Empty(setup.Db.IrrigationSchedules); Assert.Empty(setup.Db.MaintenanceWorkOrders);
+        Assert.Empty(setup.Db.NotificationRules); Assert.Empty(setup.Db.WaterEfficiencyBaselines); Assert.Empty(setup.Db.WaterSources);
+
+        Assert.IsType<OkObjectResult>(await setup.Controller.CreateSchedule(new ScheduleRequest("Diaria", setup.Zone.Id, manana, "Recurrente", 1, 10, 12, true), default));
+        Assert.IsType<OkObjectResult>(await setup.Controller.WorkOrder(new WorkOrderRequest("Correctivo", "Cambio de sello", "Bomba", "EQ-1", "Ana", null, manana, "En proceso", null), default));
+        Assert.IsType<OkObjectResult>(await setup.Controller.NotificationRule(new NotificationRuleRequest("Críticas", "Todos", "Crítica", "Correo,Telegram,Teams,n8n", "ops@test.local", true, true, true), default));
+        Assert.IsType<OkObjectResult>(await setup.Controller.Baseline(new BaselineRequest(setup.Zone.Id, "Base", 120, 40, DateTime.UtcNow, true), default));
+        Assert.IsType<OkObjectResult>(await setup.Controller.CreateSource(new WaterSourceRequest("POZO", "Pozo", "Pozo", 50, true, null), default));
+    }
+
     [Fact]
     public async Task AutomaticFill_EvaluatesConfiguredTankThresholds()
     {

@@ -42,9 +42,10 @@ Los módulos 8 al 17 se cerraron con una migración acumulativa, pantallas de ad
 
 ## Validación final
 
-- Backend: **213 de 213 pruebas .NET superadas**.
+- Backend: **214 de 214 pruebas .NET superadas**.
 - Auditoría del módulo 1 sobre la API en marcha: los indicadores del resumen coinciden con la base de datos, el mapa entrega los cinco niveles, SignalR difunde lecturas y alertas en vivo y la actividad reciente mezcla auditoría, telemetría, riego y comandos.
 - Correcciones de esa auditoría: el nivel del tanque es obligatorio (una petición sin él vaciaba el tanque) y los riegos programados respetan el máximo de válvulas simultáneas.
+- Los catálogos de los módulos 8 al 15 ya no aceptan texto libre: la recurrencia de una programación, el tipo y el estado de una orden de trabajo, el canal y la severidad de una regla de notificación, los litros y el umbral de una línea base y el caudal de una fuente se validan contra los valores que ofrece la pantalla.
 - Frontend: **typecheck, ESLint y build de producción superados**.
 - Backend API: compilación .NET 10 sin errores ni advertencias.
 - Simulador MQTT: compilación .NET 10 sin errores ni advertencias.
