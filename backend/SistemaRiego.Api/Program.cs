@@ -111,7 +111,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
             }
             var user = await userManager.FindByIdAsync(userId.ToString());
             if (user is null || user.Status != UserStatus.Active || !string.Equals(stamp, await userManager.GetSecurityStampAsync(user), StringComparison.Ordinal))
+            {
                 context.Fail("La sesión fue invalidada.");
+                return;
+            }
+            // Revocar una sesion desde el panel debe dejar su token sin efecto en el acto.
+            var sessionClaim = context.Principal?.FindFirst("sid")?.Value;
+            if (!Guid.TryParse(sessionClaim, out var sessionId))
+            {
+                context.Fail("El token no identifica su sesión.");
+                return;
+            }
+            var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+            var now = DateTime.UtcNow;
+            if (!await db.Sessions.AsNoTracking().AnyAsync(x => x.Id == sessionId && x.RevokedAtUtc == null && x.ExpiresAtUtc > now))
+                context.Fail("La sesión fue revocada.");
         }
     };
 });

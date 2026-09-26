@@ -20,6 +20,7 @@ public sealed class AuthController(IAuthService auth, ITotpService? totp = null)
             if (!verification.Allowed) return StatusCode(StatusCodes.Status403Forbidden, new { message = verification.Error });
         }
         try { return StatusCode(201, await auth.RegisterAsync(request, ct)); }
+        catch (PasswordPolicyException exception) { return BadRequest(new { message = exception.Message }); }
         catch (InvalidOperationException exception) { return Conflict(new { message = exception.Message }); }
     }
 

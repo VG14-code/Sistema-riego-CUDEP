@@ -30,5 +30,6 @@ El token queda en `qa/qa_state.json` (ignorado por git). Con `QA_DB` se indica o
 |---|---|---|
 | `modulo01_inicio.py` | 1 · Inicio | 38 |
 | `modulo02_datos_maestros.py` | 2 · Datos maestros | 52 |
+| `modulo03_seguridad.py` | 3 · Seguridad | 53 |
 
 La evidencia de cada módulo, con capturas y resultados, está en `docs/evidencia/`.

@@ -15,6 +15,39 @@ namespace SistemaRiego.Api.Tests;
 // corregir un nombre mal escrito ni un correo equivocado.
 public sealed class UsersControllerProfileTests
 {
+    // La pantalla manda el nombre del estado; con el enum el enlace de modelos
+    // respondia 400 y no se podia bloquear a nadie desde el panel.
+    [Fact]
+    public async Task Status_AcceptsTheStateNameAndClosesTheOpenSessions()
+    {
+        var (controller, user, databaseName) = await Seed();
+        await using (var db = OpenDb(databaseName))
+        {
+            db.Sessions.Add(new Session { UserId = user.Id, RefreshTokenHash = "hash", ExpiresAtUtc = DateTime.UtcNow.AddDays(1) });
+            await db.SaveChangesAsync();
+        }
+
+        var resultado = await controller.Status(user.Id, new UpdateUserStatusRequest("Blocked"), default);
+
+        Assert.IsType<NoContentResult>(resultado);
+        await using var fresh = OpenDb(databaseName);
+        Assert.Equal(UserStatus.Blocked, (await fresh.Users.SingleAsync(x => x.Id == user.Id)).Status);
+        Assert.All(await fresh.Sessions.ToListAsync(), x => Assert.NotNull(x.RevokedAtUtc));
+        Assert.Contains(await fresh.AccessAudits.ToListAsync(), x => x.EventType == "USER_STATUS_CHANGED" && x.Detail.Contains("Blocked"));
+    }
+
+    [Fact]
+    public async Task Status_RejectsAnUnknownState()
+    {
+        var (controller, user, databaseName) = await Seed();
+
+        var resultado = await controller.Status(user.Id, new UpdateUserStatusRequest("Congelado"), default);
+
+        Assert.IsType<BadRequestObjectResult>(resultado);
+        await using var fresh = OpenDb(databaseName);
+        Assert.Equal(UserStatus.Active, (await fresh.Users.SingleAsync(x => x.Id == user.Id)).Status);
+    }
+
     [Fact]
     public async Task UpdateProfile_ChangesNameAndEmail_AndRecordsThePreviousValue()
     {

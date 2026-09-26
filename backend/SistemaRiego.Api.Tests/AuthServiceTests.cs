@@ -39,6 +39,44 @@ public sealed class AuthServiceTests
         Assert.False(string.IsNullOrWhiteSpace(response.RefreshToken));
     }
 
+    // El token no identificaba su sesion: revocarla desde el panel solo cortaba la
+    // renovacion y el acceso seguia sirviendo hasta vencer, quince minutos despues.
+    [Fact]
+    public async Task Login_BindsTheAccessTokenToItsSession()
+    {
+        var setup = Create();
+        await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
+
+        var response = (await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default))?.Session;
+
+        var sesion = await setup.Db.Sessions.SingleAsync();
+        var token = new JwtSecurityTokenHandler().ReadJwtToken(response!.AccessToken);
+        Assert.Equal(sesion.Id.ToString(), token.Claims.Single(c => c.Type == "sid").Value);
+        Assert.Equal(sesion.Id, response.SessionId);
+    }
+
+    [Fact]
+    public async Task Refresh_LinksThePreviousSessionWithTheNewOne()
+    {
+        var setup = Create();
+        await setup.Service.RegisterAsync(new("persona@correo.gt", "Segura123!", "Persona"), default);
+        var primera = (await setup.Service.LoginAsync(new("persona@correo.gt", "Segura123!"), TestContext, default))!.Session!;
+
+        var segunda = await setup.Service.RefreshAsync(primera.RefreshToken, TestContext, default);
+
+        var anterior = await setup.Db.Sessions.SingleAsync(x => x.Id == primera.SessionId);
+        Assert.Equal(segunda!.SessionId, anterior.ReplacedBySessionId);
+        Assert.NotNull(anterior.RevokedAtUtc);
+    }
+
+    [Fact]
+    public async Task Register_RejectsAWeakPasswordAsInvalidData()
+    {
+        var setup = Create();
+
+        await Assert.ThrowsAsync<PasswordPolicyException>(() => setup.Service.RegisterAsync(new("persona@correo.gt", "12345678", "Persona"), default));
+    }
+
     [Fact]
     public async Task Login_EmbedsEffectivePermissions_AsJwtClaims()
     {

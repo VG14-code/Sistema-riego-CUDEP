@@ -77,13 +77,15 @@ public sealed class UsersController(AppDbContext db, IAuthService auth, ITotpSer
     public async Task<IActionResult> Status(Guid id, UpdateUserStatusRequest request, CancellationToken ct)
     {
         if (!await VerifyTotp(ct)) return StatusCode(StatusCodes.Status403Forbidden, new { message = TotpError });
+        if (!Enum.TryParse<UserStatus>(request.Status?.Trim(), true, out var status) || !Enum.IsDefined(status))
+            return BadRequest(new { message = $"El estado debe ser uno de: {string.Join(", ", Enum.GetNames<UserStatus>())}." });
         var user = await db.Users.FindAsync([id], ct);
         if (user is null) return NotFound();
-        user.Status = request.Status;
+        user.Status = status;
         user.UpdatedAtUtc = DateTime.UtcNow;
-        if (request.Status != UserStatus.Active)
+        if (status != UserStatus.Active)
             foreach (var session in await db.Sessions.Where(x => x.UserId == id && x.RevokedAtUtc == null).ToListAsync(ct)) session.RevokedAtUtc = DateTime.UtcNow;
-        db.AccessAudits.Add(new AccessAudit { UserId = id, EventType = "USER_STATUS_CHANGED", Detail = $"Estado: {request.Status}" });
+        db.AccessAudits.Add(new AccessAudit { UserId = id, EventType = "USER_STATUS_CHANGED", Detail = $"Estado: {status}" });
         await db.SaveChangesAsync(ct);
         return NoContent();
     }

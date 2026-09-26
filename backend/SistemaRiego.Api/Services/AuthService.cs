@@ -12,6 +12,10 @@ using SistemaRiego.Api.Models;
 
 namespace SistemaRiego.Api.Services;
 
+// Una clave que no cumple la politica es un dato invalido (400), no un conflicto con
+// otro registro (409), que es lo que responde el alta cuando el correo ya existe.
+public sealed class PasswordPolicyException(string message) : Exception(message);
+
 public sealed class AuthService(
     AppDbContext db,
     IOptions<JwtOptions> options,
@@ -133,7 +137,7 @@ public sealed class AuthService(
         if (old is null || !old.IsActive || old.User.Status != UserStatus.Active) return null;
         old.RevokedAtUtc = DateTime.UtcNow;
         var response = await CreateSession(old.User, context, ct, false);
-        old.ReplacedBySessionId = await db.Sessions.Where(x => x.UserId == old.UserId).OrderByDescending(x => x.CreatedAtUtc).Select(x => x.Id).FirstAsync(ct);
+        old.ReplacedBySessionId = response.SessionId;
         await db.SaveChangesAsync(ct);
         return response;
     }
@@ -235,7 +239,10 @@ public sealed class AuthService(
         var now = DateTime.UtcNow;
         var accessExpiry = now.AddMinutes(jwt.AccessTokenMinutes);
         var refresh = RandomToken();
-        db.Sessions.Add(new Session { UserId = user.Id, RefreshTokenHash = Hash(refresh), ExpiresAtUtc = now.AddDays(jwt.RefreshTokenDays), IpAddress = context.IpAddress, UserAgent = context.UserAgent });
+        // El token lleva el identificador de su sesion para que revocarla lo deje sin
+        // efecto de inmediato; sin esta marca seguia sirviendo hasta vencer.
+        var session = new Session { UserId = user.Id, RefreshTokenHash = Hash(refresh), ExpiresAtUtc = now.AddDays(jwt.RefreshTokenDays), IpAddress = context.IpAddress, UserAgent = context.UserAgent };
+        db.Sessions.Add(session);
         db.AccessAudits.Add(new AccessAudit { UserId = user.Id, EventType = "LOGIN_SUCCESS", Detail = user.MustChangePassword ? "Sesión restringida: cambio de contraseña requerido" : "Sesión iniciada", IpAddress = context.IpAddress });
         if (save) await db.SaveChangesAsync(ct);
 
@@ -249,12 +256,13 @@ public sealed class AuthService(
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.FullName),
             new("security_stamp", await userManager.GetSecurityStampAsync(user)),
+            new("sid", session.Id.ToString()),
             new("pwd_change_required", user.MustChangePassword ? "true" : "false")
         };
         claims.AddRange(roles.Select(x => new Claim(ClaimTypes.Role, x)));
         claims.AddRange(permissions.Select(x => new Claim("perm", x)));
         var token = new JwtSecurityToken(jwt.Issuer, jwt.Audience, claims, now, accessExpiry, new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)), SecurityAlgorithms.HmacSha256));
-        return new AuthResponse(new JwtSecurityTokenHandler().WriteToken(token), refresh, accessExpiry, Summary(user));
+        return new AuthResponse(new JwtSecurityTokenHandler().WriteToken(token), refresh, accessExpiry, Summary(user), session.Id);
     }
 
     private async Task RevokeSessions(Guid userId, DateTime now, CancellationToken ct)
@@ -292,6 +300,6 @@ public sealed class AuthService(
     private static void ValidatePassword(string password)
     {
         if (password.Length < 8 || !password.Any(char.IsUpper) || !password.Any(char.IsLower) || !password.Any(char.IsDigit) || !password.Any(x => !char.IsLetterOrDigit(x)))
-            throw new InvalidOperationException("La contraseña debe tener al menos 8 caracteres, mayúscula, minúscula, número y símbolo.");
+            throw new PasswordPolicyException("La contraseña debe tener al menos 8 caracteres, mayúscula, minúscula, número y símbolo.");
     }
 }
