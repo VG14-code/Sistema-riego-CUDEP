@@ -3,7 +3,7 @@ import { HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/s
 import { CircleMarker, MapContainer, Polygon, Popup, TileLayer } from 'react-leaflet'
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import 'leaflet/dist/leaflet.css'
-import { modulesApi as api, type ActivityItem, type Center, type DashboardData, type IoTDevice, type IoTNode, type IoTSensor, type Quality, type Reading, type TelemetryAggregate, type Zone } from './modulesApi'
+import { modulesApi as api, type ActivityItem, type Center, type ConsumptionDay, type DashboardData, type IoTDevice, type IoTNode, type IoTSensor, type Quality, type Reading, type TelemetryAggregate, type Zone } from './modulesApi'
 import './sprint1.css'
 
 interface Session { accessToken: string; user: { fullName: string } }
@@ -34,7 +34,11 @@ function polygonPositions(value: string | null): Array<[number, number]> {
   } catch { return [] }
 }
 
+// El mapa del modulo 1 pide filtros ademas del color por estado y el detalle
+// emergente: con varias fincas la vista completa no deja ver las zonas con falla.
 function FarmMap({ hierarchy }: { hierarchy: Center[] }) {
+  const [estado, setEstado] = useState<'todas' | 'activas' | 'atencion'>('todas')
+  const [sectorFiltro, setSectorFiltro] = useState('todos')
   const mapData = useMemo(() => {
     const zones: Array<{ zone: Zone; center: string; farm: string; sector: string; position: [number, number]; polygon: Array<[number, number]> }> = []
     const sectors: Array<{ id: string; name: string; polygon: Array<[number, number]> }> = []
@@ -49,25 +53,57 @@ function FarmMap({ hierarchy }: { hierarchy: Center[] }) {
     return { zones, sectors }
   }, [hierarchy])
   const center: [number, number] = mapData.zones[0]?.polygon[0] ?? mapData.zones[0]?.position ?? [16.91916, -89.88578]
-  return <div className="s1-map"><MapContainer center={center} zoom={17} scrollWheelZoom className="s1-map-canvas">
+  const activa = (zone: Zone) => /activo|online|disponible/i.test(zone.status)
+  const sectores = [...new Set(mapData.zones.map(item => item.sector))].sort((a, b) => a.localeCompare(b, 'es'))
+  const zonasVisibles = mapData.zones.filter(item =>
+    (estado === 'todas' || (estado === 'activas' ? activa(item.zone) : !activa(item.zone))) &&
+    (sectorFiltro === 'todos' || item.sector === sectorFiltro))
+  const conAtencion = mapData.zones.filter(item => !activa(item.zone)).length
+  return <div className="s1-map">
+    <div className="s1-map-filters">
+      <label>Estado
+        <select value={estado} onChange={event => setEstado(event.target.value as typeof estado)}>
+          <option value="todas">Todas ({mapData.zones.length})</option>
+          <option value="activas">Activas ({mapData.zones.length - conAtencion})</option>
+          <option value="atencion">Requieren atención ({conAtencion})</option>
+        </select>
+      </label>
+      <label>Sector
+        <select value={sectorFiltro} onChange={event => setSectorFiltro(event.target.value)}>
+          <option value="todos">Todos los sectores</option>
+          {sectores.map(nombre => <option key={nombre} value={nombre}>{sectorName(nombre)}</option>)}
+        </select>
+      </label>
+      <span className="s1-map-count">{zonasVisibles.length} de {mapData.zones.length} zonas</span>
+    </div>
+    <MapContainer center={center} zoom={17} scrollWheelZoom className="s1-map-canvas">
     {/* OSM bloquea (403 "Access blocked") los mosaicos pedidos sin Referer y ya no recomienda los subdominios a/b/c. */}
     <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" referrerPolicy="strict-origin-when-cross-origin" />
     {mapData.sectors.filter(item => item.polygon.length > 2).map(item => <Polygon key={`sector-${item.id}`} positions={item.polygon} pathOptions={{ color: '#426e87', weight: 2, dashArray: '7 5', fillColor: '#76a9c2', fillOpacity: .1 }}><Popup><strong>{sectorName(item.name)}</strong></Popup></Polygon>)}
-    {mapData.zones.map(({ zone, center: centerName, farm, sector, position, polygon }) => {
-      const online = /activo|online|disponible/i.test(zone.status)
+    {zonasVisibles.map(({ zone, center: centerName, farm, sector, position, polygon }) => {
+      const online = activa(zone)
       const popup = <Popup><strong>{zone.name}</strong><br />{centerName} → {farm} → {sector}<br />Estado: {zone.status}<br />Sensores: {zone.sensors?.map(item => item.name).join(', ') || zone.sensor || 'Sin asignar'}<br />Válvulas: {zone.valves?.map(item => item.name).join(', ') || 'Sin asignar'}</Popup>
       return polygon.length > 2
         ? <Polygon key={zone.id} positions={polygon} pathOptions={{ color: online ? '#0f9f72' : '#dc5c5c', fillColor: online ? '#28c995' : '#f47c7c', fillOpacity: .38 }}>{popup}</Polygon>
         : <CircleMarker key={zone.id} center={position} radius={11} pathOptions={{ color: online ? '#0f9f72' : '#dc5c5c', fillColor: online ? '#28c995' : '#f47c7c', fillOpacity: .82 }}>{popup}</CircleMarker>
     })}
-  </MapContainer></div>
+  </MapContainer>
+  </div>
 }
+
+// Cada evento de la actividad enlaza con el modulo donde se revisa a fondo.
+const destinoActividad = (tipo: string) => tipo.startsWith('AUDITORIA') ? 'audit' : tipo.startsWith('TELEMETRIA') ? 'telemetry' : tipo.startsWith('RIEGO') ? 'manual' : tipo.startsWith('COMANDO') ? 'iot' : 'overview'
+const familiaActividad = (tipo: string) => tipo.split(':')[0]
+const filtrosActividad = ['Todo', 'AUDITORIA', 'TELEMETRIA', 'RIEGO', 'COMANDO'] as const
+const etiquetaFiltro: Record<string, string> = { Todo: 'Todo', AUDITORIA: 'Auditoría', TELEMETRIA: 'Telemetría', RIEGO: 'Riego', COMANDO: 'Comandos' }
 
 export function OperationalDashboard({ session, onNavigate, notify }: DashboardProps) {
   const [data, setData] = useState<DashboardData | null>(null)
   const [hierarchy, setHierarchy] = useState<Center[]>([])
   const [nodes, setNodes] = useState<IoTNode[]>([])
   const [devices, setDevices] = useState<IoTDevice[]>([])
+  const [consumo, setConsumo] = useState<ConsumptionDay[]>([])
+  const [filtroActividad, setFiltroActividad] = useState<string>('Todo')
   const [connection, setConnection] = useState<ConnectionStatus>('Conectando')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -76,6 +112,8 @@ export function OperationalDashboard({ session, onNavigate, notify }: DashboardP
     try {
       const [dashboard, tree, nodeRows, deviceRows] = await Promise.all([api.dashboard(session.accessToken), api.hierarchy(session.accessToken), api.nodes(session.accessToken), api.devices(session.accessToken)])
       setData(dashboard); setHierarchy(tree); setNodes(nodeRows); setDevices(deviceRows)
+      // La tendencia es informativa: si falla, el resto del resumen sigue disponible.
+      api.consumptionTrend(session.accessToken).then(resumen => setConsumo(resumen.daily.slice(-14))).catch(() => setConsumo([]))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No fue posible cargar el dashboard.'
       setLoadError(message); throw error
@@ -104,17 +142,51 @@ export function OperationalDashboard({ session, onNavigate, notify }: DashboardP
   if (!data) return <div className="m-loading m-load-error"><strong>No fue posible sincronizar la infraestructura IoT.</strong><span>{loadError}</span><button type="button" onClick={() => load().catch(() => undefined)}>Reintentar</button></div>
   const onlineNodes = nodes.filter(node => /online|activo/i.test(node.operationalStatus)).length
   const onlineDevices = devices.filter(device => /online|activo/i.test(device.operationalStatus)).length
+  // Semaforo de cada indicador: verde normal, ambar vigilar, rojo atender.
+  const semaforo = (valor: number | null | undefined, ambar: number, rojo: number) => valor == null ? 'neutro' : valor <= rojo ? 'rojo' : valor <= ambar ? 'ambar' : 'verde'
+  const proporcion = (parte: number, total: number) => total === 0 ? 'neutro' : parte === 0 ? 'rojo' : parte < total ? 'ambar' : 'verde'
+  const kpis: Array<[string, string | number, string, string]> = [
+    ['💧', `${fmt(data.averageMoisture)}%`, 'Humedad media', semaforo(data.averageMoisture, 35, 20)],
+    ['◉', `${onlineNodes}/${nodes.length}`, 'Nodos online', proporcion(onlineNodes, nodes.length)],
+    ['⌁', `${onlineDevices}/${devices.length}`, 'Dispositivos online', proporcion(onlineDevices, devices.length)],
+    ['▦', data.activeZones, 'Zonas de riego', 'neutro'],
+    ['🚿', data.zonesIrrigating, 'Zonas regando', data.zonesIrrigating > 0 ? 'verde' : 'neutro'],
+    ['▰', data.tankLevelPercent == null ? 'Sin datos' : `${fmt(data.tankLevelPercent)}%`, 'Nivel de tanque', semaforo(data.tankLevelPercent, 35, 15)],
+    ['⚙', data.pumpStatus, 'Estado de bomba', /encendida/i.test(data.pumpStatus) ? 'verde' : /falla|fault/i.test(data.pumpStatus) ? 'rojo' : 'neutro'],
+    ['☀', data.batteryPercent == null ? 'Sin datos' : `${fmt(data.batteryPercent)}%`, 'Batería solar', semaforo(data.batteryPercent, 40, 25)],
+    ['≈', `${fmt(data.todayConsumptionLiters)} L`, 'Consumo de hoy', 'neutro'],
+    ['⚠', data.activeAlerts, 'Alertas activas', data.activeAlerts === 0 ? 'verde' : data.activeAlerts < 5 ? 'ambar' : 'rojo'],
+    ['⌁', data.invalidReadings, 'Lecturas a revisar', data.invalidReadings === 0 ? 'verde' : 'ambar'],
+  ]
+  const actividadVisible = data.recentActivity.filter(item => filtroActividad === 'Todo' || familiaActividad(item.type) === filtroActividad)
   return <>
-    <SectionHead kicker="MÓDULO 1 · INICIO" title={`Buen día, ${session.user.fullName.split(' ')[0]}`} copy="Cartografía, telemetría multi-nodo y trazabilidad en una sola vista." action={<div className="s1-head-actions"><StatusPill status={connection} /><button onClick={() => load().catch(() => undefined)}>Actualizar</button></div>} />
-    <div className="m-kpis">{[
-      ['💧', `${fmt(data.averageMoisture)}%`, 'Humedad media'], ['◉', `${onlineNodes}/${nodes.length}`, 'Nodos online'], ['⌁', `${onlineDevices}/${devices.length}`, 'Dispositivos online'], ['▦', data.activeZones, 'Zonas de riego'],
-      ['🚿', data.zonesIrrigating, 'Zonas regando'], ['▰', data.tankLevelPercent == null ? 'Sin datos' : `${fmt(data.tankLevelPercent)}%`, 'Nivel de tanque'], ['⚙', data.pumpStatus, 'Estado de bomba'],
-      ['☀', data.batteryPercent == null ? 'Sin datos' : `${fmt(data.batteryPercent)}%`, 'Batería solar'], ['≈', `${fmt(data.todayConsumptionLiters)} L`, 'Consumo de hoy'], ['⚠', data.activeAlerts, 'Alertas activas'], ['⌁', data.invalidReadings, 'Lecturas a revisar'],
-    ].map(item => <article key={item[2]}><b>{item[0]}</b><div><strong>{item[1]}</strong><span>{item[2]}</span></div></article>)}</div>
+    <SectionHead kicker="MÓDULO 1 · INICIO" title={`Buen día, ${session.user.fullName.split(' ')[0]}`} copy="Cartografía, telemetría multi-nodo y trazabilidad en una sola vista." action={<div className="s1-head-actions"><StatusPill status={connection} /><button type="button" className={`s1-incidencias${data.activeAlerts > 0 ? ' activas' : ''}`} onClick={() => onNavigate('alerts')}>⚠ Incidencias ({data.activeAlerts})</button><button onClick={() => load().catch(() => undefined)}>Actualizar</button></div>} />
+    <div className="m-kpis">{kpis.map(item => <article key={item[2]} className={`s1-kpi-${item[3]}`}><b>{item[0]}</b><div><strong>{item[1]}</strong><span>{item[2]}</span></div></article>)}</div>
+    <section className="m-panel s1-trend"><header><div><small>TENDENCIA</small><h2>Consumo de agua de los últimos días</h2></div><button onClick={() => onNavigate('consumption')}>Consumo detallado →</button></header>
+      {consumo.length === 0
+        ? <p className="s1-trend-empty">Aún no hay riegos registrados en el periodo; la gráfica aparece con el primer consumo.</p>
+        : <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={consumo.map(dia => ({ dia: new Date(dia.date).toLocaleDateString('es-GT', { day: '2-digit', month: 'short' }), litros: Number(dia.volumeLiters), riegos: dia.events }))}>
+            <CartesianGrid strokeDasharray="4 4" stroke="#dbe9e7" />
+            <XAxis dataKey="dia" fontSize={11} /><YAxis fontSize={11} width={48} />
+            <Tooltip formatter={(valor: unknown) => `${fmt(Number(valor))} L`} />
+            <Legend />
+            <Line type="monotone" dataKey="litros" name="Consumo (L)" stroke="#0f9f72" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>}
+    </section>
     <div className="s1-dashboard-grid"><section className="m-panel"><header><div><small>MAPA PRODUCTIVO</small><h2>Centro → finca → bloque → sector → zona</h2></div></header><FarmMap hierarchy={hierarchy} /></section>
       <section className="m-panel"><header><div><small>RED IOT</small><h2>Última comunicación</h2></div><button onClick={() => onNavigate('iot')}>Infraestructura →</button></header><div className="s1-node-list">{nodes.map(node => <article key={node.id}><i className={/online|activo/i.test(node.operationalStatus) ? 'online' : 'offline'} /><div><strong>{node.name}</strong><span>{node.code} · {node.deviceCount} dispositivos</span></div><time>{when(node.lastCommunicationUtc)}</time></article>)}</div></section></div>
     <section className="m-panel s1-readings"><header><div><small>TELEMETRÍA EN VIVO</small><h2>Múltiples zonas simultáneas</h2></div><button onClick={() => onNavigate('telemetry')}>Ver histórico →</button></header><div>{data.latestReadings.slice(0, 8).map(reading => <article key={reading.id}><div><strong>{reading.zoneName ?? 'Red general'}</strong><span>{reading.sensorName}</span></div><b>{fmt(reading.value)} {reading.unitSymbol}</b><time>{when(reading.capturedAtUtc)}</time>{simulated(reading) && <em>Simulado</em>}</article>)}</div></section>
-    <section className="m-panel m-activity"><header><div><small>ACTIVIDAD CONSOLIDADA</small><h2>Telemetría, riegos y comandos</h2></div></header>{data.recentActivity.map((item: ActivityItem, index) => <div className="m-event" key={`${item.occurredAtUtc}-${index}`}><i /><div><b>{item.type.replaceAll('_', ' ')}</b><span>{item.detail}</span></div><time>{when(item.occurredAtUtc)}</time></div>)}</section>
+    <section className="m-panel m-activity"><header><div><small>ACTIVIDAD CONSOLIDADA</small><h2>Telemetría, riegos y comandos</h2></div>
+      <div className="s1-activity-filters">{filtrosActividad.map(clave => {
+        const total = clave === 'Todo' ? data.recentActivity.length : data.recentActivity.filter(item => familiaActividad(item.type) === clave).length
+        return <button type="button" key={clave} className={filtroActividad === clave ? 'activo' : ''} onClick={() => setFiltroActividad(clave)} disabled={total === 0 && clave !== 'Todo'}>{etiquetaFiltro[clave]} ({total})</button>
+      })}</div></header>
+      {actividadVisible.length === 0
+        ? <p className="s1-trend-empty">No hay eventos de este tipo en la actividad reciente.</p>
+        : actividadVisible.map((item: ActivityItem, index) => <div className="m-event" key={`${item.occurredAtUtc}-${index}`}><i /><div><b>{item.type.replaceAll('_', ' ')}</b><span>{item.detail}</span></div><time>{when(item.occurredAtUtc)}</time><button type="button" className="s1-activity-link" onClick={() => onNavigate(destinoActividad(item.type))}>Ver detalle →</button></div>)}
+    </section>
   </>
 }
 

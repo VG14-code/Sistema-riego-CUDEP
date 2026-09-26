@@ -43,6 +43,9 @@ export interface Quality { total: number; valid: number; invalid: number; validP
 export interface PagedReadings { items: Reading[]; page: number; pageSize: number; total: number; totalPages: number }
 export interface TelemetryAggregate { sensorId: string; sensorName: string; unitSymbol: string | null; count: number; minimum: number; maximum: number; average: number; fromUtc: string; toUtc: string }
 
+export interface ConsumptionDay { date: string; volumeLiters: number; events: number }
+export interface ConsumptionSummary { from: string; to: string; totalLiters: number; eventCount: number; averageLiters: number; daily: ConsumptionDay[] }
+
 type JsonObject = Record<string, unknown>
 interface ApiError { message?: string }
 const baseUrl = import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:5080/api`
@@ -61,6 +64,7 @@ async function call<T>(path: string, token: string, options: RequestInit = {}): 
 
 export const modulesApi = {
   dashboard: (token: string) => call<DashboardData>('/system/dashboard', token),
+  consumptionTrend: (token: string) => call<ConsumptionSummary>('/operations/summary', token),
   hierarchy: (token: string) => call<Center[]>('/territory/hierarchy', token),
   nodes: (token: string) => call<IoTNode[]>('/iot/nodes', token),
   devices: (token: string) => call<IoTDevice[]>('/iot/devices', token),
