@@ -65,6 +65,8 @@ public sealed class Sprint6ReportService(AppDbContext db)
         using var stream = new MemoryStream(); workbook.SaveAs(stream); return stream.ToArray();
     }
 
+    public static byte[] SimplePdf(string title, DateTime from, DateTime to, string[] headers, IEnumerable<string[]> rows, string summary) => BuildPdf(title, new ReportFilter(from, to), headers, rows, summary);
+
     private static byte[] BuildPdf(string title, ReportFilter filter, string[] headers, IEnumerable<string[]> rows, string summary)
     {
         var materialized = rows.ToList();

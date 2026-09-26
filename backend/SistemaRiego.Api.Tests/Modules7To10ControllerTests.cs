@@ -43,6 +43,22 @@ public sealed class Modules7To10ControllerTests
         Assert.Equal(190,second.CurrentLevelLiters);
     }
 
+    // Una peticion sin nivel dejaba el tanque en 0 L: el enlace de modelos entregaba 0
+    // y la validacion de rango lo aceptaba, con el inicio en 0 % y el riego bloqueado.
+    [Fact]
+    public async Task Tank_Level_RequiresTheMeasuredValueAndKeepsTheTankUntouched()
+    {
+        var setup=await CreateSetup();
+
+        var result=await setup.Supply.Level(setup.Tank.Id,new TankLevelRequest(null,"sin nivel"),default);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal(800,(await setup.Db.WaterTanks.FindAsync(setup.Tank.Id))!.CurrentLevelLiters);
+        Assert.Empty(setup.Db.OperationalEvents.Where(x=>x.EventType=="TANK_LEVEL_UPDATED"));
+        Assert.IsType<NoContentResult>(await setup.Supply.Level(setup.Tank.Id,new TankLevelRequest(650,null),default));
+        Assert.Equal(650,(await setup.Db.WaterTanks.FindAsync(setup.Tank.Id))!.CurrentLevelLiters);
+    }
+
     [Fact]
     public async Task Pump_Start_RejectsTankAtMaximumSafeLevel()
     {

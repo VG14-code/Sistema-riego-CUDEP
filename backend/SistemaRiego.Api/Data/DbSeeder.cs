@@ -43,6 +43,7 @@ public static class DbSeeder
             (PermissionCodes.AgronomyManage, "Gestionar cultivos, etapas y requerimientos"),
             (PermissionCodes.AgronomyDelete, "Eliminar tipos de cultivo"),
             (PermissionCodes.EnergyRead, "Consultar energía solar"),
+            (PermissionCodes.EnergyManage, "Gestionar paneles, baterías y controladores solares"),
             (PermissionCodes.AlertsRead, "Consultar alertas"),
             (PermissionCodes.AlertsManage, "Crear y resolver alertas manuales"),
             (PermissionCodes.AutomationRead, "Consultar reglas de automatización"),
@@ -69,6 +70,7 @@ public static class DbSeeder
             (PermissionCodes.WaterSupplyManage, "Gestionar tanques y bombas"),
             (PermissionCodes.WaterSupplyDelete, "Eliminar tanques"),
             (PermissionCodes.AnalyticsRead, "Consultar analítica e indicadores"),
+            (PermissionCodes.AnalyticsManage, "Gestionar líneas base e indicadores de eficiencia"),
             (PermissionCodes.AnalyticsPowerBi, "Exportar el modelo PowerBI"),
             (PermissionCodes.AuditRead, "Consultar auditoría del sistema")
         };
@@ -88,10 +90,10 @@ public static class DbSeeder
         };
         var manageTier = new[]
         {
-            PermissionCodes.DeviceCatalogsManage, PermissionCodes.DevicesManage,
+            PermissionCodes.DeviceCatalogsManage, PermissionCodes.DevicesManage, PermissionCodes.EnergyManage,
             PermissionCodes.AgronomyManage, PermissionCodes.AlertsManage, PermissionCodes.AutomationManage, PermissionCodes.CropPlanningManage,
             PermissionCodes.TerritoryManage, PermissionCodes.CatalogsManage, PermissionCodes.TelemetryManage, PermissionCodes.WaterSupplyManage,
-            PermissionCodes.MaintenanceManage
+            PermissionCodes.MaintenanceManage, PermissionCodes.AnalyticsManage
         };
         var roleDefinitions = new[]
         {

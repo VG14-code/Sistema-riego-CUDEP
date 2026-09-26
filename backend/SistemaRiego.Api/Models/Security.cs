@@ -16,6 +16,7 @@ public static class PermissionPolicies
     public const string AgronomyDelete = "Permiso:AgronomiaEliminar";
 
     public const string EnergyRead = "Permiso:EnergiaLeer";
+    public const string EnergyManage = "Permiso:EnergiaGestionar";
 
     public const string AlertsRead = "Permiso:AlertasLeer";
     public const string AlertsManage = "Permiso:AlertasGestionar";
@@ -58,6 +59,7 @@ public static class PermissionPolicies
     public const string WaterSupplyDelete = "Permiso:AguaEliminar";
 
     public const string AnalyticsRead = "Permiso:AnaliticaLeer";
+    public const string AnalyticsManage = "Permiso:AnaliticaGestionar";
     public const string AnalyticsPowerBi = "Permiso:AnaliticaPowerBi";
 
     public const string AuditRead = "Permiso:AuditoriaLeer";

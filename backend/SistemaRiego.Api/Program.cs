@@ -35,7 +35,9 @@ builder.Services.AddScoped<IPumpCommandService, PumpCommandService>();
 builder.Services.AddScoped<ISprint4TelemetryService, Sprint4TelemetryService>();
 builder.Services.AddScoped<IWaterCapacityService, WaterCapacityService>();
 builder.Services.AddScoped<IConsumptionCalculator, ConsumptionCalculator>();
+builder.Services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
 builder.Services.AddScoped<IAlertService, AlertService>();
+builder.Services.AddHostedService<NotificationSummaryWorker>();
 builder.Services.AddScoped<Sprint6ReportService>();
 builder.Services.AddScoped<TableExportService>();
 builder.Services.AddScoped<AuditSaveChangesInterceptor>();
@@ -47,6 +49,7 @@ builder.Services.AddScoped<IIrrigationCommandService, IrrigationCommandService>(
 builder.Services.AddScoped<IAutomationEngine, AutomationEngine>();
 builder.Services.AddHostedService<AutomationSchedulerWorker>();
 builder.Services.AddHostedService<IrrigationWatchdogWorker>();
+builder.Services.AddHostedService<AdvancedOperationsWorker>();
 builder.Services.Configure<MqttOptions>(builder.Configuration.GetSection(MqttOptions.SectionName));
 builder.Services.Configure<IoTHealthOptions>(builder.Configuration.GetSection(IoTHealthOptions.SectionName));
 builder.Services.Configure<CropStageTransitionOptions>(builder.Configuration.GetSection(CropStageTransitionOptions.SectionName));

@@ -16,6 +16,7 @@ public static class PermissionCodes
     public const string AgronomyDelete = "agronomia.eliminar";
 
     public const string EnergyRead = "energia.leer";
+    public const string EnergyManage = "energia.gestionar";
 
     public const string AlertsRead = "alertas.leer";
     public const string AlertsManage = "alertas.gestionar";
@@ -57,6 +58,7 @@ public static class PermissionCodes
     public const string WaterSupplyDelete = "agua.eliminar";
 
     public const string AnalyticsRead = "analitica.leer";
+    public const string AnalyticsManage = "analitica.gestionar";
     public const string AnalyticsPowerBi = "analitica.powerbi";
 
     public const string AuditRead = "auditoria.leer";

@@ -22,7 +22,7 @@ public interface IAlertService
     Task<SystemAlert> RaiseAsync(AlertSignal signal, CancellationToken ct);
     Task NotifyAsync(SystemAlert alert, CancellationToken ct);
 }
-public sealed class AlertService(AppDbContext db, IHubContext<TelemetryHub> hub, IHttpClientFactory clients, IOptions<AlertOptions> options, ILogger<AlertService> logger) : IAlertService
+public sealed class AlertService(AppDbContext db, IHubContext<TelemetryHub> hub, IHttpClientFactory clients, IOptions<AlertOptions> options, ILogger<AlertService> logger, INotificationDispatcher? dispatcher = null) : IAlertService
 {
     public async Task<SystemAlert> RaiseAsync(AlertSignal signal, CancellationToken ct)
     {
@@ -35,6 +35,7 @@ public sealed class AlertService(AppDbContext db, IHubContext<TelemetryHub> hub,
     }
     public async Task NotifyAsync(SystemAlert alert, CancellationToken ct)
     {
+        if (dispatcher is not null) { await dispatcher.DispatchAlertAsync(alert, ct); return; }
         if (string.IsNullOrWhiteSpace(options.Value.WebhookUrl)) return;
         var delivery = new NotificationDelivery { SystemAlertId = alert.Id, Attempt = alert.EscalationLevel + 1 }; db.NotificationDeliveries.Add(delivery);
         try

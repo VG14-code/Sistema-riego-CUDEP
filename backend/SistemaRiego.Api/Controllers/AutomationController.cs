@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +25,7 @@ public sealed class AutomationController(AppDbContext db, ITotpService? totp = n
         if(request.MinimumMoisturePercent<0||request.TargetMoisturePercent>100||request.MinimumMoisturePercent>=request.TargetMoisturePercent||request.MaximumDurationMinutes is <1 or >240) return BadRequest(new{message="Los umbrales o la duración no son válidos."});
         if(!await db.IrrigationZones.AnyAsync(x=>x.Id==request.IrrigationZoneId&&x.IsActive,ct)) return BadRequest(new{message="La zona no existe o está inactiva."});
         var item=new IrrigationRule{IrrigationZoneId=request.IrrigationZoneId,CropWaterRequirementId=request.CropWaterRequirementId,Name=request.Name,MinimumMoisturePercent=request.MinimumMoisturePercent,TargetMoisturePercent=request.TargetMoisturePercent,HysteresisPercent=request.HysteresisPercent,Priority=request.Priority,MaximumDurationMinutes=request.MaximumDurationMinutes,AllowedFrom=request.AllowedFrom,AllowedUntil=request.AllowedUntil,AllowedDays=request.AllowedDays,IsEnabled=request.IsEnabled,RequiresSufficientEnergy=request.RequiresSufficientEnergy};
-        db.IrrigationRules.Add(item); await db.SaveChangesAsync(ct); return CreatedAtAction(nameof(Rules),new{id=item.Id},new{item.Id});
+        db.IrrigationRules.Add(item); await db.SaveChangesAsync(ct); await Version(item, "Creación", ct); await db.SaveChangesAsync(ct); return CreatedAtAction(nameof(Rules),new{id=item.Id},new{item.Id});
     }
 
     [HttpPut("rules/{id:guid}"), Authorize(Policy=PermissionPolicies.AutomationManage)]
@@ -34,12 +35,12 @@ public sealed class AutomationController(AppDbContext db, ITotpService? totp = n
         var item = await db.IrrigationRules.FindAsync([id], ct); if (item is null) return NotFound();
         if (request.MinimumMoisturePercent < 0 || request.TargetMoisturePercent > 100 || request.MinimumMoisturePercent >= request.TargetMoisturePercent || request.MaximumDurationMinutes is < 1 or > 240) return BadRequest(new { message = "Los umbrales o la duración no son válidos." });
         item.IrrigationZoneId = request.IrrigationZoneId; item.CropWaterRequirementId = request.CropWaterRequirementId; item.Name = request.Name.Trim(); item.MinimumMoisturePercent = request.MinimumMoisturePercent; item.TargetMoisturePercent = request.TargetMoisturePercent; item.HysteresisPercent = request.HysteresisPercent; item.Priority = request.Priority; item.MaximumDurationMinutes = request.MaximumDurationMinutes; item.AllowedFrom = request.AllowedFrom; item.AllowedUntil = request.AllowedUntil; item.AllowedDays = request.AllowedDays; item.IsEnabled = request.IsEnabled; item.RequiresSufficientEnergy = request.RequiresSufficientEnergy;
-        await Log("AUTOMATION_RULE_UPDATED", $"Regla {item.Name}", ct); await db.SaveChangesAsync(ct); return NoContent();
+        await Log("AUTOMATION_RULE_UPDATED", $"Regla {item.Name}", ct); await Version(item, "Edición", ct); await db.SaveChangesAsync(ct); return NoContent();
     }
 
     [HttpPatch("rules/{id:guid}/toggle"), Authorize(Policy=PermissionPolicies.AutomationManage)]
     public async Task<ActionResult> Toggle(Guid id,RuleToggleRequest request,CancellationToken ct)
-    { var item=await db.IrrigationRules.FindAsync([id],ct); if(item is null)return NotFound(); item.IsEnabled=request.IsEnabled; if(request.IsEnabled)item.SuspendedUntilUtc=null; item.LastDecision=request.IsEnabled?"Lista":"Desactivada"; item.LastReason=request.IsEnabled?"Reactivación manual autorizada.":item.LastReason; await Log("AUTOMATION_RULE_TOGGLED",$"Regla {item.Name}: {(request.IsEnabled?"activa":"inactiva")}",ct); await db.SaveChangesAsync(ct); return NoContent(); }
+    { var item=await db.IrrigationRules.FindAsync([id],ct); if(item is null)return NotFound(); item.IsEnabled=request.IsEnabled; if(request.IsEnabled)item.SuspendedUntilUtc=null; item.LastDecision=request.IsEnabled?"Lista":"Desactivada"; item.LastReason=request.IsEnabled?"Reactivación manual autorizada.":item.LastReason; await Log("AUTOMATION_RULE_TOGGLED",$"Regla {item.Name}: {(request.IsEnabled?"activa":"inactiva")}",ct); await Version(item, request.IsEnabled?"Activación":"Desactivación", ct); await db.SaveChangesAsync(ct); return NoContent(); }
 
     [HttpPost("evaluate")]
     public async Task<ActionResult> Evaluate(CancellationToken ct)
@@ -61,6 +62,7 @@ public sealed class AutomationController(AppDbContext db, ITotpService? totp = n
                 db.IrrigationRuns.Add(new IrrigationRun{IrrigationZoneId=rule.IrrigationZoneId,IrrigationRuleId=rule.Id,Mode="Automático",Status="En curso",PlannedDurationMinutes=rule.MaximumDurationMinutes,FlowRateLitersMinute=12,RequestedAtUtc=now,StartedAtUtc=now,Reason=rule.LastReason});
                 db.OperationalEvents.Add(new OperationalEvent{Category="Automatización",EventType="AUTOMATIC_IRRIGATION_STARTED",IrrigationZoneId=rule.IrrigationZoneId,Detail=$"{rule.Name}: {rule.LastReason}"});
             }
+            db.IrrigationRuleEvaluations.Add(new IrrigationRuleEvaluation { IrrigationRuleId = rule.Id, EvaluatedAtUtc = now, IsSimulation = false, MoisturePercent = reading?.Value, Decision = rule.LastDecision, Reason = rule.LastReason, StartedIrrigation = irrigate });
             results.Add(new{rule.Id,rule.Name,rule.LastDecision,rule.LastReason,Started=irrigate});
         }
         await db.SaveChangesAsync(ct); return Ok(new{evaluatedAtUtc=now,results});
@@ -70,5 +72,6 @@ public sealed class AutomationController(AppDbContext db, ITotpService? totp = n
     public async Task<ActionResult> Active(CancellationToken ct)=>Ok(await db.IrrigationRuns.AsNoTracking().Include(x=>x.IrrigationZone).Where(x=>x.Status=="En curso"||x.Status=="Esperando ACK"||x.Status=="Cierre pendiente").OrderByDescending(x=>x.StartedAtUtc).Select(x=>new{x.Id,x.Mode,x.Status,Zone=x.IrrigationZone.Name,x.PlannedDurationMinutes,x.FlowRateLitersMinute,x.StartedAtUtc,x.Reason}).ToListAsync(ct));
 
     private async Task Log(string type,string detail,CancellationToken ct){db.AccessAudits.Add(new AccessAudit{UserId=UserId(),EventType=type,Detail=detail,OccurredAtUtc=DateTime.UtcNow});await Task.CompletedTask;}
+    private async Task Version(IrrigationRule rule, string reason, CancellationToken ct) { var number = (await db.IrrigationRuleVersions.Where(x => x.IrrigationRuleId == rule.Id).MaxAsync(x => (int?)x.Version, ct) ?? 0) + 1; db.IrrigationRuleVersions.Add(new IrrigationRuleVersion { IrrigationRuleId = rule.Id, Version = number, SnapshotJson = JsonSerializer.Serialize(new { rule.Name, rule.IrrigationZoneId, rule.MinimumMoisturePercent, rule.TargetMoisturePercent, rule.HysteresisPercent, rule.Priority, rule.MaximumDurationMinutes, rule.AllowedFrom, rule.AllowedUntil, rule.AllowedDays, rule.IsEnabled, rule.RequiresSufficientEnergy }), ChangeReason = reason, ChangedByEmail = User.FindFirstValue(ClaimTypes.Email) }); }
     private Guid? UserId()=>Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier),out var id)?id:null;
 }

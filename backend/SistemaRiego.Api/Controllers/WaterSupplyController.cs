@@ -43,9 +43,12 @@ public sealed class WaterSupplyController(AppDbContext db, IPumpCommandService? 
         if(tank.Pumps.Count>0)return Conflict(new{message="No se puede eliminar un tanque que todavía tiene bombas asociadas."});
         db.WaterTanks.Remove(tank);await db.SaveChangesAsync(ct);return NoContent();
     }
+    // El nivel es obligatorio: cuando la peticion no lo traia, el enlace de modelos
+    // entregaba 0 y el tanque quedaba vacio en silencio, con el inicio en 0 %, el
+    // riego bloqueado por reserva insuficiente y el llenado automatico encendido.
     [HttpPost("tanks/{id:guid}/level"),Authorize(Policy=PermissionPolicies.WaterSupplyManage)]
     public async Task<ActionResult> Level(Guid id,TankLevelRequest request,CancellationToken ct)
-    { var tank=await db.WaterTanks.FindAsync([id],ct); if(tank is null)return NotFound(); if(request.LevelLiters<0||request.LevelLiters>tank.CapacityLiters)return BadRequest(new{message="El nivel debe estar dentro de la capacidad del tanque."}); tank.CurrentLevelLiters=request.LevelLiters;tank.LastLevelReadingUtc=DateTime.UtcNow;tank.Status=Percent(tank)<tank.MinimumSafePercent?"Nivel bajo":"Disponible";db.OperationalEvents.Add(Event("Tanque","TANK_LEVEL_UPDATED",request.Detail??$"Nivel actualizado a {request.LevelLiters:0} L"));await db.SaveChangesAsync(ct);return NoContent(); }
+    { var tank=await db.WaterTanks.FindAsync([id],ct); if(tank is null)return NotFound(); if(request.LevelLiters is not { } level)return BadRequest(new{message="Debe indicar el nivel medido del tanque."}); if(level<0||level>tank.CapacityLiters)return BadRequest(new{message="El nivel debe estar dentro de la capacidad del tanque."}); tank.CurrentLevelLiters=level;tank.LastLevelReadingUtc=DateTime.UtcNow;tank.Status=Percent(tank)<tank.MinimumSafePercent?"Nivel bajo":"Disponible";db.OperationalEvents.Add(Event("Tanque","TANK_LEVEL_UPDATED",request.Detail??$"Nivel actualizado a {level:0} L"));await db.SaveChangesAsync(ct);return NoContent(); }
 
     [HttpPost("pumps/{id:guid}/start")]
     public async Task<ActionResult> Start(Guid id,PumpCommandRequest request,CancellationToken ct)

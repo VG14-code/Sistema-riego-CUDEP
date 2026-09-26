@@ -9,6 +9,7 @@ namespace SistemaRiego.Api.Services;
 public interface IEmailSender
 {
     Task SendPasswordRecoveryAsync(string recipient, string displayName, string resetLink, DateTime expiresAtUtc, CancellationToken ct);
+    Task SendNotificationAsync(string recipient, string subject, string body, CancellationToken ct) => Task.CompletedTask;
 }
 
 public sealed class FileEmailSender(IOptions<EmailOptions> options, IHostEnvironment environment, ILogger<FileEmailSender> logger) : IEmailSender
@@ -24,6 +25,13 @@ public sealed class FileEmailSender(IOptions<EmailOptions> options, IHostEnviron
         logger.LogInformation("Correo de recuperación escrito en el buzón local {MailboxFile} para {Recipient}", path, recipient);
     }
 
+    public async Task SendNotificationAsync(string recipient, string subject, string body, CancellationToken ct)
+    {
+        var directory = ResolveDirectory(settings.FileDirectory, environment.ContentRootPath); Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, $"notification-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.html"); var encoder = HtmlEncoder.Default;
+        await File.WriteAllTextAsync(path, $"<!doctype html><html lang=\"es\"><meta charset=\"utf-8\"><title>{encoder.Encode(subject)}</title><body><h1>{encoder.Encode(subject)}</h1><p>{encoder.Encode(body)}</p><small>{encoder.Encode(recipient)}</small></body></html>", ct);
+        logger.LogInformation("Notificación escrita en {MailboxFile} para {Recipient}", path, recipient);
+    }
     internal static string BuildBody(string displayName, string resetLink, DateTime expiresAtUtc)
     {
         var encoder = HtmlEncoder.Default;
@@ -64,4 +72,11 @@ public sealed class SmtpEmailSender(IOptions<EmailOptions> options, IHostEnviron
             logger.LogInformation("Copia de verificación del correo SMTP guardada en {MailboxFile}", path);
         }
     }
-}
+
+    public async Task SendNotificationAsync(string recipient, string subject, string body, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(settings.SmtpPassword)) throw new InvalidOperationException("Falta configurar Email:SmtpPassword en el almacén de secretos.");
+        using var message = new MailMessage { From = new MailAddress(settings.FromAddress, settings.FromName), Subject = subject, Body = body, IsBodyHtml = false }; message.To.Add(recipient);
+        using var client = new SmtpClient(settings.SmtpHost, settings.SmtpPort) { EnableSsl = settings.EnableSsl, UseDefaultCredentials = false, Credentials = new NetworkCredential(settings.SmtpUsername, settings.SmtpPassword), Timeout = Math.Max(1, settings.SmtpTimeoutSeconds) * 1000 };
+        await client.SendMailAsync(message, ct);
+    }}

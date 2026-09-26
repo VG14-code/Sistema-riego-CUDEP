@@ -22,6 +22,7 @@ public sealed class AutomationEngine(AppDbContext db, IIrrigationCommandService 
             {
                 ignored.LastEvaluatedAtUtc = now; ignored.LastDecision = "Omitida por prioridad"; ignored.LastReason = $"La regla {winner.Name} tiene prioridad {winner.Priority}.";
                 results.Add(new(ignored.Id, ignored.Name, ignored.LastDecision, ignored.LastReason, false));
+                db.IrrigationRuleEvaluations.Add(new IrrigationRuleEvaluation { IrrigationRuleId = ignored.Id, EvaluatedAtUtc = now, IsSimulation = false, Decision = ignored.LastDecision, Reason = ignored.LastReason, StartedIrrigation = false });
             }
             var reading = await db.SensorReadings.Where(x => x.IrrigationZoneId == winner.IrrigationZoneId && x.IsValid).OrderByDescending(x => x.CapturedAtUtc).FirstOrDefaultAsync(ct);
             var hardSuspended = winner.SuspendedUntilUtc == DateTime.MaxValue;
@@ -56,6 +57,7 @@ public sealed class AutomationEngine(AppDbContext db, IIrrigationCommandService 
                 }
             }
             results.Add(new(winner.Id, winner.Name, winner.LastDecision, winner.LastReason, irrigate));
+            db.IrrigationRuleEvaluations.Add(new IrrigationRuleEvaluation { IrrigationRuleId = winner.Id, EvaluatedAtUtc = now, IsSimulation = false, MoisturePercent = reading?.Value, Decision = winner.LastDecision, Reason = winner.LastReason, StartedIrrigation = irrigate });
         }
         await db.SaveChangesAsync(ct); return new(now, results.OrderBy(x => x.Name).ToList());
     }
